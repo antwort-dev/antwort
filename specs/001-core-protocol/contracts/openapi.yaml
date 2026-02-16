@@ -1,0 +1,472 @@
+openapi: 3.1.0
+info:
+  title: Antwort Core Protocol
+  description: OpenResponses-compliant API for LLM inference proxying
+  version: 0.1.0
+  license:
+    name: Apache-2.0
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+
+paths:
+  /v1/responses:
+    post:
+      operationId: createResponse
+      summary: Create a model response
+      description: |
+        Submit input items for model inference. Supports streaming (SSE) and
+        non-streaming modes. Stateless (store=false) or stateful (store=true).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateResponseRequest'
+      responses:
+        '200':
+          description: Non-streaming response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/StreamEvent'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/responses/{response_id}:
+    get:
+      operationId: getResponse
+      summary: Retrieve a stored response
+      description: Only available for stateful responses (store=true).
+      parameters:
+        - name: response_id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^resp_[a-zA-Z0-9]+$'
+      responses:
+        '200':
+          description: Response found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+        '404':
+          description: Response not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      operationId: deleteResponse
+      summary: Delete a stored response
+      description: Only available for stateful responses (store=true).
+      parameters:
+        - name: response_id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^resp_[a-zA-Z0-9]+$'
+      responses:
+        '200':
+          description: Response deleted
+        '404':
+          description: Response not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    CreateResponseRequest:
+      type: object
+      required:
+        - model
+        - input
+      properties:
+        model:
+          type: string
+          description: Model identifier
+        input:
+          type: array
+          items:
+            $ref: '#/components/schemas/Item'
+          minItems: 1
+          description: Input items (at least one required)
+        instructions:
+          type: string
+          description: System instructions
+        tools:
+          type: array
+          items:
+            $ref: '#/components/schemas/ToolDefinition'
+        tool_choice:
+          $ref: '#/components/schemas/ToolChoice'
+        allowed_tools:
+          type: array
+          items:
+            type: string
+        store:
+          type: boolean
+          default: true
+          description: Store response for retrieval (stateful tier)
+        stream:
+          type: boolean
+          default: false
+        previous_response_id:
+          type: string
+          pattern: '^resp_[a-zA-Z0-9]+$'
+        truncation:
+          type: string
+          enum: [auto, disabled]
+        service_tier:
+          type: string
+        max_output_tokens:
+          type: integer
+          minimum: 1
+        temperature:
+          type: number
+          minimum: 0.0
+          maximum: 2.0
+        top_p:
+          type: number
+          minimum: 0.0
+          maximum: 1.0
+
+    Response:
+      type: object
+      required:
+        - id
+        - object
+        - status
+        - output
+        - model
+        - created_at
+      properties:
+        id:
+          type: string
+          pattern: '^resp_[a-zA-Z0-9]+$'
+        object:
+          type: string
+          enum: [response]
+        status:
+          $ref: '#/components/schemas/ResponseStatus'
+        output:
+          type: array
+          items:
+            $ref: '#/components/schemas/Item'
+        model:
+          type: string
+        usage:
+          $ref: '#/components/schemas/Usage'
+        error:
+          $ref: '#/components/schemas/APIError'
+        previous_response_id:
+          type: string
+        created_at:
+          type: integer
+          format: int64
+          description: Unix timestamp
+
+    ResponseStatus:
+      type: string
+      enum: [queued, in_progress, completed, failed, cancelled]
+
+    Item:
+      type: object
+      required:
+        - id
+        - type
+        - status
+      properties:
+        id:
+          type: string
+          pattern: '^item_[a-zA-Z0-9]+$'
+        type:
+          $ref: '#/components/schemas/ItemType'
+        status:
+          $ref: '#/components/schemas/ItemStatus'
+        message:
+          $ref: '#/components/schemas/MessageData'
+        function_call:
+          $ref: '#/components/schemas/FunctionCallData'
+        function_call_output:
+          $ref: '#/components/schemas/FunctionCallOutputData'
+        reasoning:
+          $ref: '#/components/schemas/ReasoningData'
+      description: |
+        Polymorphic item. Exactly one of message, function_call,
+        function_call_output, or reasoning is populated based on type.
+
+    ItemType:
+      type: string
+      description: |
+        Standard types: message, function_call, function_call_output, reasoning.
+        Extension types use provider:type format.
+
+    ItemStatus:
+      type: string
+      enum: [in_progress, incomplete, completed, failed]
+
+    MessageData:
+      type: object
+      required:
+        - role
+      properties:
+        role:
+          type: string
+          enum: [user, assistant, system]
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContentPart'
+          description: User/system input content
+        output:
+          type: array
+          items:
+            $ref: '#/components/schemas/OutputContentPart'
+          description: Assistant output content
+
+    FunctionCallData:
+      type: object
+      required:
+        - name
+        - call_id
+        - arguments
+      properties:
+        name:
+          type: string
+        call_id:
+          type: string
+        arguments:
+          type: string
+          description: JSON-encoded arguments
+
+    FunctionCallOutputData:
+      type: object
+      required:
+        - call_id
+        - output
+      properties:
+        call_id:
+          type: string
+          description: Matches originating function_call call_id
+        output:
+          type: string
+
+    ReasoningData:
+      type: object
+      properties:
+        content:
+          type: string
+          description: Raw reasoning trace
+        encrypted_content:
+          type: string
+          description: Provider-opaque protected reasoning
+        summary:
+          type: string
+          description: Safe user-facing explanation
+
+    ContentPart:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          enum: [input_text, input_image, input_audio, input_video]
+        text:
+          type: string
+        url:
+          type: string
+          format: uri
+        data:
+          type: string
+          format: byte
+          description: Base64-encoded inline data
+        media_type:
+          type: string
+          description: MIME type
+
+    OutputContentPart:
+      type: object
+      required:
+        - type
+        - text
+      properties:
+        type:
+          type: string
+          enum: [output_text, summary_text]
+        text:
+          type: string
+        annotations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Annotation'
+        logprobs:
+          type: array
+          items:
+            $ref: '#/components/schemas/TokenLogprob'
+
+    Annotation:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          type: string
+        text:
+          type: string
+        start_index:
+          type: integer
+        end_index:
+          type: integer
+
+    TokenLogprob:
+      type: object
+      required:
+        - token
+        - logprob
+      properties:
+        token:
+          type: string
+        logprob:
+          type: number
+          format: double
+        top_logprobs:
+          type: array
+          items:
+            type: object
+            properties:
+              token:
+                type: string
+              logprob:
+                type: number
+                format: double
+
+    ToolDefinition:
+      type: object
+      required:
+        - type
+        - name
+      properties:
+        type:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        parameters:
+          type: object
+          description: JSON Schema for tool arguments
+
+    ToolChoice:
+      oneOf:
+        - type: string
+          enum: [auto, required, none]
+        - type: object
+          required:
+            - type
+            - name
+          properties:
+            type:
+              type: string
+              enum: [function]
+            name:
+              type: string
+      default: auto
+
+    Usage:
+      type: object
+      required:
+        - input_tokens
+        - output_tokens
+        - total_tokens
+      properties:
+        input_tokens:
+          type: integer
+        output_tokens:
+          type: integer
+        total_tokens:
+          type: integer
+
+    APIError:
+      type: object
+      required:
+        - type
+        - message
+      properties:
+        type:
+          type: string
+          enum: [server_error, invalid_request, not_found, model_error, too_many_requests]
+        code:
+          type: string
+        param:
+          type: string
+        message:
+          type: string
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          $ref: '#/components/schemas/APIError'
+
+    StreamEvent:
+      type: object
+      required:
+        - type
+        - sequence_number
+      properties:
+        type:
+          type: string
+          description: |
+            Delta events: response.output_item.added, response.content_part.added,
+            response.output_text.delta, response.output_text.done,
+            response.function_call_arguments.delta, response.function_call_arguments.done,
+            response.content_part.done, response.output_item.done.
+            State events: response.created, response.queued, response.in_progress,
+            response.completed, response.failed, response.cancelled.
+        sequence_number:
+          type: integer
+          description: Monotonically increasing sequence number
+        response:
+          $ref: '#/components/schemas/Response'
+        item:
+          $ref: '#/components/schemas/Item'
+        part:
+          $ref: '#/components/schemas/OutputContentPart'
+        delta:
+          type: string
+        item_id:
+          type: string
+        output_index:
+          type: integer
+        content_index:
+          type: integer
