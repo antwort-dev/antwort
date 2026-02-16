@@ -12,11 +12,13 @@ pkg/api/
 ├── types.go           # All data types (Item, Request, Response, etc.)
 ├── events.go          # StreamEvent types and constructors
 ├── errors.go          # APIError constructors and helpers
-├── validation.go      # Request validation and state machine enforcement
+├── state.go           # Response and Item state machine transitions
+├── validation.go      # Request and item validation
 ├── id.go              # ID generation (resp_, item_ prefixed)
 ├── types_test.go      # JSON round-trip tests
 ├── events_test.go     # Event serialization tests
-├── validation_test.go # Validation and state machine tests
+├── state_test.go      # State machine transition tests
+├── validation_test.go # Validation tests
 └── id_test.go         # ID format tests
 ```
 
@@ -93,11 +95,8 @@ event := api.StreamEvent{
 // String form
 tc := api.ToolChoiceAuto // "auto"
 
-// Structured form
-tc := api.ToolChoice{
-    Type: "function",
-    Name: "get_weather",
-}
+// Structured form (force a specific function)
+tc := api.NewToolChoiceFunction("get_weather")
 ```
 
 ## What This Package Does NOT Do
