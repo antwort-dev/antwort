@@ -202,7 +202,7 @@ func TestTranslateResponse_FinishReasonMapping(t *testing.T) {
 		{"stop", api.ResponseStatusCompleted},
 		{"length", api.ResponseStatusIncomplete},
 		{"tool_calls", api.ResponseStatusCompleted},
-		{"content_filter", api.ResponseStatusCompleted}, // Unknown maps to completed.
+		{"content_filter", api.ResponseStatusFailed}, // Content filtered by safety system.
 	}
 
 	for _, tt := range tests {
@@ -235,6 +235,9 @@ func TestTranslateResponse_NoChoices(t *testing.T) {
 
 	pr := translateResponse(resp)
 
+	if pr.Status != api.ResponseStatusFailed {
+		t.Errorf("expected status %q for empty choices, got %q", api.ResponseStatusFailed, pr.Status)
+	}
 	if len(pr.Items) != 0 {
 		t.Errorf("expected 0 items, got %d", len(pr.Items))
 	}

@@ -66,6 +66,11 @@ func (e *Engine) CreateResponse(ctx context.Context, req *api.CreateResponseRequ
 		return err
 	}
 
+	// Check for empty output (backend returned no choices).
+	if provResp.Status == api.ResponseStatusFailed && len(provResp.Items) == 0 {
+		return api.NewServerError("backend produced no output")
+	}
+
 	// Assign item IDs to output items if they don't have them.
 	for i := range provResp.Items {
 		if provResp.Items[i].ID == "" {

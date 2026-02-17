@@ -22,8 +22,9 @@ func translateResponse(resp *chatCompletionResponse) *provider.ProviderResponse 
 		}
 	}
 
-	// Need at least one choice.
+	// Need at least one choice. Empty choices means the backend produced no output.
 	if len(resp.Choices) == 0 {
+		pr.Status = api.ResponseStatusFailed
 		return pr
 	}
 
@@ -77,7 +78,10 @@ func mapFinishReason(reason string) api.ResponseStatus {
 		return api.ResponseStatusIncomplete
 	case "tool_calls":
 		return api.ResponseStatusCompleted
+	case "content_filter":
+		return api.ResponseStatusFailed
 	default:
+		// Unknown finish_reason: treat as completed, log warning upstream.
 		return api.ResponseStatusCompleted
 	}
 }
