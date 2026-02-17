@@ -10,8 +10,6 @@ The OpenResponses specification is gaining traction. Llama Stack, vLLM, Semantic
 
 Antwort explores what happens when the Responses API is the primary concern.
 
-For the full landscape analysis comparing Llama Stack, vLLM, Semantic Router, openresponses-gw, and Antwort, see [Beyond Llama Stack: Building a Production OpenResponses Gateway](https://docs.google.com/document/d/1v1dHkzKJNY_KvYn6bHZhzNtO0RItJJwSL8a44m9gQKg/).
-
 ## Status
 
 **Early development.** The foundational specs are implemented. The server does not yet handle end-to-end requests.
