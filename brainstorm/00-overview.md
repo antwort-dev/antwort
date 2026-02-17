@@ -33,6 +33,12 @@ Designed interface-first, antwort can be deployed as a standalone API server or 
 - `GET /v1/responses/{id}`, `DELETE /v1/responses/{id}`
 - `previous_response_id` chaining, conversation state
 
+## Multi-User vs Multi-Tenant
+
+**Multi-user**: One antwort instance, multiple users. Isolation at the data layer (each user sees only their own responses). Handled via auth identity propagated to storage queries.
+
+**Multi-tenant**: Separate antwort instances per tenant. Isolation at the deployment layer (separate databases, separate configurations). Handled via Helm releases or namespaces.
+
 ## Spec Inventory
 
 | # | Spec | Branch | Description |
@@ -45,6 +51,7 @@ Designed interface-first, antwort can be deployed as a standalone API server or 
 | 06 | Authentication & Authorization | `spec/06-auth` | Auth interface + adapters |
 | 07 | Deployment & Operations | `spec/07-deployment` | Container, k8s, observability |
 | 08 | Provider: LiteLLM | `spec/08-provider-litellm` | LiteLLM adapter implementation |
+| 09 | Configuration | `spec/09-configuration` | Unified config model, env vars, validation, hot reload |
 
 ## Implementation Order
 

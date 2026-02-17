@@ -213,12 +213,58 @@ type VLLMProvider struct {
 // usage                      -> Usage
 ```
 
+### Streaming Event Mapping
+
+When the backend speaks Chat Completions, the adapter must translate SSE chunks (`chat.completion.chunk`) into Responses API streaming events. The following table shows the concrete mapping:
+
+| Chat Completions SSE chunk | Responses API event |
+|---|---|
+| First chunk with `role` field | `response.output_item.added` + `response.content_part.added` |
+| `delta.content` (text fragment) | `response.output_text.delta` |
+| `delta.tool_calls` (function call fragment) | `response.function_call_arguments.delta` |
+| Final chunk with `finish_reason` set | `response.output_text.done` + `response.output_item.done` |
+| Stream end (`[DONE]` sentinel) | `response.completed` + `[DONE]` |
+
+One Chat Completions chunk may produce zero, one, or multiple Responses API events. For example, the first chunk typically produces two events (item added and content part added), while a mid-stream text delta produces exactly one.
+
+#### finish_reason Mapping
+
+The Chat Completions `finish_reason` field maps to the Responses API response status as follows:
+
+| Chat Completions `finish_reason` | Responses API status | Notes |
+|---|---|---|
+| `stop` | `completed` | Normal completion |
+| `length` | `incomplete` | Output truncated due to `max_tokens` |
+| `tool_calls` | `completed` (with function call items) | The caller should continue the agentic loop by executing the tool calls and feeding results back |
+
+When `finish_reason` is `tool_calls`, the response itself is marked `completed`, but the presence of `function_call` items in the output signals the orchestration layer to continue the agentic loop.
+
+### Conversation History Reconstruction
+
+When `previous_response_id` is set and the backend only speaks Chat Completions, the provider adapter cannot forward a response ID to the backend. Instead, antwort must reconstruct the full conversation history from stored responses. The flow is:
+
+1. Load the response chain by following `previous_response_id` links in storage
+2. Extract the stored conversation messages from each response in the chain
+3. Build an ordered messages array: system message (from `instructions`), then alternating user, assistant, tool call, and tool result messages
+4. Append the current request's input items to the end of the messages array
+5. Send the complete conversation to the Chat Completions backend as a flat messages list
+
+This means the Chat Completions adapter receives a fully reconstructed `ProviderRequest` with all messages populated. The adapter itself does not need to know about response chaining or storage. The core engine handles the reconstruction before calling `Complete()` or `Stream()`.
+
 ### vLLM-Specific Considerations
 
 - **Model routing**: vLLM serves a single model per instance (or uses `--served-model-name`). The adapter validates the requested model against `ListModels()`.
 - **Reasoning**: vLLM with DeepSeek R1 or similar models may produce reasoning tokens. The adapter detects and maps these to `ReasoningItem`.
 - **Context window**: Determined by the loaded model. The adapter queries model info on startup.
 - **Guided decoding**: vLLM supports JSON schema guided decoding. Exposed via `Extra` parameters.
+
+### Streaming Edge Cases
+
+These edge cases apply to any Chat Completions backend (including vLLM) and must be handled by the adapter's stream translation logic:
+
+- **Incremental tool call arguments**: Tool call arguments arrive as incremental JSON fragments across multiple SSE chunks. The adapter must buffer these fragments and only emit `ProviderEventToolCallDone` once the full JSON string has been assembled.
+- **Tool call ID correlation**: When the model produces function call results, each result must be correlated back to the originating tool call via `tool_call_id`. The adapter tracks active tool call IDs during streaming so that downstream tool execution can match results correctly.
+- **Multi-modal content encoding**: Image and other multi-modal inputs require different encoding depending on the backend. vLLM expects base64-encoded images inline, while other backends may expect URLs or different content part structures. The adapter normalizes these differences during request translation.
 
 ### Configuration
 

@@ -22,7 +22,7 @@ Define the storage interface for persisting responses and conversation state, an
 ### Out of Scope
 - Tool state (MCP session state, file search indices) handled by tool implementations
 - Caching layer (future optimization)
-- Multi-tenancy (future, depends on auth)
+- Multi-tenancy enforcement middleware (depends on auth spec)
 
 ## Storage Interface
 
@@ -46,6 +46,10 @@ type Store interface {
     // Returns items in chronological order:
     //   ancestor.input + ancestor.output + ... + current.input
     BuildContext(ctx context.Context, previousResponseID string) ([]api.Item, error)
+
+    // HealthCheck verifies the store connection is alive.
+    // Wired into the HTTP health endpoint (/healthz) and Kubernetes readiness probe.
+    HealthCheck(ctx context.Context) error
 
     // Close releases database connections.
     Close() error
@@ -98,13 +102,27 @@ type PostgresConfig struct {
     // DSN is the PostgreSQL connection string.
     DSN string `json:"dsn" env:"ANTWORT_DB_DSN"`
 
-    // MaxConns is the connection pool size.
+    // MaxConns is the maximum number of open connections (default: 25).
     MaxConns int `json:"max_conns" env:"ANTWORT_DB_MAX_CONNS"`
+
+    // MaxIdleConns is the maximum number of idle connections (default: 5).
+    MaxIdleConns int `json:"max_idle_conns" env:"ANTWORT_DB_MAX_IDLE_CONNS"`
+
+    // ConnMaxLifetime is the maximum lifetime of a connection (default: 5m).
+    ConnMaxLifetime time.Duration `json:"conn_max_lifetime" env:"ANTWORT_DB_CONN_MAX_LIFETIME"`
 
     // MigrateOnStart runs schema migrations at startup.
     MigrateOnStart bool `json:"migrate_on_start" env:"ANTWORT_DB_MIGRATE"`
 }
 ```
+
+Connection pool defaults when not explicitly configured:
+
+| Parameter | Default | Rationale |
+|-----------|---------|-----------|
+| `MaxConns` | 25 | Sufficient for most single-instance deployments |
+| `MaxIdleConns` | 5 | Keeps a small warm pool without wasting connections |
+| `ConnMaxLifetime` | 5 min | Prevents stale connections, works with PgBouncer and cloud-managed databases |
 
 ### Context Reconstruction
 
@@ -127,6 +145,50 @@ SELECT input, output FROM chain ORDER BY created_at ASC;
 The result is flattened: `[ancestor.input, ancestor.output, ..., parent.input, parent.output]`.
 
 A depth limit (configurable, default 100) prevents unbounded chain traversal.
+
+### JSONB Query Capabilities
+
+The `input`, `output`, `error`, and `extensions` columns use PostgreSQL's `JSONB` type, which enables structured queries that would be impossible with plain text JSON storage.
+
+**Filtering by item type** (find responses containing a specific output item type):
+
+```sql
+SELECT id, status, created_at
+FROM responses
+WHERE output @> '[{"type": "message"}]'
+  AND deleted_at IS NULL;
+```
+
+**Filtering by token usage** (find responses exceeding a token threshold):
+
+```sql
+SELECT id, model, usage_total_tokens
+FROM responses
+WHERE usage_total_tokens > 1000
+  AND deleted_at IS NULL
+ORDER BY usage_total_tokens DESC;
+```
+
+**Querying nested JSONB fields** (find responses with a specific model in the extensions):
+
+```sql
+SELECT id, extensions->>'routing_model' AS routing_model
+FROM responses
+WHERE extensions ? 'routing_model'
+  AND deleted_at IS NULL;
+```
+
+**GIN indexing** for fast containment queries on JSONB columns:
+
+```sql
+-- Index the output column for @> (containment) queries
+CREATE INDEX idx_responses_output_gin ON responses USING GIN (output);
+
+-- Index the extensions column for ? (key existence) and @> queries
+CREATE INDEX idx_responses_extensions_gin ON responses USING GIN (extensions);
+```
+
+GIN indexes accelerate `@>`, `?`, `?|`, and `?&` operators. They add write overhead, so only create them on columns that are frequently queried. The `input` column is typically not queried directly and does not need a GIN index.
 
 ## In-Memory Adapter
 
@@ -160,6 +222,66 @@ Migration files are numbered sequentially:
 - `002_add_indexes.sql`
 - etc.
 
+## Multi-Tenancy Support
+
+Tenant isolation is handled at the storage layer without changing the core engine logic.
+
+### Tenant Context
+
+A tenant is identified by a string extracted from the authenticated request. The tenant ID flows through context to all storage operations.
+
+```go
+type TenantContext struct {
+    TenantID string
+}
+
+func TenantFromContext(ctx context.Context) string {
+    tc, ok := ctx.Value(tenantContextKey{}).(TenantContext)
+    if !ok {
+        return "" // single-tenant mode (backwards compatible)
+    }
+    return tc.TenantID
+}
+```
+
+When no auth middleware is configured, `TenantFromContext` returns an empty string. Storage implementations treat the empty tenant as "no filtering," preserving current single-tenant behavior. Existing deployments work unchanged with no migration required.
+
+### Entity Scoping
+
+| Entity | Scope | Notes |
+|--------|-------|-------|
+| Responses | Per tenant | Tenant A cannot see Tenant B's responses |
+| Conversations | Per tenant | Conversation chains are tenant-isolated |
+| Files | Per tenant | Uploaded files are private to the tenant |
+| Vector stores | Per tenant | Embeddings are tenant-isolated |
+| Connectors | Shared | MCP servers are shared infrastructure |
+| Prompts | Shared or per-tenant | System prompts may be shared, user prompts are per-tenant |
+
+The `Store` interface does not change. Implementations extract the tenant from context and apply filtering internally:
+
+```go
+func (s *PostgresStore) GetResponse(ctx context.Context, id string) (*api.Response, error) {
+    tenant := TenantFromContext(ctx)
+    if tenant == "" {
+        // Single-tenant: no filtering (current behavior)
+        return s.getResponseUnscoped(id)
+    }
+    // Multi-tenant: filter by tenant
+    return s.getResponseByTenant(tenant, id)
+}
+```
+
+Database schema adds a `tenant_id` column to the responses table:
+
+```sql
+ALTER TABLE responses ADD COLUMN tenant_id TEXT NOT NULL DEFAULT '';
+CREATE INDEX idx_responses_tenant ON responses(tenant_id);
+```
+
+### Data Migration When Enabling Auth
+
+When auth is enabled for the first time on an existing deployment, previously stored data will have an empty tenant ID (and empty user ID). The recommended approach is to leave existing data with the empty identifier. New data created after auth is enabled will carry the tenant or user ID from the auth context. Data with empty identifiers is only visible when no auth middleware is configured, which is the simplest and safest migration strategy.
+
 ## Extension Points
 
 - **Alternative backends**: Implement the `Store` interface for Redis, SQLite, DynamoDB, etc.
@@ -172,7 +294,7 @@ Migration files are numbered sequentially:
 - Should `BuildContext` include truncation logic (respecting `truncation: "auto"`) or should that be handled by the core engine after retrieval?
 - Should we support streaming writes (saving partial responses during inference)?
 - Is soft delete the right approach, or should we use a separate `deleted_responses` table?
-- Should the store be aware of multi-tenancy (tenant column) from the start?
+- Should the `tenant_id` column be added in the initial schema migration, or deferred to a later migration when auth is implemented?
 
 ## Deliverables
 
