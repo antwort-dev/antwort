@@ -238,11 +238,12 @@ type CreateResponseRequest struct {
 type ResponseStatus string
 
 const (
-	ResponseStatusQueued     ResponseStatus = "queued"
-	ResponseStatusInProgress ResponseStatus = "in_progress"
-	ResponseStatusCompleted  ResponseStatus = "completed"
-	ResponseStatusFailed     ResponseStatus = "failed"
-	ResponseStatusCancelled  ResponseStatus = "cancelled"
+	ResponseStatusQueued      ResponseStatus = "queued"
+	ResponseStatusInProgress  ResponseStatus = "in_progress"
+	ResponseStatusCompleted   ResponseStatus = "completed"
+	ResponseStatusIncomplete  ResponseStatus = "incomplete"
+	ResponseStatusFailed      ResponseStatus = "failed"
+	ResponseStatusCancelled   ResponseStatus = "cancelled"
 )
 
 // Response represents the API response object returned by the Responses API.
@@ -250,6 +251,7 @@ type Response struct {
 	ID                 string                     `json:"id"`
 	Object             string                     `json:"object"`
 	Status             ResponseStatus             `json:"status"`
+	Input              []Item                     `json:"input,omitempty"`
 	Output             []Item                     `json:"output"`
 	Model              string                     `json:"model"`
 	Usage              *Usage                     `json:"usage,omitempty"`
