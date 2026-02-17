@@ -12,13 +12,13 @@ Antwort explores what happens when the Responses API is the primary concern.
 
 ## Status
 
-**Early development.** The foundational specs are implemented. The server does not yet handle end-to-end requests.
+**Early development.** The first three specs are implemented. Non-streaming requests flow end-to-end from HTTP to a Chat Completions backend. Streaming is next.
 
 | Spec | Status | Description |
 |------|--------|-------------|
 | 001 Core Protocol & Data Model | Implemented | Items, content types, state machines, validation, errors, extensions |
 | 002 Transport Layer | Implemented | HTTP/SSE adapter, middleware chain, graceful shutdown, in-flight registry |
-| 003 Provider Abstraction (vLLM) | Planned | Provider interface + vLLM Chat Completions adapter |
+| 003 Core Engine & Provider | In Progress | Protocol-agnostic Provider interface, core engine, vLLM adapter (non-streaming complete, streaming pending) |
 | 004 Tool System | Planned | Function calling, MCP, internal tools, agentic loop |
 | 005 State Management & Storage | Planned | Storage interface + PostgreSQL adapter |
 | 006 Authentication & Authorization | Planned | Auth interface + pluggable adapters (API key, JWT, mTLS) |
@@ -26,7 +26,7 @@ Antwort explores what happens when the Responses API is the primary concern.
 | 008 Provider: LiteLLM | Planned | LiteLLM adapter |
 | 009 Configuration | Planned | Unified config model, env vars, validation, hot reload |
 
-Specs 001 and 002 have full implementations with comprehensive test coverage. Each spec was developed through the SDD methodology described below.
+Specs 001 and 002 are fully implemented. Spec 003 has the non-streaming MVP complete (provider interface, engine orchestration, vLLM Chat Completions adapter) with streaming, tool call translation, conversation chaining, and multimodal support in progress. Each spec is developed through the SDD methodology described below.
 
 ## Architecture
 
@@ -68,7 +68,7 @@ Antwort is designed interface-first. Every major subsystem (transport, providers
 
 ### Backend protocol
 
-Antwort translates outbound to `/v1/chat/completions`, the widely supported standard. This means it works with any Chat Completions backend rather than requiring backends to implement the Responses API themselves.
+The Provider interface is protocol-agnostic. Each adapter handles its own backend protocol internally. The vLLM adapter translates to `/v1/chat/completions`, the widely supported standard. A future Responses API proxy adapter could forward to `/v1/responses` backends directly. This means Antwort works with any backend without requiring it to implement the Responses API itself.
 
 ## Methodology
 
@@ -112,17 +112,33 @@ antwort/
 │   │   ├── events.go      # Streaming event types
 │   │   ├── errors.go      # Structured API errors
 │   │   └── id.go          # Prefixed ID generation
-│   └── transport/         # Spec 002: Transport Layer
-│       ├── handler.go     # ResponseCreator, ResponseStore interfaces
-│       ├── middleware.go   # Middleware composition
-│       ├── inflight.go    # In-flight registry for cancellation
-│       └── http/          # HTTP/SSE adapter
-│           ├── adapter.go # Request routing
-│           ├── sse.go     # Server-Sent Events writer
-│           └── server.go  # Server lifecycle, graceful shutdown
+│   ├── transport/         # Spec 002: Transport Layer
+│   │   ├── handler.go     # ResponseCreator, ResponseStore interfaces
+│   │   ├── middleware.go   # Middleware composition
+│   │   ├── inflight.go    # In-flight registry for cancellation
+│   │   └── http/          # HTTP/SSE adapter
+│   │       ├── adapter.go # Request routing
+│   │       ├── sse.go     # Server-Sent Events writer
+│   │       └── server.go  # Server lifecycle, graceful shutdown
+│   ├── engine/            # Spec 003: Core Engine
+│   │   ├── engine.go      # Orchestration, implements ResponseCreator
+│   │   ├── translate.go   # Request translation (Items -> ProviderMessages)
+│   │   └── config.go      # Engine configuration
+│   └── provider/          # Spec 003: Provider Abstraction
+│       ├── provider.go    # Protocol-agnostic Provider interface
+│       ├── types.go       # ProviderRequest, ProviderResponse, ProviderEvent
+│       ├── capabilities.go # Capability validation
+│       └── vllm/          # Chat Completions adapter
+│           ├── vllm.go    # VLLMProvider (Complete, Stream, ListModels)
+│           ├── translate.go # ProviderRequest -> Chat Completions
+│           ├── response.go # Chat Completions -> ProviderResponse
+│           ├── stream.go  # SSE chunk parsing (in progress)
+│           └── errors.go  # HTTP error mapping
 ├── specs/                 # Specification documents
+│   ├── constitution.md    # Project principles and constraints
 │   ├── 001-core-protocol/
-│   └── 002-transport-layer/
+│   ├── 002-transport-layer/
+│   └── 003-core-engine/
 ├── brainstorm/            # Early design exploration
 └── go.mod
 ```
@@ -133,7 +149,7 @@ antwort/
 |----------|--------|-----------|
 | Language | Go | High concurrency, low memory per connection, single binary deployment, natural fit for interface-first design |
 | Dependencies | Zero (stdlib only) | Maximum portability, minimal attack surface |
-| Backend protocol | Chat Completions | Works with any backend, not just those that speak Responses API |
+| Backend protocol | Protocol-agnostic | Provider interface supports any backend protocol; vLLM adapter uses Chat Completions |
 | Storage | PostgreSQL (planned) | Durable, shared across replicas, production standard |
 | Deployment | Kubernetes/OpenShift | Health probes, Helm charts, CRDs for declarative configuration |
 
