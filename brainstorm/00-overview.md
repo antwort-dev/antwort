@@ -4,7 +4,7 @@
 
 Antwort is a Go library and server implementing the [OpenResponses](https://www.openresponses.org/) specification as a production-grade protocol translation engine. It translates between the OpenResponses API and LLM inference backends (vLLM, LiteLLM, and future providers).
 
-Designed interface-first, antwort can be deployed as a standalone API server, embedded as an Envoy ext_proc extension, or integrated into routing infrastructure like [semantic-router](https://github.com/vllm-project/semantic-router).
+Designed interface-first, antwort can be deployed as a standalone API server or integrated into routing infrastructure.
 
 ## Key Decisions
 
@@ -18,7 +18,7 @@ Designed interface-first, antwort can be deployed as a standalone API server, em
 | Architecture | Interface-first |
 | Auth | Pluggable (API key, OAuth, mTLS) |
 | Tools | Full spec compliance, stateless/stateful tiers |
-| Transport | HTTP/SSE + gRPC + Envoy ext_proc |
+| Transport | HTTP/SSE + gRPC |
 | Providers | vLLM (primary), LiteLLM (secondary) |
 
 ## API Tiers
@@ -26,7 +26,7 @@ Designed interface-first, antwort can be deployed as a standalone API server, em
 **Stateless** (no persistence required):
 - `POST /v1/responses` with `store: false`
 - Single-shot inference, streaming or non-streaming
-- Suitable for ext_proc and routing contexts
+- Suitable for lightweight, stateless deployments
 
 **Stateful** (PostgreSQL required):
 - `POST /v1/responses` with `store: true` (default)
@@ -38,7 +38,7 @@ Designed interface-first, antwort can be deployed as a standalone API server, em
 | # | Spec | Branch | Description |
 |---|---|---|---|
 | 01 | Core Protocol & Data Model | `spec/01-core-protocol` | Items, content, state machines, errors, extensions |
-| 02 | Transport Layer | `spec/02-transport` | HTTP/SSE, gRPC, ext_proc adapters |
+| 02 | Transport Layer | `spec/02-transport` | HTTP/SSE, gRPC adapters |
 | 03 | Provider Abstraction (vLLM) | `spec/03-provider-vllm` | Provider interface + vLLM adapter |
 | 04 | Tool System | `spec/04-tools` | Function calling, MCP, internal tools, agentic loop |
 | 05 | State Management & Storage | `spec/05-storage` | Storage interface + PostgreSQL adapter |
@@ -75,7 +75,6 @@ Specs are numbered in dependency order. Each spec is developed on its own branch
 │  ┌─────┴──────┐  ┌─────┴─────┐  ┌──────┴──────┐ │
 │  │ HTTP/SSE   │  │  vLLM     │  │ PostgreSQL  │ │
 │  │ gRPC       │  │  LiteLLM  │  │ In-memory   │ │
-│  │ ext_proc   │  │  (future) │  │             │ │
 │  └────────────┘  └───────────┘  └─────────────┘ │
 │                                                  │
 │  ┌────────────┐  ┌───────────┐                   │
@@ -91,8 +90,8 @@ Specs are numbered in dependency order. Each spec is developed on its own branch
 │          └───────────────────┘                    │
 └──────────────────────────────────────────────────┘
           │              │             │
-     ┌────┴────┐   ┌─────┴────┐  ┌────┴──────┐
-     │  cmd/   │   │  cmd/    │  │ pkg/      │
-     │ server  │   │ extproc  │  │ embed     │
-     └─────────┘   └──────────┘  └───────────┘
+     ┌────┴────┐              ┌────┴──────┐
+     │  cmd/   │              │ pkg/      │
+     │ server  │              │ embed     │
+     └─────────┘              └───────────┘
 ```

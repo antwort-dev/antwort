@@ -226,7 +226,7 @@ The `store` field in the request determines the tier:
 | `DELETE /v1/responses/{id}` | No | Yes |
 | `previous_response_id` | No | Yes |
 | Persistence required | No | Yes (PostgreSQL) |
-| Suitable for ext_proc | Yes | No |
+| Suitable for lightweight deploy | Yes | No |
 
 ## Extension Points
 

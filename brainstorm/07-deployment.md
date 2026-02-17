@@ -41,9 +41,8 @@ COPY --from=builder /antwort /antwort
 ENTRYPOINT ["/antwort"]
 ```
 
-Two binaries, two images:
+Single binary and image:
 - `antwort-server` - standalone HTTP/gRPC server
-- `antwort-extproc` - Envoy ext_proc sidecar
 
 ## Configuration
 
@@ -220,7 +219,7 @@ spec:
 
 - **Custom health checks**: Register additional readiness checks via `HealthRegistry`
 - **Custom metrics**: Register Prometheus collectors for internal tools or custom providers
-- **Sidecar injection**: The ext_proc image can be used as an Envoy sidecar
+- **Custom deployment patterns**: Adapt manifests for specific infrastructure needs
 
 ## Open Questions
 
@@ -232,12 +231,10 @@ spec:
 ## Deliverables
 
 - [ ] `Containerfile` - Multi-stage build for server
-- [ ] `Containerfile.extproc` - Build for ext_proc binary
 - [ ] `deploy/base/` - Kustomize base (Deployment, Service, ConfigMap)
 - [ ] `deploy/overlays/openshift/` - OpenShift overlay (Route, ServiceMonitor)
 - [ ] `deploy/overlays/dev/` - Development overlay (reduced resources, debug logging)
 - [ ] `cmd/server/main.go` - Server entrypoint with config loading
-- [ ] `cmd/extproc/main.go` - ext_proc entrypoint
 - [ ] `pkg/health/health.go` - Health check registry
 - [ ] `pkg/observability/metrics.go` - Prometheus metrics
 - [ ] `pkg/observability/tracing.go` - OpenTelemetry setup

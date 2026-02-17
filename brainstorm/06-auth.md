@@ -205,7 +205,6 @@ type AuthConfig struct {
 ## Open Questions
 
 - Should rate limiting be part of the auth spec or a separate concern?
-- How to handle auth for the Envoy ext_proc adapter (Envoy may handle auth externally)?
 - Should we support chained authenticators (try API key, fall back to OAuth proxy)?
 - Audit logging of auth decisions: part of this spec or observability (Spec 07)?
 

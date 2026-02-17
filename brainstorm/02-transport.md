@@ -6,7 +6,7 @@
 
 ## Purpose
 
-Define the transport interface and implement adapters for HTTP/SSE, gRPC, and Envoy ext_proc. The transport layer is responsible for accepting client connections, deserializing requests, and delivering responses (including streaming).
+Define the transport interface and implement adapters for HTTP/SSE and gRPC. The transport layer is responsible for accepting client connections, deserializing requests, and delivering responses (including streaming).
 
 ## Scope
 
@@ -14,7 +14,6 @@ Define the transport interface and implement adapters for HTTP/SSE, gRPC, and En
 - Transport interface definition (protocol-agnostic)
 - HTTP/SSE adapter with full OpenResponses streaming event protocol
 - gRPC adapter with bidirectional streaming
-- Envoy ext_proc adapter for inline processing
 - Streaming event types (delta events + state machine events)
 - Connection lifecycle (keepalive, backpressure, cancellation)
 - Content negotiation (JSON vs streaming)
@@ -159,25 +158,6 @@ service ResponsesService {
 }
 ```
 
-## Envoy ext_proc Adapter
-
-```go
-// ExtProcAdapter implements the Envoy external processing filter.
-// It operates in stateless mode, processing individual request/response pairs
-// without persistence.
-type ExtProcAdapter struct {
-    handler Handler
-}
-
-// ProcessingMode: request headers + request body + response body
-// The adapter:
-//   1. Extracts the OpenResponses request from the HTTP body
-//   2. Invokes the Handler in stateless mode (store=false forced)
-//   3. Rewrites the response body with the OpenResponses output
-```
-
-The ext_proc adapter forces stateless mode since it operates inline in the Envoy data path. Streaming in ext_proc context uses Envoy's body streaming chunks.
-
 ## Middleware Hooks
 
 The transport layer provides hooks for cross-cutting concerns:
@@ -198,10 +178,11 @@ The transport layer provides hooks for cross-cutting concerns:
 - **Custom transport adapters**: Implement the `Handler` interface for new protocols
 - **Middleware chain**: Add custom middleware via `HTTPOption` or `GRPCOption`
 
+Note: Envoy ext_proc was considered but removed from scope. Antwort operates as a standalone server, not as an Envoy filter.
+
 ## Open Questions
 
 - Should the gRPC proto be auto-generated from the OpenResponses JSON Schema, or hand-written?
-- For ext_proc, should we support both `STREAMED` and `BUFFERED` processing modes?
 - How to handle SSE reconnection (Last-Event-ID header)?
 
 ## Deliverables
@@ -213,5 +194,4 @@ The transport layer provides hooks for cross-cutting concerns:
 - [ ] `pkg/transport/http/sse.go` - SSE serialization
 - [ ] `pkg/transport/grpc/adapter.go` - gRPC adapter
 - [ ] `pkg/transport/grpc/proto/responses.proto` - Proto definitions
-- [ ] `pkg/transport/extproc/adapter.go` - Envoy ext_proc adapter
 - [ ] Tests for each adapter
