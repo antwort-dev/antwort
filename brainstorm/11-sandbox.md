@@ -2,18 +2,43 @@
 
 **Branch**: `spec/11-sandbox`
 **Dependencies**: Spec 04 (Agentic Loop, for ToolExecutor interface), Spec 07 (Deployment)
-**Package**: `pkg/tools/sandbox`, `pkg/sandbox` (controller)
+**Package**: `pkg/tools/sandbox`
 
 ## Purpose
 
-Implement a Kubernetes-native sandbox execution system for running arbitrary tool code in isolated pods. Antwort acts as a controller that manages a pool of sandbox pods backed by Deployments, delegates tool execution to these pods via a secured REST interface, and scales the pool based on demand.
+Implement a Kubernetes-native sandbox execution system for running arbitrary tool code in isolated pods. Antwort delegates tool execution to sandbox pods via a secured REST interface.
 
 No custom or potentially blocking code ever executes within the antwort process. All tool execution, code interpretation, file processing, and external system interaction is delegated to sandbox pods.
+
+## Foundation: kubernetes-sigs/agent-sandbox
+
+Sandbox pod lifecycle is managed by the [agent-sandbox](https://github.com/kubernetes-sigs/agent-sandbox) project from Kubernetes SIGs. This provides:
+
+- **`Sandbox` CRD**: Isolated, stateful, singleton container with stable hostname and persistent storage
+- **`SandboxTemplate`**: Reusable templates for creating similar sandboxes (general-purpose Python, specialized tools)
+- **`SandboxWarmPool`**: Pre-warmed sandbox pools for fast allocation, eliminating cold-start latency
+- **`SandboxClaim`**: Abstraction layer for claiming sandboxes from templates on demand
+
+Antwort is a **CRD consumer**, not a controller. The agent-sandbox controller handles pod lifecycle, warm pool management, and stable identity. Antwort creates `SandboxClaim` resources to acquire sandboxes from warm pools and communicates with them via their stable FQDN.
+
+### Responsibility Split
+
+| Concern | Owner |
+|---------|-------|
+| Pod lifecycle (create, pause, resume, delete) | agent-sandbox controller |
+| Warm pool sizing and pre-warming | agent-sandbox `SandboxWarmPool` |
+| Stable hostname and network identity | agent-sandbox `Sandbox` |
+| Persistent storage for cached environments | agent-sandbox `Sandbox` + PVC |
+| Container image (Python, uv, REST server) | antwort project |
+| REST API contract for code execution | antwort project |
+| Acquiring and releasing sandboxes | antwort via `SandboxClaim` |
+| Routing requests to sandboxes by environment | antwort `pkg/tools/sandbox` |
+| SPIFFE/SPIRE identity infrastructure | cluster operator |
 
 ## Core Principles
 
 1. **Antwort never executes tool code.** All execution is delegated to sandbox pods.
-2. **Antwort is a Kubernetes controller.** It creates, manages, and scales sandbox pod pools using native Kubernetes primitives (Deployments, ReplicaSets, Services).
+2. **Antwort consumes CRDs, not manages pods.** Pod lifecycle is handled by the agent-sandbox controller. Antwort creates `SandboxClaim` and `SandboxTemplate` resources.
 3. **Kubernetes-only.** Antwort is designed exclusively for Kubernetes. There is no local/standalone execution mode.
 4. **Workload identity via SPIFFE/SPIRE.** All communication between antwort and sandbox pods uses mutual TLS with SPIFFE identities. No shared secrets.
 5. **Pod reuse with environment caching.** Sandbox pods advertise their installed environments so antwort can route requests to pods that already have the required dependencies.
@@ -49,57 +74,58 @@ Examples:
 
 Specialized pods implement the same REST interface as general-purpose pods but may have additional endpoints or capabilities.
 
-## Pod Pool Architecture
+## Architecture with agent-sandbox
 
 ```
-┌──────────────────────────────────────────────┐
-│                Antwort Controller             │
-│                                              │
-│  ┌──────────────┐  ┌──────────────────────┐  │
-│  │ Pool Manager │  │ Pod Router           │  │
-│  │              │  │ (select pod by       │  │
-│  │ - Scale up   │  │  environment match)  │  │
-│  │ - Scale down │  │                      │  │
-│  │ - Health     │  └──────────────────────┘  │
-│  └──────────────┘                            │
-└───────────┬──────────────────────────────────┘
+┌──────────────────────────────────────────────────┐
+│                Antwort                            │
+│                                                  │
+│  ┌──────────────────┐  ┌──────────────────────┐  │
+│  │ Sandbox Client   │  │ Pod Router           │  │
+│  │                  │  │ (select sandbox by   │  │
+│  │ - SandboxClaim   │  │  environment match)  │  │
+│  │   creation       │  │                      │  │
+│  │ - REST calls     │  └──────────────────────┘  │
+│  └──────────────────┘                            │
+└───────────┬──────────────────────────────────────┘
             │ mTLS (SPIFFE)
             │
-    ┌───────▼────────┐
-    │ Sandbox Pool   │
-    │                │
-    │ ┌────┐ ┌────┐  │  General-purpose
-    │ │Pod1│ │Pod2│  │  Python sandboxes
-    │ └────┘ └────┘  │
-    │                │
-    │ ┌────┐         │  Specialized
-    │ │Pod3│         │  (file search)
-    │ └────┘         │
-    │                │
-    │ ┌────┐         │  Specialized
-    │ │Pod4│         │  (web search)
-    │ └────┘         │
-    └────────────────┘
+┌───────────▼──────────────────────────────────────┐
+│          agent-sandbox controller                 │
+│                                                  │
+│  ┌────────────────┐  ┌─────────────────────────┐ │
+│  │ SandboxWarmPool│  │ SandboxTemplate         │ │
+│  │ (general-      │  │ (specialized:           │ │
+│  │  purpose)      │  │  file-search,           │ │
+│  │                │  │  web-search, etc.)      │ │
+│  └───────┬────────┘  └────────────┬────────────┘ │
+│          │                        │              │
+│    ┌─────▼─────┐  ┌─────┐  ┌─────▼─────┐        │
+│    │ Sandbox   │  │ ... │  │ Sandbox   │        │
+│    │ (Python)  │  │     │  │ (search)  │        │
+│    └───────────┘  └─────┘  └───────────┘        │
+└──────────────────────────────────────────────────┘
 ```
 
-### Pool Manager
+### Sandbox Acquisition Flow
 
-The pool manager is a Kubernetes controller embedded in antwort that:
-
-- Creates Deployments for each sandbox type (general-purpose, specialized)
-- Scales replicas based on demand (queue depth, concurrent executions)
-- Monitors pod health via the sandbox REST API health endpoint
-- Tracks pod state: idle, busy, warming up
-- Recycles pods after configurable lifetime or execution count
+1. Tool call arrives at antwort
+2. Pod router checks if a claimed sandbox with the right environment exists
+3. If yes: route request to that sandbox's stable FQDN
+4. If no: create a `SandboxClaim` referencing the appropriate `SandboxTemplate`
+5. agent-sandbox allocates a sandbox from the warm pool (or creates one)
+6. Antwort waits for the `SandboxClaim` to be bound (status becomes ready)
+7. Execute tool via the sandbox's REST API
+8. Release or retain the sandbox based on caching policy
 
 ### Pod Router
 
-When a tool call arrives, the pod router selects the best pod:
+When a tool call arrives, the pod router selects the best sandbox:
 
-1. **Match by type**: General-purpose or specialized (based on tool definition)
-2. **Match by environment**: For general-purpose pods, prefer pods that already have the required virtual environment cached
-3. **Availability**: Select an idle pod from the matched set
-4. **Fallback**: If no pre-warmed pod matches, select any idle general-purpose pod (it will install dependencies on demand)
+1. **Match by template**: General-purpose or specialized (based on tool definition)
+2. **Match by environment**: For general-purpose sandboxes, prefer ones that already have the required virtual environment cached
+3. **Availability**: Select an idle claimed sandbox from the matched set
+4. **Fallback**: Claim a new sandbox from the warm pool (it will install dependencies on demand)
 
 ## Pod Environment Caching
 
@@ -226,38 +252,28 @@ All communication between antwort and sandbox pods uses mutual TLS with SPIFFE i
 
 ## Configuration
 
+Antwort's sandbox configuration focuses on what antwort controls (REST client settings, environment routing, Python indices). Pool sizing and pod resources are configured via agent-sandbox CRDs (`SandboxWarmPool`, `SandboxTemplate`).
+
 ```go
 type SandboxConfig struct {
-    // General-purpose pool configuration.
-    GeneralPool PoolConfig
+    // Kubernetes namespace where sandbox resources are created.
+    Namespace string
 
-    // Specialized pools (keyed by tool type name).
-    SpecializedPools map[string]SpecializedPoolConfig
+    // Templates maps tool types to SandboxTemplate names.
+    // The "default" key maps to the general-purpose Python sandbox.
+    Templates map[string]string // tool type -> SandboxTemplate name
 
-    // Python package index configuration.
+    // Python package index configuration (passed to sandbox pods).
     PythonIndex PythonIndexConfig
 
-    // SPIFFE trust domain.
+    // SPIFFE trust domain for mTLS.
     TrustDomain string
 
     // Environment caching configuration.
     EnvCache EnvCacheConfig
-}
 
-type PoolConfig struct {
-    MinReplicas     int           // Minimum warm pods
-    MaxReplicas     int           // Maximum pods under load
-    Image           string        // Container image for sandbox pods
-    Resources       ResourceSpec  // CPU/memory limits per pod
-    MaxLifetime     time.Duration // Max pod lifetime before recycling
-    MaxExecutions   int           // Max executions before recycling
-    IdleTimeout     time.Duration // Idle time before scale-down
-}
-
-type SpecializedPoolConfig struct {
-    PoolConfig
-    ToolName    string // Tool this pool serves
-    Endpoints   []string // Additional REST endpoints beyond base interface
+    // ClaimTimeout is how long to wait for a SandboxClaim to be bound.
+    ClaimTimeout time.Duration
 }
 
 type PythonIndexConfig struct {
@@ -274,18 +290,62 @@ type EnvCacheConfig struct {
 }
 ```
 
+### agent-sandbox CRD Configuration (managed by cluster operator)
+
+```yaml
+# SandboxTemplate for general-purpose Python sandbox
+apiVersion: sandbox.k8s.io/v1alpha1
+kind: SandboxTemplate
+metadata:
+  name: antwort-python
+spec:
+  podTemplate:
+    spec:
+      containers:
+      - name: sandbox
+        image: ghcr.io/rhuss/antwort-sandbox:latest
+        ports:
+        - containerPort: 8080
+        resources:
+          limits:
+            cpu: "2"
+            memory: 4Gi
+            ephemeral-storage: 10Gi
+  volumeClaimTemplates:
+  - metadata:
+      name: venvs
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 5Gi
+---
+# SandboxWarmPool for pre-warming
+apiVersion: sandbox.k8s.io/v1alpha1
+kind: SandboxWarmPool
+metadata:
+  name: antwort-python-pool
+spec:
+  templateRef:
+    name: antwort-python
+  replicas: 3  # Number of pre-warmed sandboxes
+```
+
 ## Scaling Strategy
 
-- **Scale up**: When pending tool executions exceed available idle pod capacity, the controller increases Deployment replicas
-- **Scale down**: When pods are idle beyond `IdleTimeout`, the controller scales down (respecting `MinReplicas`)
-- **HPA integration**: The controller can optionally expose custom metrics for Kubernetes HPA to manage scaling externally
-- **Queue depth**: The controller tracks pending executions per pool and uses this as the primary scaling signal
+Scaling is managed by the agent-sandbox `SandboxWarmPool`, not by antwort:
+
+- **Warm pool sizing**: Configure `replicas` in `SandboxWarmPool` to control how many pre-warmed sandboxes are available
+- **On-demand creation**: If the warm pool is exhausted, `SandboxClaim` triggers creation of a new sandbox (with cold-start latency)
+- **Release policy**: Antwort releases `SandboxClaim` resources when a sandbox is no longer needed, returning it to the pool
+- **Specialized pools**: Separate `SandboxWarmPool` resources per tool type (file search, web search, etc.)
 
 ## Open Questions
 
-- Should the sandbox REST server be a standard component shipped as a container image by the antwort project, or should users bring their own?
 - How should large file transfers between antwort and sandbox pods be handled (inline base64 in REST, or via shared PVC/object storage)?
 - Should specialized pods support the same environment caching as general-purpose pods, or are they always pre-configured?
 - What observability signals should sandbox pods expose (OpenTelemetry traces, Prometheus metrics)?
 - How should sandbox pod failures during execution be reported to the agentic loop (retry, fail the tool call, fail the response)?
 - For file search: which vector DB backend(s) should be supported (FAISS local, Milvus, pgvector, Elasticsearch)?
+- How does agent-sandbox's `SandboxWarmPool` interact with SPIFFE/SPIRE identity provisioning for pre-warmed pods?
+- Should antwort use the agent-sandbox Python SDK or interact directly with CRDs via the Kubernetes API?

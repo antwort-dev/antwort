@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git init:*)",
+      "Bash(*/scripts/sdd-init.sh*)",
+      "Bash(*/scripts/sdd-traits.sh*)",
+      "Bash(*/scripts/sdd-beads-sync.py*)",
+      "Bash(bd *)",
+      "Bash(specify *)",
+      "Bash",
+      "Read",
+      "Edit",
+      "Write",
+      "mcp__*",
+      "Bash(bd show:*)",
+      "Bash(go test:*)"
+    ]
+  }
+}
