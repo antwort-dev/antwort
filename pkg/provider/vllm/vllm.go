@@ -186,9 +186,44 @@ func (p *VLLMProvider) Stream(ctx context.Context, req *provider.ProviderRequest
 	return ch, nil
 }
 
-// ListModels returns available models from the backend. Stub for now.
+// ListModels returns available models from the backend by querying
+// the /v1/models endpoint.
 func (p *VLLMProvider) ListModels(ctx context.Context) ([]provider.ModelInfo, error) {
-	return nil, nil
+	url := p.cfg.BaseURL + "/v1/models"
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, api.NewServerError(fmt.Sprintf("failed to create HTTP request: %s", err.Error()))
+	}
+
+	if p.cfg.APIKey != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+p.cfg.APIKey)
+	}
+
+	httpResp, err := p.client.Do(httpReq)
+	if err != nil {
+		return nil, mapNetworkError(err)
+	}
+	defer httpResp.Body.Close()
+
+	if httpResp.StatusCode < 200 || httpResp.StatusCode >= 300 {
+		return nil, mapHTTPError(httpResp)
+	}
+
+	var modelsResp chatModelsResponse
+	if err := json.NewDecoder(httpResp.Body).Decode(&modelsResp); err != nil {
+		return nil, api.NewServerError(fmt.Sprintf("failed to parse models response: %s", err.Error()))
+	}
+
+	var models []provider.ModelInfo
+	for _, m := range modelsResp.Data {
+		models = append(models, provider.ModelInfo{
+			ID:      m.ID,
+			Object:  m.Object,
+			OwnedBy: m.OwnedBy,
+		})
+	}
+
+	return models, nil
 }
 
 // Close releases provider resources.

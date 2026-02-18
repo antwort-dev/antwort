@@ -185,15 +185,107 @@ func TestMapErrorEvent_NoOutput(t *testing.T) {
 	}
 }
 
-func TestMapToolCallDelta_Ignored(t *testing.T) {
+func TestMapToolCallDelta_FirstDelta(t *testing.T) {
 	state := &streamState{}
 
 	ev := provider.ProviderEvent{
-		Type: provider.ProviderEventToolCallDelta,
+		Type:          provider.ProviderEventToolCallDelta,
+		ToolCallIndex: 0,
+		ToolCallID:    "call_1",
+		FunctionName:  "get_weather",
+		Delta:         `{"city":`,
 	}
 
 	events := mapProviderEvent(ev, state)
-	if len(events) != 0 {
-		t.Fatalf("expected 0 events for tool call delta (Phase 5), got %d", len(events))
+
+	// First delta should produce output_item.added + arguments delta.
+	if len(events) != 2 {
+		t.Fatalf("expected 2 events, got %d", len(events))
+	}
+
+	if events[0].Type != api.EventOutputItemAdded {
+		t.Errorf("event[0] type = %q, want %q", events[0].Type, api.EventOutputItemAdded)
+	}
+	if events[0].Item == nil || events[0].Item.Type != api.ItemTypeFunctionCall {
+		t.Error("expected function_call item in output_item.added")
+	}
+
+	if events[1].Type != api.EventFunctionCallArgsDelta {
+		t.Errorf("event[1] type = %q, want %q", events[1].Type, api.EventFunctionCallArgsDelta)
+	}
+	if events[1].Delta != `{"city":` {
+		t.Errorf("event[1] delta = %q, want %q", events[1].Delta, `{"city":`)
+	}
+}
+
+func TestMapToolCallDelta_ContinuationDelta(t *testing.T) {
+	state := &streamState{
+		toolCallItems: map[int]*toolCallItemState{
+			0: {itemID: "item_1", outputIndex: 1, started: true},
+		},
+	}
+
+	ev := provider.ProviderEvent{
+		Type:          provider.ProviderEventToolCallDelta,
+		ToolCallIndex: 0,
+		ToolCallID:    "call_1",
+		Delta:         `"Berlin"}`,
+	}
+
+	events := mapProviderEvent(ev, state)
+
+	// Continuation delta should produce only arguments delta (no item.added).
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+
+	if events[0].Type != api.EventFunctionCallArgsDelta {
+		t.Errorf("type = %q, want %q", events[0].Type, api.EventFunctionCallArgsDelta)
+	}
+}
+
+func TestMapToolCallDone(t *testing.T) {
+	state := &streamState{
+		toolCallItems: map[int]*toolCallItemState{
+			0: {itemID: "item_1", outputIndex: 1, started: true},
+		},
+	}
+
+	ev := provider.ProviderEvent{
+		Type:          provider.ProviderEventToolCallDone,
+		ToolCallIndex: 0,
+		ToolCallID:    "call_1",
+		FunctionName:  "get_weather",
+		Delta:         `{"city":"Berlin"}`,
+		Item: &api.Item{
+			Type:   api.ItemTypeFunctionCall,
+			Status: api.ItemStatusCompleted,
+			FunctionCall: &api.FunctionCallData{
+				Name:      "get_weather",
+				CallID:    "call_1",
+				Arguments: `{"city":"Berlin"}`,
+			},
+		},
+	}
+
+	events := mapProviderEvent(ev, state)
+
+	// Should produce args done + item done.
+	if len(events) != 2 {
+		t.Fatalf("expected 2 events, got %d", len(events))
+	}
+
+	if events[0].Type != api.EventFunctionCallArgsDone {
+		t.Errorf("event[0] type = %q, want %q", events[0].Type, api.EventFunctionCallArgsDone)
+	}
+
+	if events[1].Type != api.EventOutputItemDone {
+		t.Errorf("event[1] type = %q, want %q", events[1].Type, api.EventOutputItemDone)
+	}
+	if events[1].Item == nil || events[1].Item.FunctionCall == nil {
+		t.Fatal("expected function_call data in item done")
+	}
+	if events[1].Item.ID != "item_1" {
+		t.Errorf("item ID = %q, want %q (should use engine-assigned ID)", events[1].Item.ID, "item_1")
 	}
 }

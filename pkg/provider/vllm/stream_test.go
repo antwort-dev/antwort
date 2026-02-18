@@ -268,11 +268,12 @@ data: [DONE]
 	}
 }
 
-func TestParseSSEStream_ToolCallWarning(t *testing.T) {
-	// Tool call chunks should be logged as warning and skipped in Phase 4.
+func TestParseSSEStream_SingleToolCall(t *testing.T) {
 	sseData := `data: {"id":"chatcmpl-1","object":"chat.completion.chunk","model":"gpt-4","choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"get_weather","arguments":""}}]},"finish_reason":null}]}
 
 data: {"id":"chatcmpl-1","object":"chat.completion.chunk","model":"gpt-4","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"city\":"}}]},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-1","object":"chat.completion.chunk","model":"gpt-4","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\"Berlin\"}"}}]},"finish_reason":null}]}
 
 data: {"id":"chatcmpl-1","object":"chat.completion.chunk","model":"gpt-4","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}
 
@@ -280,12 +281,140 @@ data: [DONE]
 `
 	events := collectEvents(t, sseData)
 
-	// Tool call deltas should be skipped; we should only get
-	// text done + done from the finish_reason chunk.
+	// Should have: tool call deltas, tool call done, text done, stream done.
+	var toolCallDeltas []provider.ProviderEvent
+	var toolCallDones []provider.ProviderEvent
 	for _, ev := range events {
-		if ev.Type == provider.ProviderEventToolCallDelta || ev.Type == provider.ProviderEventToolCallDone {
-			t.Errorf("unexpected tool call event in Phase 4: type=%d", ev.Type)
+		if ev.Type == provider.ProviderEventToolCallDelta {
+			toolCallDeltas = append(toolCallDeltas, ev)
 		}
+		if ev.Type == provider.ProviderEventToolCallDone {
+			toolCallDones = append(toolCallDones, ev)
+		}
+	}
+
+	if len(toolCallDeltas) != 3 {
+		t.Fatalf("expected 3 tool call deltas, got %d", len(toolCallDeltas))
+	}
+
+	// First delta should have function name.
+	if toolCallDeltas[0].FunctionName != "get_weather" {
+		t.Errorf("first delta function name = %q, want %q", toolCallDeltas[0].FunctionName, "get_weather")
+	}
+	if toolCallDeltas[0].ToolCallID != "call_1" {
+		t.Errorf("first delta tool call ID = %q, want %q", toolCallDeltas[0].ToolCallID, "call_1")
+	}
+
+	// Should have exactly 1 tool call done.
+	if len(toolCallDones) != 1 {
+		t.Fatalf("expected 1 tool call done, got %d", len(toolCallDones))
+	}
+
+	// Tool call done should have complete assembled arguments.
+	done := toolCallDones[0]
+	if done.Item == nil {
+		t.Fatal("tool call done has no item")
+	}
+	if done.Item.FunctionCall == nil {
+		t.Fatal("tool call done item has no function call data")
+	}
+	if done.Item.FunctionCall.Name != "get_weather" {
+		t.Errorf("function name = %q, want %q", done.Item.FunctionCall.Name, "get_weather")
+	}
+	if done.Item.FunctionCall.CallID != "call_1" {
+		t.Errorf("call ID = %q, want %q", done.Item.FunctionCall.CallID, "call_1")
+	}
+	expectedArgs := `{"city":"Berlin"}`
+	if done.Item.FunctionCall.Arguments != expectedArgs {
+		t.Errorf("arguments = %q, want %q", done.Item.FunctionCall.Arguments, expectedArgs)
+	}
+}
+
+func TestParseSSEStream_MultipleToolCalls(t *testing.T) {
+	// Two tool calls in the same response (parallel tool calls).
+	sseData := `data: {"id":"chatcmpl-1","object":"chat.completion.chunk","model":"gpt-4","choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"get_weather","arguments":""}}]},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-1","object":"chat.completion.chunk","model":"gpt-4","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"city\":\"Berlin\"}"}}]},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-1","object":"chat.completion.chunk","model":"gpt-4","choices":[{"index":0,"delta":{"tool_calls":[{"index":1,"id":"call_2","type":"function","function":{"name":"get_time","arguments":""}}]},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-1","object":"chat.completion.chunk","model":"gpt-4","choices":[{"index":0,"delta":{"tool_calls":[{"index":1,"function":{"arguments":"{\"tz\":\"CET\"}"}}]},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-1","object":"chat.completion.chunk","model":"gpt-4","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}
+
+data: [DONE]
+`
+	events := collectEvents(t, sseData)
+
+	// Should have 2 tool call done events.
+	var toolCallDones []provider.ProviderEvent
+	for _, ev := range events {
+		if ev.Type == provider.ProviderEventToolCallDone {
+			toolCallDones = append(toolCallDones, ev)
+		}
+	}
+
+	if len(toolCallDones) != 2 {
+		t.Fatalf("expected 2 tool call dones, got %d", len(toolCallDones))
+	}
+
+	// Verify both tool calls have correct data (order may vary due to map iteration).
+	names := map[string]string{}
+	for _, done := range toolCallDones {
+		if done.Item != nil && done.Item.FunctionCall != nil {
+			names[done.Item.FunctionCall.Name] = done.Item.FunctionCall.Arguments
+		}
+	}
+
+	if args, ok := names["get_weather"]; !ok {
+		t.Error("missing get_weather tool call")
+	} else if args != `{"city":"Berlin"}` {
+		t.Errorf("get_weather args = %q, want %q", args, `{"city":"Berlin"}`)
+	}
+
+	if args, ok := names["get_time"]; !ok {
+		t.Error("missing get_time tool call")
+	} else if args != `{"tz":"CET"}` {
+		t.Errorf("get_time args = %q, want %q", args, `{"tz":"CET"}`)
+	}
+}
+
+func TestParseSSEStream_ToolCallIncrementalArgs(t *testing.T) {
+	// Arguments split across 5 chunks.
+	sseData := `data: {"id":"1","object":"chat.completion.chunk","model":"m","choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call_x","type":"function","function":{"name":"search","arguments":""}}]},"finish_reason":null}]}
+
+data: {"id":"1","object":"chat.completion.chunk","model":"m","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"q"}}]},"finish_reason":null}]}
+
+data: {"id":"1","object":"chat.completion.chunk","model":"m","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"uery"}}]},"finish_reason":null}]}
+
+data: {"id":"1","object":"chat.completion.chunk","model":"m","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\":\""}}]},"finish_reason":null}]}
+
+data: {"id":"1","object":"chat.completion.chunk","model":"m","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"hello"}}]},"finish_reason":null}]}
+
+data: {"id":"1","object":"chat.completion.chunk","model":"m","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\"}"}}]},"finish_reason":null}]}
+
+data: {"id":"1","object":"chat.completion.chunk","model":"m","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}
+
+data: [DONE]
+`
+	events := collectEvents(t, sseData)
+
+	// Find the tool call done event.
+	var done *provider.ProviderEvent
+	for i := range events {
+		if events[i].Type == provider.ProviderEventToolCallDone {
+			done = &events[i]
+			break
+		}
+	}
+
+	if done == nil {
+		t.Fatal("no tool call done event found")
+	}
+
+	expectedArgs := `{"query":"hello"}`
+	if done.Item.FunctionCall.Arguments != expectedArgs {
+		t.Errorf("assembled arguments = %q, want %q", done.Item.FunctionCall.Arguments, expectedArgs)
 	}
 }
 

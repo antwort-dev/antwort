@@ -820,3 +820,214 @@ func TestEngine_Streaming_ContextCancellation(t *testing.T) {
 		t.Error("expected response.cancelled event, not found")
 	}
 }
+
+// T030: Engine tool call streaming integration test.
+
+func TestEngine_Streaming_ToolCalls(t *testing.T) {
+	// Mock provider that returns text content followed by a tool call.
+	mp := &mockProvider{
+		name: "test",
+		caps: provider.ProviderCapabilities{Streaming: true, ToolCalling: true},
+		streamFn: func(_ context.Context, _ *provider.ProviderRequest) (<-chan provider.ProviderEvent, error) {
+			ch := make(chan provider.ProviderEvent, 32)
+			go func() {
+				defer close(ch)
+				// Text message start.
+				ch <- provider.ProviderEvent{Type: provider.ProviderEventTextDelta, Delta: ""}
+				ch <- provider.ProviderEvent{Type: provider.ProviderEventTextDelta, Delta: "Let me check"}
+
+				// Tool call starts.
+				ch <- provider.ProviderEvent{
+					Type:          provider.ProviderEventToolCallDelta,
+					ToolCallIndex: 0,
+					ToolCallID:    "call_abc",
+					FunctionName:  "get_weather",
+					Delta:         `{"city":`,
+				}
+				ch <- provider.ProviderEvent{
+					Type:          provider.ProviderEventToolCallDelta,
+					ToolCallIndex: 0,
+					ToolCallID:    "call_abc",
+					Delta:         `"Berlin"}`,
+				}
+
+				// Tool call done.
+				ch <- provider.ProviderEvent{
+					Type:          provider.ProviderEventToolCallDone,
+					ToolCallIndex: 0,
+					ToolCallID:    "call_abc",
+					FunctionName:  "get_weather",
+					Delta:         `{"city":"Berlin"}`,
+					Item: &api.Item{
+						Type:   api.ItemTypeFunctionCall,
+						Status: api.ItemStatusCompleted,
+						FunctionCall: &api.FunctionCallData{
+							Name:      "get_weather",
+							CallID:    "call_abc",
+							Arguments: `{"city":"Berlin"}`,
+						},
+					},
+				}
+
+				// Text done + stream done.
+				ch <- provider.ProviderEvent{Type: provider.ProviderEventTextDone}
+				ch <- provider.ProviderEvent{
+					Type:  provider.ProviderEventDone,
+					Item:  &api.Item{Status: api.ItemStatusCompleted},
+					Usage: &api.Usage{InputTokens: 20, OutputTokens: 15, TotalTokens: 35},
+				}
+			}()
+			return ch, nil
+		},
+	}
+
+	eng, err := New(mp, nil, Config{})
+	if err != nil {
+		t.Fatalf("failed to create engine: %v", err)
+	}
+
+	req := &api.CreateResponseRequest{
+		Model:  "m",
+		Stream: true,
+		Input:  []api.Item{},
+	}
+
+	w := &mockResponseWriter{}
+	if err := eng.CreateResponse(context.Background(), req, w); err != nil {
+		t.Fatalf("CreateResponse failed: %v", err)
+	}
+
+	// Verify we got function_call_arguments.delta events.
+	var argsDeltaCount int
+	var argsDoneFound bool
+	var toolItemAddedFound bool
+	var toolItemDoneFound bool
+
+	for _, ev := range w.events {
+		switch ev.Type {
+		case api.EventFunctionCallArgsDelta:
+			argsDeltaCount++
+		case api.EventFunctionCallArgsDone:
+			argsDoneFound = true
+		case api.EventOutputItemAdded:
+			if ev.Item != nil && ev.Item.Type == api.ItemTypeFunctionCall {
+				toolItemAddedFound = true
+			}
+		case api.EventOutputItemDone:
+			if ev.Item != nil && ev.Item.Type == api.ItemTypeFunctionCall {
+				toolItemDoneFound = true
+				if ev.Item.FunctionCall == nil {
+					t.Error("expected function_call data in item.done")
+				} else {
+					if ev.Item.FunctionCall.Name != "get_weather" {
+						t.Errorf("function name = %q, want %q", ev.Item.FunctionCall.Name, "get_weather")
+					}
+					if ev.Item.FunctionCall.Arguments != `{"city":"Berlin"}` {
+						t.Errorf("arguments = %q, want %q", ev.Item.FunctionCall.Arguments, `{"city":"Berlin"}`)
+					}
+				}
+			}
+		}
+	}
+
+	if argsDeltaCount != 2 {
+		t.Errorf("expected 2 function_call_arguments.delta events, got %d", argsDeltaCount)
+	}
+	if !argsDoneFound {
+		t.Error("expected function_call_arguments.done event")
+	}
+	if !toolItemAddedFound {
+		t.Error("expected output_item.added for function_call")
+	}
+	if !toolItemDoneFound {
+		t.Error("expected output_item.done for function_call")
+	}
+
+	// Verify the final response includes both text and tool call items.
+	lastEvent := w.events[len(w.events)-1]
+	if lastEvent.Type != api.EventResponseCompleted {
+		t.Errorf("last event type = %q, want %q", lastEvent.Type, api.EventResponseCompleted)
+	}
+	if lastEvent.Response == nil {
+		t.Fatal("expected response in completed event")
+	}
+
+	// Should have 2 output items: message + function_call.
+	if len(lastEvent.Response.Output) != 2 {
+		t.Fatalf("expected 2 output items, got %d", len(lastEvent.Response.Output))
+	}
+
+	if lastEvent.Response.Output[0].Type != api.ItemTypeMessage {
+		t.Errorf("output[0] type = %q, want %q", lastEvent.Response.Output[0].Type, api.ItemTypeMessage)
+	}
+	if lastEvent.Response.Output[1].Type != api.ItemTypeFunctionCall {
+		t.Errorf("output[1] type = %q, want %q", lastEvent.Response.Output[1].Type, api.ItemTypeFunctionCall)
+	}
+}
+
+func TestEngine_Streaming_MultipleToolCalls(t *testing.T) {
+	mp := &mockProvider{
+		name: "test",
+		caps: provider.ProviderCapabilities{Streaming: true, ToolCalling: true},
+		streamFn: func(_ context.Context, _ *provider.ProviderRequest) (<-chan provider.ProviderEvent, error) {
+			ch := make(chan provider.ProviderEvent, 32)
+			go func() {
+				defer close(ch)
+				// Two tool calls, no text.
+				ch <- provider.ProviderEvent{
+					Type: provider.ProviderEventToolCallDelta, ToolCallIndex: 0,
+					ToolCallID: "c1", FunctionName: "fn_a", Delta: `{"a":1}`,
+				}
+				ch <- provider.ProviderEvent{
+					Type: provider.ProviderEventToolCallDelta, ToolCallIndex: 1,
+					ToolCallID: "c2", FunctionName: "fn_b", Delta: `{"b":2}`,
+				}
+				ch <- provider.ProviderEvent{
+					Type: provider.ProviderEventToolCallDone, ToolCallIndex: 0,
+					ToolCallID: "c1", FunctionName: "fn_a", Delta: `{"a":1}`,
+					Item: &api.Item{Type: api.ItemTypeFunctionCall, Status: api.ItemStatusCompleted,
+						FunctionCall: &api.FunctionCallData{Name: "fn_a", CallID: "c1", Arguments: `{"a":1}`}},
+				}
+				ch <- provider.ProviderEvent{
+					Type: provider.ProviderEventToolCallDone, ToolCallIndex: 1,
+					ToolCallID: "c2", FunctionName: "fn_b", Delta: `{"b":2}`,
+					Item: &api.Item{Type: api.ItemTypeFunctionCall, Status: api.ItemStatusCompleted,
+						FunctionCall: &api.FunctionCallData{Name: "fn_b", CallID: "c2", Arguments: `{"b":2}`}},
+				}
+				ch <- provider.ProviderEvent{Type: provider.ProviderEventTextDone}
+				ch <- provider.ProviderEvent{
+					Type: provider.ProviderEventDone,
+					Item: &api.Item{Status: api.ItemStatusCompleted},
+				}
+			}()
+			return ch, nil
+		},
+	}
+
+	eng, err := New(mp, nil, Config{})
+	if err != nil {
+		t.Fatalf("failed to create engine: %v", err)
+	}
+
+	req := &api.CreateResponseRequest{Model: "m", Stream: true, Input: []api.Item{}}
+	w := &mockResponseWriter{}
+	if err := eng.CreateResponse(context.Background(), req, w); err != nil {
+		t.Fatalf("CreateResponse failed: %v", err)
+	}
+
+	// Count tool call items in the final response.
+	lastEvent := w.events[len(w.events)-1]
+	if lastEvent.Response == nil {
+		t.Fatal("expected response in completed event")
+	}
+
+	var fcCount int
+	for _, item := range lastEvent.Response.Output {
+		if item.Type == api.ItemTypeFunctionCall {
+			fcCount++
+		}
+	}
+	if fcCount != 2 {
+		t.Errorf("expected 2 function_call items in output, got %d", fcCount)
+	}
+}

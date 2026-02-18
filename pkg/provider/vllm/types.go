@@ -27,11 +27,12 @@ type chatStreamOptions struct {
 
 // chatMessage represents a message in the Chat Completions format.
 type chatMessage struct {
-	Role         string         `json:"role"`
-	Content      any            `json:"content"`
-	ToolCalls    []chatToolCall `json:"tool_calls,omitempty"`
-	ToolCallID   string         `json:"tool_call_id,omitempty"`
-	Name         string         `json:"name,omitempty"`
+	Role             string         `json:"role"`
+	Content          any            `json:"content"`
+	ToolCalls        []chatToolCall `json:"tool_calls,omitempty"`
+	ToolCallID       string         `json:"tool_call_id,omitempty"`
+	Name             string         `json:"name,omitempty"`
+	ReasoningContent *string        `json:"reasoning_content,omitempty"`
 }
 
 // chatToolCall represents a tool call in an assistant message.
