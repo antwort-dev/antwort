@@ -10,9 +10,19 @@ import (
 // to generate the correct OpenResponses event sequence.
 type streamState struct {
 	seq         int    // Next sequence number (monotonically increasing from 0).
-	itemID      string // Current output item ID.
+	itemID      string // Current output item ID (for text message).
 	outputIndex int    // Current output index (position in response output array).
 	textStarted bool   // Whether text content has started for the current item.
+
+	// Tool call tracking: maps tool call index to item ID and output index.
+	toolCallItems map[int]*toolCallItemState
+}
+
+// toolCallItemState tracks a single tool call item during streaming.
+type toolCallItemState struct {
+	itemID      string
+	outputIndex int
+	started     bool // Whether the first delta has been emitted.
 }
 
 // nextSeq returns the current sequence number and increments it.
@@ -68,6 +78,98 @@ func mapTextDone(ev provider.ProviderEvent, state *streamState) []api.StreamEven
 	}
 }
 
+// mapToolCallDelta converts a ProviderEventToolCallDelta to StreamEvent(s).
+// On the first delta for a tool call index, it emits output_item.added.
+// Subsequent deltas emit function_call_arguments.delta.
+func mapToolCallDelta(ev provider.ProviderEvent, state *streamState) []api.StreamEvent {
+	if state.toolCallItems == nil {
+		state.toolCallItems = make(map[int]*toolCallItemState)
+	}
+
+	tcState, exists := state.toolCallItems[ev.ToolCallIndex]
+	if !exists {
+		// First delta for this tool call: create a new item.
+		state.outputIndex++
+		tcState = &toolCallItemState{
+			itemID:      api.NewItemID(),
+			outputIndex: state.outputIndex,
+		}
+		state.toolCallItems[ev.ToolCallIndex] = tcState
+	}
+
+	var events []api.StreamEvent
+
+	if !tcState.started {
+		tcState.started = true
+		// Emit output_item.added for the function_call item.
+		events = append(events, api.StreamEvent{
+			Type:           api.EventOutputItemAdded,
+			SequenceNumber: state.nextSeq(),
+			Item: &api.Item{
+				ID:     tcState.itemID,
+				Type:   api.ItemTypeFunctionCall,
+				Status: api.ItemStatusInProgress,
+				FunctionCall: &api.FunctionCallData{
+					Name:   ev.FunctionName,
+					CallID: ev.ToolCallID,
+				},
+			},
+			OutputIndex: tcState.outputIndex,
+		})
+	}
+
+	// Emit arguments delta (skip empty deltas).
+	if ev.Delta != "" {
+		events = append(events, api.StreamEvent{
+			Type:           api.EventFunctionCallArgsDelta,
+			SequenceNumber: state.nextSeq(),
+			Delta:          ev.Delta,
+			ItemID:         tcState.itemID,
+			OutputIndex:    tcState.outputIndex,
+		})
+	}
+
+	return events
+}
+
+// mapToolCallDone converts a ProviderEventToolCallDone to StreamEvent(s).
+func mapToolCallDone(ev provider.ProviderEvent, state *streamState) []api.StreamEvent {
+	if state.toolCallItems == nil {
+		return nil
+	}
+
+	tcState, exists := state.toolCallItems[ev.ToolCallIndex]
+	if !exists {
+		return nil
+	}
+
+	var events []api.StreamEvent
+
+	// Emit function_call_arguments.done with complete arguments.
+	events = append(events, api.StreamEvent{
+		Type:           api.EventFunctionCallArgsDone,
+		SequenceNumber: state.nextSeq(),
+		Delta:          ev.Delta, // Complete arguments string.
+		ItemID:         tcState.itemID,
+		OutputIndex:    tcState.outputIndex,
+	})
+
+	// Emit output_item.done with the complete function_call item.
+	if ev.Item != nil {
+		// Use the item ID we assigned, not the one from the provider.
+		itemCopy := *ev.Item
+		itemCopy.ID = tcState.itemID
+		events = append(events, api.StreamEvent{
+			Type:           api.EventOutputItemDone,
+			SequenceNumber: state.nextSeq(),
+			Item:           &itemCopy,
+			OutputIndex:    tcState.outputIndex,
+		})
+	}
+
+	return events
+}
+
 // mapProviderEvent converts a ProviderEvent into zero or more StreamEvents.
 // Lifecycle events (response.created, item.added, etc.) are NOT generated
 // here; they are managed by the engine's streaming loop.
@@ -77,6 +179,10 @@ func mapProviderEvent(ev provider.ProviderEvent, state *streamState) []api.Strea
 		return mapTextDelta(ev, state)
 	case provider.ProviderEventTextDone:
 		return mapTextDone(ev, state)
+	case provider.ProviderEventToolCallDelta:
+		return mapToolCallDelta(ev, state)
+	case provider.ProviderEventToolCallDone:
+		return mapToolCallDone(ev, state)
 	case provider.ProviderEventDone:
 		// Done events are handled by the engine to emit terminal lifecycle
 		// events (content_part.done, item.done, response.completed).
@@ -85,7 +191,7 @@ func mapProviderEvent(ev provider.ProviderEvent, state *streamState) []api.Strea
 		// Error events are handled by the engine to emit response.failed.
 		return nil
 	default:
-		// Tool call events, reasoning events: not mapped in Phase 4.
+		// Reasoning events: not mapped yet.
 		return nil
 	}
 }

@@ -379,18 +379,45 @@ func TestVLLMProvider_Stream_ServerError(t *testing.T) {
 	}
 }
 
-func TestVLLMProvider_ListModels_Stub(t *testing.T) {
-	p, err := New(Config{BaseURL: "http://localhost:8000"})
+func TestVLLMProvider_ListModels(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Errorf("expected GET, got %s", r.Method)
+		}
+		if r.URL.Path != "/v1/models" {
+			t.Errorf("expected path /v1/models, got %s", r.URL.Path)
+		}
+
+		resp := chatModelsResponse{
+			Object: "list",
+			Data: []chatModel{
+				{ID: "meta-llama/Llama-3-8B", Object: "model", OwnedBy: "meta"},
+				{ID: "mistral-7b", Object: "model", OwnedBy: "mistral"},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer srv.Close()
+
+	p, err := New(Config{BaseURL: srv.URL})
 	if err != nil {
 		t.Fatalf("failed to create provider: %v", err)
 	}
+	defer p.Close()
 
 	models, err := p.ListModels(context.Background())
 	if err != nil {
-		t.Fatalf("ListModels should not error: %v", err)
+		t.Fatalf("ListModels failed: %v", err)
 	}
-	if models != nil {
-		t.Errorf("expected nil models, got %v", models)
+	if len(models) != 2 {
+		t.Fatalf("expected 2 models, got %d", len(models))
+	}
+	if models[0].ID != "meta-llama/Llama-3-8B" {
+		t.Errorf("model[0].ID = %q, want %q", models[0].ID, "meta-llama/Llama-3-8B")
+	}
+	if models[1].ID != "mistral-7b" {
+		t.Errorf("model[1].ID = %q, want %q", models[1].ID, "mistral-7b")
 	}
 }
 

@@ -417,3 +417,161 @@ var _ = func() {
 	var pr *provider.ProviderRequest
 	_ = pr
 }
+
+// Phase 8: Multimodal content translation tests.
+
+func TestTranslateRequest_MultimodalImageURL(t *testing.T) {
+	req := &api.CreateResponseRequest{
+		Model: "vision-model",
+		Input: []api.Item{
+			{
+				Type: api.ItemTypeMessage,
+				Message: &api.MessageData{
+					Role: api.RoleUser,
+					Content: []api.ContentPart{
+						{Type: "input_text", Text: "What's in this image?"},
+						{Type: "input_image", URL: "https://example.com/photo.jpg"},
+					},
+				},
+			},
+		},
+	}
+
+	pr := translateRequest(req)
+
+	if len(pr.Messages) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(pr.Messages))
+	}
+
+	// Content should be an array (multimodal), not a string.
+	contentArray, ok := pr.Messages[0].Content.([]map[string]any)
+	if !ok {
+		t.Fatalf("expected []map[string]any content, got %T", pr.Messages[0].Content)
+	}
+
+	if len(contentArray) != 2 {
+		t.Fatalf("expected 2 content parts, got %d", len(contentArray))
+	}
+
+	// First part: text.
+	if contentArray[0]["type"] != "text" {
+		t.Errorf("part[0] type = %v, want %q", contentArray[0]["type"], "text")
+	}
+	if contentArray[0]["text"] != "What's in this image?" {
+		t.Errorf("part[0] text = %v, want %q", contentArray[0]["text"], "What's in this image?")
+	}
+
+	// Second part: image_url.
+	if contentArray[1]["type"] != "image_url" {
+		t.Errorf("part[1] type = %v, want %q", contentArray[1]["type"], "image_url")
+	}
+	imageURLObj, ok := contentArray[1]["image_url"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected image_url object, got %T", contentArray[1]["image_url"])
+	}
+	if imageURLObj["url"] != "https://example.com/photo.jpg" {
+		t.Errorf("image_url.url = %v, want %q", imageURLObj["url"], "https://example.com/photo.jpg")
+	}
+}
+
+func TestTranslateRequest_MultimodalImageBase64(t *testing.T) {
+	req := &api.CreateResponseRequest{
+		Model: "vision-model",
+		Input: []api.Item{
+			{
+				Type: api.ItemTypeMessage,
+				Message: &api.MessageData{
+					Role: api.RoleUser,
+					Content: []api.ContentPart{
+						{Type: "input_text", Text: "Describe"},
+						{Type: "input_image", Data: "iVBORw0KGgo=", MediaType: "image/png"},
+					},
+				},
+			},
+		},
+	}
+
+	pr := translateRequest(req)
+
+	contentArray, ok := pr.Messages[0].Content.([]map[string]any)
+	if !ok {
+		t.Fatalf("expected []map[string]any content, got %T", pr.Messages[0].Content)
+	}
+
+	// Image should use data URI format.
+	imageURLObj := contentArray[1]["image_url"].(map[string]any)
+	expectedURL := "data:image/png;base64,iVBORw0KGgo="
+	if imageURLObj["url"] != expectedURL {
+		t.Errorf("data URI = %v, want %q", imageURLObj["url"], expectedURL)
+	}
+}
+
+func TestTranslateRequest_TextOnlyStaysString(t *testing.T) {
+	// Verify that text-only content remains a plain string (not array).
+	req := &api.CreateResponseRequest{
+		Model: "text-model",
+		Input: []api.Item{
+			{
+				Type: api.ItemTypeMessage,
+				Message: &api.MessageData{
+					Role: api.RoleUser,
+					Content: []api.ContentPart{
+						{Type: "input_text", Text: "Hello"},
+					},
+				},
+			},
+		},
+	}
+
+	pr := translateRequest(req)
+
+	content, ok := pr.Messages[0].Content.(string)
+	if !ok {
+		t.Fatalf("expected string content for text-only input, got %T", pr.Messages[0].Content)
+	}
+	if content != "Hello" {
+		t.Errorf("content = %q, want %q", content, "Hello")
+	}
+}
+
+func TestTranslateRequest_MultimodalJSON(t *testing.T) {
+	// Verify that multimodal content serializes correctly to JSON
+	// (as the Chat Completions API expects).
+	req := &api.CreateResponseRequest{
+		Model: "vision-model",
+		Input: []api.Item{
+			{
+				Type: api.ItemTypeMessage,
+				Message: &api.MessageData{
+					Role: api.RoleUser,
+					Content: []api.ContentPart{
+						{Type: "input_text", Text: "Look at this"},
+						{Type: "input_image", URL: "https://example.com/img.png"},
+					},
+				},
+			},
+		},
+	}
+
+	pr := translateRequest(req)
+
+	// Serialize the message to JSON to verify structure.
+	data, err := json.Marshal(pr.Messages[0])
+	if err != nil {
+		t.Fatalf("failed to marshal message: %v", err)
+	}
+
+	// Parse back and verify structure.
+	var msg map[string]any
+	if err := json.Unmarshal(data, &msg); err != nil {
+		t.Fatalf("failed to unmarshal: %v", err)
+	}
+
+	content, ok := msg["content"].([]any)
+	if !ok {
+		t.Fatalf("expected content array in JSON, got %T", msg["content"])
+	}
+	if len(content) != 2 {
+		t.Fatalf("expected 2 content parts, got %d", len(content))
+	}
+}

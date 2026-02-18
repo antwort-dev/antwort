@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"fmt"
+
 	"github.com/rhuss/antwort/pkg/api"
 	"github.com/rhuss/antwort/pkg/provider"
 )
@@ -103,19 +105,65 @@ func translateMessageItem(item api.Item) []provider.ProviderMessage {
 	}
 }
 
-// extractUserContent builds a string from ContentParts (text-only for now).
-func extractUserContent(parts []api.ContentPart) string {
+// extractUserContent builds content from ContentParts.
+// For text-only input, returns a plain string.
+// For multimodal input (text + images), returns a []map[string]any content array
+// in the Chat Completions format.
+func extractUserContent(parts []api.ContentPart) any {
 	if len(parts) == 0 {
 		return ""
 	}
-	// For text-only, concatenate all input_text parts.
-	var result string
+
+	// Check if any non-text parts exist.
+	hasMultimodal := false
 	for _, p := range parts {
-		if p.Type == "input_text" {
-			result += p.Text
+		if p.Type != "input_text" {
+			hasMultimodal = true
+			break
 		}
 	}
-	return result
+
+	// Text-only: return concatenated string.
+	if !hasMultimodal {
+		var result string
+		for _, p := range parts {
+			if p.Type == "input_text" {
+				result += p.Text
+			}
+		}
+		return result
+	}
+
+	// Multimodal: return content array.
+	var contentArray []map[string]any
+	for _, p := range parts {
+		switch p.Type {
+		case "input_text":
+			contentArray = append(contentArray, map[string]any{
+				"type": "text",
+				"text": p.Text,
+			})
+		case "input_image":
+			imageURL := p.URL
+			if imageURL == "" && p.Data != "" {
+				// Inline base64 image: construct data URI.
+				mediaType := p.MediaType
+				if mediaType == "" {
+					mediaType = "image/png"
+				}
+				imageURL = fmt.Sprintf("data:%s;base64,%s", mediaType, p.Data)
+			}
+			if imageURL != "" {
+				contentArray = append(contentArray, map[string]any{
+					"type": "image_url",
+					"image_url": map[string]any{
+						"url": imageURL,
+					},
+				})
+			}
+		}
+	}
+	return contentArray
 }
 
 // extractAssistantContent builds a string from OutputContentParts.

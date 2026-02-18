@@ -53,6 +53,16 @@ func (e *Engine) CreateResponse(ctx context.Context, req *api.CreateResponseRequ
 	// Translate the request to provider format.
 	provReq := translateRequest(req)
 
+	// If previous_response_id is set, reconstruct conversation history.
+	if req.PreviousResponseID != "" {
+		historyMsgs, err := loadConversationHistory(ctx, e.store, req.PreviousResponseID)
+		if err != nil {
+			return err
+		}
+		// Prepend history messages before the current request's messages.
+		provReq.Messages = append(historyMsgs, provReq.Messages...)
+	}
+
 	if req.Stream {
 		return e.handleStreaming(ctx, req, provReq, w)
 	}
@@ -140,6 +150,7 @@ func (e *Engine) handleStreaming(ctx context.Context, req *api.CreateResponseReq
 	// Track whether we've emitted the output item lifecycle events.
 	itemAdded := false
 	var accumulatedText string
+	var toolCallItems []api.Item
 
 	// Create the output item that will be populated during streaming.
 	outputItem := api.Item{
@@ -165,7 +176,7 @@ func (e *Engine) handleStreaming(ctx context.Context, req *api.CreateResponseReq
 			return e.emitFailed(ctx, resp, ev.Err, state, w)
 		}
 
-		// Emit output_item.added and content_part.added on first content event.
+		// Emit output_item.added and content_part.added on first text content event.
 		if !itemAdded && (ev.Type == provider.ProviderEventTextDelta || ev.Type == provider.ProviderEventTextDone) {
 			if err := e.emitItemLifecycleStart(ctx, &outputItem, state, w); err != nil {
 				return err
@@ -192,7 +203,7 @@ func (e *Engine) handleStreaming(ctx context.Context, req *api.CreateResponseReq
 			}
 
 			// Emit terminal lifecycle events.
-			return e.emitStreamComplete(ctx, resp, &outputItem, accumulatedText, finalStatus, itemAdded, state, w)
+			return e.emitStreamComplete(ctx, resp, &outputItem, accumulatedText, finalStatus, itemAdded, toolCallItems, state, w)
 		}
 
 		// Map provider event to stream events and write them.
@@ -206,6 +217,11 @@ func (e *Engine) handleStreaming(ctx context.Context, req *api.CreateResponseReq
 			if se.Type == api.EventOutputTextDelta {
 				accumulatedText += se.Delta
 			}
+
+			// Collect completed tool call items for the final response.
+			if se.Type == api.EventOutputItemDone && se.Item != nil && se.Item.Type == api.ItemTypeFunctionCall {
+				toolCallItems = append(toolCallItems, *se.Item)
+			}
 		}
 	}
 
@@ -215,7 +231,7 @@ func (e *Engine) handleStreaming(ctx context.Context, req *api.CreateResponseReq
 	}
 
 	// Unexpected channel closure without done event.
-	return e.emitStreamComplete(ctx, resp, &outputItem, accumulatedText, api.ResponseStatusCompleted, itemAdded, state, w)
+	return e.emitStreamComplete(ctx, resp, &outputItem, accumulatedText, api.ResponseStatusCompleted, itemAdded, toolCallItems, state, w)
 }
 
 // emitItemLifecycleStart emits the output_item.added and content_part.added events.
@@ -242,7 +258,9 @@ func (e *Engine) emitItemLifecycleStart(ctx context.Context, item *api.Item, sta
 }
 
 // emitStreamComplete emits the terminal lifecycle events for a completed stream.
-func (e *Engine) emitStreamComplete(ctx context.Context, resp *api.Response, item *api.Item, accumulatedText string, finalStatus api.ResponseStatus, itemAdded bool, state *streamState, w transport.ResponseWriter) error {
+func (e *Engine) emitStreamComplete(ctx context.Context, resp *api.Response, item *api.Item, accumulatedText string, finalStatus api.ResponseStatus, itemAdded bool, toolCallItems []api.Item, state *streamState, w transport.ResponseWriter) error {
+	var outputItems []api.Item
+
 	if itemAdded {
 		// Emit content_part.done.
 		if err := w.WriteEvent(ctx, api.StreamEvent{
@@ -250,7 +268,7 @@ func (e *Engine) emitStreamComplete(ctx context.Context, resp *api.Response, ite
 			SequenceNumber: state.nextSeq(),
 			Part:           &api.OutputContentPart{Type: "output_text", Text: accumulatedText},
 			ItemID:         item.ID,
-			OutputIndex:    state.outputIndex,
+			OutputIndex:    0, // Text item is always at output index 0.
 			ContentIndex:   0,
 		}); err != nil {
 			return err
@@ -270,14 +288,17 @@ func (e *Engine) emitStreamComplete(ctx context.Context, resp *api.Response, ite
 			Type:           api.EventOutputItemDone,
 			SequenceNumber: state.nextSeq(),
 			Item:           item,
-			OutputIndex:    state.outputIndex,
+			OutputIndex:    0,
 		}); err != nil {
 			return err
 		}
 
-		// Add to response output.
-		resp.Output = []api.Item{*item}
+		outputItems = append(outputItems, *item)
 	}
+
+	// Include tool call items in the response output.
+	outputItems = append(outputItems, toolCallItems...)
+	resp.Output = outputItems
 
 	// Update response status.
 	resp.Status = finalStatus

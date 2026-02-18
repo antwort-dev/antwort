@@ -12,6 +12,14 @@ import (
 	"github.com/rhuss/antwort/pkg/provider"
 )
 
+// toolCallBuffer tracks incremental tool call argument assembly across
+// multiple SSE chunks for a single tool call index.
+type toolCallBuffer struct {
+	id   string
+	name string
+	args strings.Builder
+}
+
 // parseSSEStream reads Chat Completions SSE chunks from the given reader,
 // translates each chunk to ProviderEvent values, and sends them on ch.
 // The channel is NOT closed by this function; the caller is responsible
@@ -28,6 +36,10 @@ import (
 // reading immediately.
 func parseSSEStream(ctx context.Context, body io.Reader, ch chan<- provider.ProviderEvent) {
 	scanner := bufio.NewScanner(body)
+
+	// Track tool call argument buffers across chunks (keyed by tool call index).
+	toolCalls := make(map[int]*toolCallBuffer)
+
 	for scanner.Scan() {
 		// Check for context cancellation between lines.
 		if ctx.Err() != nil {
@@ -60,7 +72,7 @@ func parseSSEStream(ctx context.Context, body io.Reader, ch chan<- provider.Prov
 		}
 
 		// Translate chunk to provider events and send them.
-		translateChunk(&chunk, ch)
+		translateChunk(&chunk, toolCalls, ch)
 	}
 
 	// Scanner error (e.g., connection dropped).
@@ -77,8 +89,9 @@ func parseSSEStream(ctx context.Context, body io.Reader, ch chan<- provider.Prov
 }
 
 // translateChunk converts a single chatCompletionChunk into one or more
-// ProviderEvent values sent on the channel.
-func translateChunk(chunk *chatCompletionChunk, ch chan<- provider.ProviderEvent) {
+// ProviderEvent values sent on the channel. The toolCalls map tracks
+// incremental tool call argument assembly across chunks.
+func translateChunk(chunk *chatCompletionChunk, toolCalls map[int]*toolCallBuffer, ch chan<- provider.ProviderEvent) {
 	// No choices means nothing to translate (e.g., a usage-only final chunk).
 	if len(chunk.Choices) == 0 {
 		// Check if this is a usage-only chunk (sent with stream_options.include_usage).
@@ -102,8 +115,12 @@ func translateChunk(chunk *chatCompletionChunk, ch chan<- provider.ProviderEvent
 	if choice.FinishReason != nil {
 		reason := *choice.FinishReason
 
+		// If we have buffered tool calls, flush them as done events.
+		if reason == "tool_calls" || len(toolCalls) > 0 {
+			flushToolCalls(toolCalls, ch)
+		}
+
 		// Emit text done if we had text content.
-		// The engine tracks whether text was started and handles this.
 		ch <- provider.ProviderEvent{
 			Type:  provider.ProviderEventTextDone,
 			Delta: extractDeltaContent(delta.Content),
@@ -127,12 +144,49 @@ func translateChunk(chunk *chatCompletionChunk, ch chan<- provider.ProviderEvent
 		return
 	}
 
-	// Handle tool call deltas (Phase 5, log warning for now).
+	// Handle tool call deltas.
 	if len(delta.ToolCalls) > 0 {
-		slog.Warn("tool call chunks received but tool call streaming not yet implemented (Phase 5)",
-			"tool_call_count", len(delta.ToolCalls),
-		)
+		for _, tc := range delta.ToolCalls {
+			buf, exists := toolCalls[tc.Index]
+			if !exists {
+				// First chunk for this tool call index: contains id and function name.
+				buf = &toolCallBuffer{
+					id:   tc.ID,
+					name: tc.Function.Name,
+				}
+				toolCalls[tc.Index] = buf
+
+				// Emit the first delta event with the function name.
+				ch <- provider.ProviderEvent{
+					Type:          provider.ProviderEventToolCallDelta,
+					ToolCallIndex: tc.Index,
+					ToolCallID:    tc.ID,
+					FunctionName:  tc.Function.Name,
+					Delta:         tc.Function.Arguments,
+				}
+			} else {
+				// Continuation chunk: accumulate arguments.
+				ch <- provider.ProviderEvent{
+					Type:          provider.ProviderEventToolCallDelta,
+					ToolCallIndex: tc.Index,
+					ToolCallID:    buf.id,
+					Delta:         tc.Function.Arguments,
+				}
+			}
+
+			// Always accumulate arguments in the buffer.
+			buf.args.WriteString(tc.Function.Arguments)
+		}
 		return
+	}
+
+	// Handle reasoning content delta (e.g., DeepSeek R1).
+	if delta.ReasoningContent != nil && *delta.ReasoningContent != "" {
+		ch <- provider.ProviderEvent{
+			Type:  provider.ProviderEventReasoningDelta,
+			Delta: *delta.ReasoningContent,
+		}
+		// Don't return: the same chunk might also have text content.
 	}
 
 	// Handle text content delta.
@@ -145,8 +199,7 @@ func translateChunk(chunk *chatCompletionChunk, ch chan<- provider.ProviderEvent
 	}
 
 	// Handle role-only chunk (first chunk signaling a new message).
-	// The delta has a role but no content yet.
-	if delta.Role != "" {
+	if delta.Role != "" && delta.ReasoningContent == nil {
 		ch <- provider.ProviderEvent{
 			Type:  provider.ProviderEventTextDelta,
 			Delta: "", // Empty delta signals new message start.
@@ -156,6 +209,33 @@ func translateChunk(chunk *chatCompletionChunk, ch chan<- provider.ProviderEvent
 
 	// Empty delta with no content, no role, no tool calls.
 	// This can happen with some backends. Silently skip.
+}
+
+// flushToolCalls emits ProviderEventToolCallDone for each buffered tool call
+// and clears the buffer.
+func flushToolCalls(toolCalls map[int]*toolCallBuffer, ch chan<- provider.ProviderEvent) {
+	for idx, buf := range toolCalls {
+		ch <- provider.ProviderEvent{
+			Type:          provider.ProviderEventToolCallDone,
+			ToolCallIndex: idx,
+			ToolCallID:    buf.id,
+			FunctionName:  buf.name,
+			Delta:         buf.args.String(),
+			Item: &api.Item{
+				Type:   api.ItemTypeFunctionCall,
+				Status: api.ItemStatusCompleted,
+				FunctionCall: &api.FunctionCallData{
+					Name:      buf.name,
+					CallID:    buf.id,
+					Arguments: buf.args.String(),
+				},
+			},
+		}
+	}
+	// Clear the map.
+	for k := range toolCalls {
+		delete(toolCalls, k)
+	}
 }
 
 // mapFinishReasonToItemStatus maps a Chat Completions finish_reason to an

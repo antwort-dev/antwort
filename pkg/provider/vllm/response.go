@@ -51,6 +51,16 @@ func translateResponse(resp *chatCompletionResponse) *provider.ProviderResponse 
 		})
 	}
 
+	// Parse reasoning content (e.g., DeepSeek R1).
+	if choice.Message.ReasoningContent != nil && *choice.Message.ReasoningContent != "" {
+		pr.Items = append(pr.Items, api.Item{
+			ID:        api.NewItemID(),
+			Type:      api.ItemTypeReasoning,
+			Status:    api.ItemStatusCompleted,
+			Reasoning: &api.ReasoningData{Content: *choice.Message.ReasoningContent},
+		})
+	}
+
 	// Parse tool calls into separate function_call Items.
 	for _, tc := range choice.Message.ToolCalls {
 		pr.Items = append(pr.Items, api.Item{
