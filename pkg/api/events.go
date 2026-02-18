@@ -23,8 +23,9 @@ const (
 	EventResponseQueued     StreamEventType = "response.queued"
 	EventResponseInProgress StreamEventType = "response.in_progress"
 	EventResponseCompleted  StreamEventType = "response.completed"
-	EventResponseFailed     StreamEventType = "response.failed"
-	EventResponseCancelled  StreamEventType = "response.cancelled"
+	EventResponseFailed         StreamEventType = "response.failed"
+	EventResponseCancelled      StreamEventType = "response.cancelled"
+	EventResponseRequiresAction StreamEventType = "response.requires_action"
 )
 
 // StreamEvent represents a single server-sent event in a streaming response.

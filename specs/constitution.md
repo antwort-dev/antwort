@@ -107,6 +107,15 @@ Request-scoped data (request IDs, user identity, tracing context) propagates thr
 - Implementation is verified against the spec. All functional requirements must be traceable to test cases.
 - Specs are numbered in dependency order and developed sequentially.
 
+### IX. Kubernetes-Native Execution
+
+Antwort is designed exclusively for Kubernetes. There is no standalone or local execution mode.
+
+- All tool code execution is delegated to isolated sandbox pods managed by the [agent-sandbox](https://github.com/kubernetes-sigs/agent-sandbox) project (Kubernetes SIG). No custom or potentially blocking code executes within the antwort process.
+- Antwort consumes Kubernetes CRDs (`Sandbox`, `SandboxWarmPool`, `SandboxClaim`) rather than implementing its own pod management controllers. The agent-sandbox controller handles pod lifecycle, warm pools, and stable identity.
+- Communication between antwort and sandbox pods uses mutual TLS with SPIFFE/SPIRE workload identities. No shared secrets.
+- Sandbox pods expose a well-defined REST interface for code execution. The container image (Python runtime, `uv` package manager, execution server) is an antwort project deliverable; the pod lifecycle is managed by agent-sandbox.
+
 ## Architecture Constraints
 
 ### Layer Dependencies
@@ -147,4 +156,4 @@ The engine handles both modes. Stateless mode is always available. Stateful feat
 - New specs must declare compliance with these principles. Deviations require explicit justification in the spec's Assumptions or Clarifications section.
 - Code reviews verify constitutional compliance. Non-compliant code is not merged.
 
-**Version**: 1.0.0 | **Ratified**: 2026-02-17 | **Last Amended**: 2026-02-17
+**Version**: 1.1.0 | **Ratified**: 2026-02-17 | **Last Amended**: 2026-02-18

@@ -9,7 +9,8 @@ func ValidateResponseTransition(from, to ResponseStatus) *APIError {
 	valid := map[ResponseStatus][]ResponseStatus{
 		"":                       {ResponseStatusQueued, ResponseStatusInProgress},
 		ResponseStatusQueued:     {ResponseStatusInProgress},
-		ResponseStatusInProgress: {ResponseStatusCompleted, ResponseStatusFailed, ResponseStatusCancelled},
+		ResponseStatusInProgress:     {ResponseStatusCompleted, ResponseStatusFailed, ResponseStatusCancelled, ResponseStatusRequiresAction},
+		ResponseStatusRequiresAction: {}, // terminal
 	}
 
 	allowed, exists := valid[from]
