@@ -7,15 +7,17 @@ import (
 
 	"github.com/rhuss/antwort/pkg/api"
 	"github.com/rhuss/antwort/pkg/provider"
+	"github.com/rhuss/antwort/pkg/tools"
 	"github.com/rhuss/antwort/pkg/transport"
 )
 
 // Engine orchestrates request processing between the transport layer
 // and the provider backend. It implements transport.ResponseCreator.
 type Engine struct {
-	provider provider.Provider
-	store    transport.ResponseStore
-	cfg      Config
+	provider  provider.Provider
+	store     transport.ResponseStore
+	executors []tools.ToolExecutor
+	cfg       Config
 }
 
 // Ensure Engine implements transport.ResponseCreator at compile time.
@@ -28,9 +30,10 @@ func New(p provider.Provider, store transport.ResponseStore, cfg Config) (*Engin
 		return nil, fmt.Errorf("engine: provider must not be nil")
 	}
 	return &Engine{
-		provider: p,
-		store:    store,
-		cfg:      cfg,
+		provider:  p,
+		store:     store,
+		executors: cfg.Executors,
+		cfg:       cfg,
 	}, nil
 }
 
@@ -63,10 +66,23 @@ func (e *Engine) CreateResponse(ctx context.Context, req *api.CreateResponseRequ
 		provReq.Messages = append(historyMsgs, provReq.Messages...)
 	}
 
+	// Determine if the agentic loop should be used:
+	// - Executors are registered
+	// - Tools are present in the request
+	// - tool_choice is not "none"
+	useLoop := e.hasExecutors() && len(req.Tools) > 0 &&
+		!(req.ToolChoice != nil && req.ToolChoice.String == "none")
+
 	if req.Stream {
+		if useLoop {
+			return e.runAgenticLoopStreaming(ctx, req, provReq, w)
+		}
 		return e.handleStreaming(ctx, req, provReq, w)
 	}
 
+	if useLoop {
+		return e.runAgenticLoop(ctx, req, provReq, w)
+	}
 	return e.handleNonStreaming(ctx, req, provReq, w)
 }
 
@@ -355,6 +371,22 @@ func snapshotResponse(r *api.Response) *api.Response {
 		copy(cp.Output, r.Output)
 	}
 	return &cp
+}
+
+// hasExecutors returns true if any tool executors are registered.
+func (e *Engine) hasExecutors() bool {
+	return len(e.executors) > 0
+}
+
+// findExecutor returns the first executor that can handle the given tool name.
+// Returns nil if no executor matches.
+func (e *Engine) findExecutor(toolName string) tools.ToolExecutor {
+	for _, exec := range e.executors {
+		if exec.CanExecute(toolName) {
+			return exec
+		}
+	}
+	return nil
 }
 
 // isStateful returns true if the request should be stored.

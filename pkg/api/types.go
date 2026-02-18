@@ -242,8 +242,9 @@ const (
 	ResponseStatusInProgress  ResponseStatus = "in_progress"
 	ResponseStatusCompleted   ResponseStatus = "completed"
 	ResponseStatusIncomplete  ResponseStatus = "incomplete"
-	ResponseStatusFailed      ResponseStatus = "failed"
-	ResponseStatusCancelled   ResponseStatus = "cancelled"
+	ResponseStatusFailed         ResponseStatus = "failed"
+	ResponseStatusCancelled      ResponseStatus = "cancelled"
+	ResponseStatusRequiresAction ResponseStatus = "requires_action"
 )
 
 // Response represents the API response object returned by the Responses API.

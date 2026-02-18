@@ -19,8 +19,9 @@ func TestValidateResponseTransition(t *testing.T) {
 		{name: "in_progress to completed", from: ResponseStatusInProgress, to: ResponseStatusCompleted, wantErr: false},
 		{name: "in_progress to failed", from: ResponseStatusInProgress, to: ResponseStatusFailed, wantErr: false},
 		{name: "in_progress to cancelled", from: ResponseStatusInProgress, to: ResponseStatusCancelled, wantErr: false},
+		{name: "in_progress to requires_action", from: ResponseStatusInProgress, to: ResponseStatusRequiresAction, wantErr: false},
 
-		// Invalid transitions from terminal states
+		// Invalid transitions from terminal states (including requires_action)
 		{name: "completed to in_progress", from: ResponseStatusCompleted, to: ResponseStatusInProgress, wantErr: true},
 		{name: "completed to failed", from: ResponseStatusCompleted, to: ResponseStatusFailed, wantErr: true},
 		{name: "completed to queued", from: ResponseStatusCompleted, to: ResponseStatusQueued, wantErr: true},
@@ -28,6 +29,8 @@ func TestValidateResponseTransition(t *testing.T) {
 		{name: "failed to completed", from: ResponseStatusFailed, to: ResponseStatusCompleted, wantErr: true},
 		{name: "cancelled to in_progress", from: ResponseStatusCancelled, to: ResponseStatusInProgress, wantErr: true},
 		{name: "cancelled to completed", from: ResponseStatusCancelled, to: ResponseStatusCompleted, wantErr: true},
+		{name: "requires_action to in_progress", from: ResponseStatusRequiresAction, to: ResponseStatusInProgress, wantErr: true},
+		{name: "requires_action to completed", from: ResponseStatusRequiresAction, to: ResponseStatusCompleted, wantErr: true},
 
 		// Invalid transitions skipping required states or going backward
 		{name: "queued to completed (skip in_progress)", from: ResponseStatusQueued, to: ResponseStatusCompleted, wantErr: true},

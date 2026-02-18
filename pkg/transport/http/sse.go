@@ -23,9 +23,10 @@ const (
 
 // terminalEvents are the event types that end a streaming response.
 var terminalEvents = map[api.StreamEventType]bool{
-	api.EventResponseCompleted: true,
-	api.EventResponseFailed:    true,
-	api.EventResponseCancelled: true,
+	api.EventResponseCompleted:      true,
+	api.EventResponseFailed:         true,
+	api.EventResponseCancelled:      true,
+	api.EventResponseRequiresAction: true,
 }
 
 // sseResponseWriter implements transport.ResponseWriter for HTTP/SSE responses.
