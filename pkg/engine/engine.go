@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/rhuss/antwort/pkg/api"
@@ -117,7 +118,15 @@ func (e *Engine) handleNonStreaming(ctx context.Context, req *api.CreateResponse
 		CreatedAt:          time.Now().Unix(),
 	}
 
-	return w.WriteResponse(ctx, resp)
+	// Write the response to the client first.
+	if err := w.WriteResponse(ctx, resp); err != nil {
+		return err
+	}
+
+	// Save the response to the store (after client write).
+	e.saveIfStateful(ctx, req, resp)
+
+	return nil
 }
 
 // handleStreaming processes a streaming request. It emits the full
@@ -387,6 +396,28 @@ func (e *Engine) findExecutor(toolName string) tools.ToolExecutor {
 		}
 	}
 	return nil
+}
+
+// saveIfStateful saves the response to the store if conditions are met:
+// store is configured, request has store=true (default), and the response
+// has input items populated. Save failures are logged but do not affect
+// the client response.
+func (e *Engine) saveIfStateful(ctx context.Context, req *api.CreateResponseRequest, resp *api.Response) {
+	if e.store == nil || !isStateful(req) {
+		return
+	}
+
+	// Populate input items from the request for full conversation reconstruction.
+	if resp.Input == nil {
+		resp.Input = req.Input
+	}
+
+	if err := e.store.SaveResponse(ctx, resp); err != nil {
+		slog.Warn("failed to save response to store",
+			"response_id", resp.ID,
+			"error", err.Error(),
+		)
+	}
 }
 
 // isStateful returns true if the request should be stored.

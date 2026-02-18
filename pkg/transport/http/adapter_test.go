@@ -44,7 +44,23 @@ type mockStore struct {
 	responses map[string]*api.Response
 }
 
+func (m *mockStore) SaveResponse(_ context.Context, resp *api.Response) error {
+	if m.responses == nil {
+		m.responses = make(map[string]*api.Response)
+	}
+	m.responses[resp.ID] = resp
+	return nil
+}
+
 func (m *mockStore) GetResponse(_ context.Context, id string) (*api.Response, error) {
+	resp, ok := m.responses[id]
+	if !ok {
+		return nil, api.NewNotFoundError("response not found: " + id)
+	}
+	return resp, nil
+}
+
+func (m *mockStore) GetResponseForChain(_ context.Context, id string) (*api.Response, error) {
 	resp, ok := m.responses[id]
 	if !ok {
 		return nil, api.NewNotFoundError("response not found: " + id)
@@ -59,6 +75,9 @@ func (m *mockStore) DeleteResponse(_ context.Context, id string) error {
 	delete(m.responses, id)
 	return nil
 }
+
+func (m *mockStore) HealthCheck(_ context.Context) error { return nil }
+func (m *mockStore) Close() error                        { return nil }
 
 func newTestAdapter(creator transport.ResponseCreator, store transport.ResponseStore) *Adapter {
 	return NewAdapter(creator, store, DefaultConfig())

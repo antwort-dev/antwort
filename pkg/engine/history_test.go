@@ -15,6 +15,14 @@ type mockStore struct {
 
 var _ transport.ResponseStore = (*mockStore)(nil)
 
+func (s *mockStore) SaveResponse(_ context.Context, resp *api.Response) error {
+	if s.responses == nil {
+		s.responses = make(map[string]*api.Response)
+	}
+	s.responses[resp.ID] = resp
+	return nil
+}
+
 func (s *mockStore) GetResponse(_ context.Context, id string) (*api.Response, error) {
 	if resp, ok := s.responses[id]; ok {
 		return resp, nil
@@ -22,9 +30,16 @@ func (s *mockStore) GetResponse(_ context.Context, id string) (*api.Response, er
 	return nil, api.NewNotFoundError("response " + id + " not found")
 }
 
+func (s *mockStore) GetResponseForChain(_ context.Context, id string) (*api.Response, error) {
+	return s.GetResponse(context.Background(), id)
+}
+
 func (s *mockStore) DeleteResponse(_ context.Context, id string) error {
 	return nil
 }
+
+func (s *mockStore) HealthCheck(_ context.Context) error { return nil }
+func (s *mockStore) Close() error                        { return nil }
 
 func TestLoadConversationHistory_ChainOfThree(t *testing.T) {
 	store := &mockStore{

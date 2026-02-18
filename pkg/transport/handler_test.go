@@ -68,10 +68,9 @@ func (m *mockCreator) CreateResponse(ctx context.Context, req *api.CreateRespons
 
 type mockStore struct{}
 
-func (m *mockStore) GetResponse(ctx context.Context, id string) (*api.Response, error) {
-	return nil, nil
-}
-
-func (m *mockStore) DeleteResponse(ctx context.Context, id string) error {
-	return nil
-}
+func (m *mockStore) SaveResponse(_ context.Context, _ *api.Response) error                  { return nil }
+func (m *mockStore) GetResponse(_ context.Context, _ string) (*api.Response, error)         { return nil, nil }
+func (m *mockStore) GetResponseForChain(_ context.Context, _ string) (*api.Response, error) { return nil, nil }
+func (m *mockStore) DeleteResponse(_ context.Context, _ string) error                       { return nil }
+func (m *mockStore) HealthCheck(_ context.Context) error                                    { return nil }
+func (m *mockStore) Close() error                                                           { return nil }

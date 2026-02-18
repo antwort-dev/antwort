@@ -23,11 +23,29 @@ func (f ResponseCreatorFunc) CreateResponse(ctx context.Context, req *api.Create
 	return f(ctx, req, w)
 }
 
-// ResponseStore handles retrieval and deletion of stored responses.
+// ResponseStore handles persistence, retrieval, and deletion of stored responses.
 // It is only available in stateful deployments with persistence configured.
 type ResponseStore interface {
+	// SaveResponse persists a completed response to the store.
+	SaveResponse(ctx context.Context, resp *api.Response) error
+
+	// GetResponse retrieves a response by ID. Returns an error if the
+	// response does not exist or has been deleted (soft delete).
 	GetResponse(ctx context.Context, id string) (*api.Response, error)
+
+	// GetResponseForChain retrieves a response by ID for chain reconstruction.
+	// Unlike GetResponse, this includes soft-deleted responses so that
+	// conversation chains remain intact when intermediate responses are deleted.
+	GetResponseForChain(ctx context.Context, id string) (*api.Response, error)
+
+	// DeleteResponse soft-deletes a response by ID.
 	DeleteResponse(ctx context.Context, id string) error
+
+	// HealthCheck verifies the store connection is functional.
+	HealthCheck(ctx context.Context) error
+
+	// Close releases database connections and resources.
+	Close() error
 }
 
 // ResponseWriter abstracts streaming and non-streaming output for the handler.

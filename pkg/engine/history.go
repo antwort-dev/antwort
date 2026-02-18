@@ -31,7 +31,7 @@ func loadConversationHistory(ctx context.Context, store transport.ResponseStore,
 		}
 		visited[currentID] = true
 
-		resp, err := store.GetResponse(ctx, currentID)
+		resp, err := store.GetResponseForChain(ctx, currentID)
 		if err != nil {
 			return nil, err
 		}
