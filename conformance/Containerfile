@@ -1,0 +1,28 @@
+# Conformance test runner using the official OpenResponses compliance suite.
+# Runs via bun against a running antwort instance.
+#
+# Build: podman build -t antwort-conformance -f conformance/Containerfile .
+# Run:   podman run --rm --network=host -e BASE_URL=http://localhost:8080/v1 -e MODEL=mock-model antwort-conformance
+
+FROM oven/bun:1 AS builder
+
+WORKDIR /app
+
+# Clone the official OpenResponses repo.
+RUN apt-get update && apt-get install -y git && \
+    git clone --depth 1 https://github.com/openresponses/openresponses.git /app && \
+    bun install
+
+FROM oven/bun:1
+
+WORKDIR /app
+COPY --from=builder /app /app
+
+# Environment variables for configuration.
+ENV BASE_URL=http://localhost:8080/v1
+ENV MODEL=mock-model
+ENV API_KEY=""
+
+# Run the compliance tests and output results.
+# The test:compliance script is defined in the openresponses package.json.
+CMD ["bun", "run", "test:compliance", "--base-url", "${BASE_URL}", "--model", "${MODEL}"]

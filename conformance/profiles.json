@@ -1,0 +1,10 @@
+{
+  "core": {
+    "description": "Core conformance: basic text, streaming, system prompt, tool calling, multi-turn",
+    "tests": ["basic-response", "streaming-response", "system-prompt", "tool-calling", "multi-turn"]
+  },
+  "extended": {
+    "description": "Extended conformance: all 6 official tests including image input",
+    "tests": ["basic-response", "streaming-response", "system-prompt", "tool-calling", "image-input", "multi-turn"]
+  }
+}
