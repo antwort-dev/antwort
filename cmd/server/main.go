@@ -97,11 +97,13 @@ func run() error {
 		w.Write([]byte("ok\n"))
 	})
 
+	// Wrap with CORS middleware (for browser-based compliance testing).
+	var handler http.Handler = corsMiddleware(mux)
+
 	// Wrap with auth middleware.
-	var handler http.Handler = mux
 	if authChain != nil {
 		authMiddleware := auth.Middleware(authChain, nil, auth.DefaultBypassEndpoints)
-		handler = authMiddleware(mux)
+		handler = authMiddleware(handler)
 	}
 
 	// Create server.
@@ -199,6 +201,22 @@ func parseAPIKeys(jsonStr string) []apikey.RawKeyEntry {
 		})
 	}
 	return entries
+}
+
+// corsMiddleware adds CORS headers for browser-based compliance testing.
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }
 
 // Ensure noop package is available (used indirectly via auth chain default).
