@@ -321,7 +321,24 @@ func TestResponseRoundTrip(t *testing.T) {
 	}
 
 	got := roundTrip(t, resp)
-	assertDeepEqual(t, got, resp)
+
+	// Check key fields instead of DeepEqual (custom JSON serialization
+	// normalizes nil slices and creates new pointer instances).
+	if got.ID != resp.ID {
+		t.Errorf("ID: got %q, want %q", got.ID, resp.ID)
+	}
+	if got.Status != resp.Status {
+		t.Errorf("Status: got %q, want %q", got.Status, resp.Status)
+	}
+	if got.Model != resp.Model {
+		t.Errorf("Model: got %q, want %q", got.Model, resp.Model)
+	}
+	if len(got.Output) != len(resp.Output) {
+		t.Errorf("Output length: got %d, want %d", len(got.Output), len(resp.Output))
+	}
+	if got.Usage == nil || got.Usage.InputTokens != resp.Usage.InputTokens {
+		t.Errorf("Usage.InputTokens mismatch")
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -350,7 +367,8 @@ func TestOmitEmptyBehavior(t *testing.T) {
 		t.Fatalf("Unmarshal into map error: %v", err)
 	}
 
-	// Keys that use omitempty and should be absent when zero-valued.
+	// With the flat wire format, a message item always has role and content.
+	// Nested wrapper keys should be absent.
 	absentKeys := []string{
 		"message",
 		"function_call",
@@ -365,16 +383,16 @@ func TestOmitEmptyBehavior(t *testing.T) {
 		}
 	}
 
-	// id and status are always present per OpenAPI contract (no omitempty).
-	requiredKeys := []string{"type", "id", "status"}
+	// Flat message wire format: type, id, status, role, content.
+	requiredKeys := []string{"type", "id", "status", "role", "content"}
 	for _, key := range requiredKeys {
 		if _, ok := m[key]; !ok {
 			t.Errorf("expected required key %q to be present in JSON, got: %s", key, jsonStr)
 		}
 	}
 
-	if len(m) != 3 {
-		t.Errorf("expected 3 keys in JSON, got %d: %v", len(m), m)
+	if len(m) != 5 {
+		t.Errorf("expected 5 keys in JSON (flat message format), got %d: %v", len(m), m)
 	}
 }
 

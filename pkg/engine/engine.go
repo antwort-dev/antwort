@@ -116,7 +116,8 @@ func (e *Engine) handleNonStreaming(ctx context.Context, req *api.CreateResponse
 		Usage:              &provResp.Usage,
 		PreviousResponseID: stringPtr(req.PreviousResponseID),
 		CreatedAt:          time.Now().Unix(),
-		Tools:              req.Tools,
+		Tools:              ensureTools(req.Tools),
+		ToolChoice:         toolChoiceValue(req.ToolChoice),
 		Truncation:         getTruncation(req),
 		Store:              isStateful(req),
 		Text:               &api.TextConfig{Format: &api.TextFormat{Type: "text"}},
@@ -154,10 +155,12 @@ func (e *Engine) handleStreaming(ctx context.Context, req *api.CreateResponseReq
 		ID:                 api.NewResponseID(),
 		Object:             "response",
 		Status:             api.ResponseStatusInProgress,
+		Output:             []api.Item{},
 		Model:              req.Model,
 		PreviousResponseID: stringPtr(req.PreviousResponseID),
 		CreatedAt:          time.Now().Unix(),
-		Tools:              req.Tools,
+		Tools:              ensureTools(req.Tools),
+		ToolChoice:         toolChoiceValue(req.ToolChoice),
 		Truncation:         getTruncation(req),
 		Store:              isStateful(req),
 		Text:               &api.TextConfig{Format: &api.TextFormat{Type: "text"}},
@@ -393,9 +396,12 @@ func (e *Engine) emitCancelled(ctx context.Context, resp *api.Response, state *s
 func snapshotResponse(r *api.Response) *api.Response {
 	cp := *r
 	// Copy output slice to avoid shared backing array.
+	// Always ensure non-nil (serializes as [] not null).
 	if r.Output != nil {
 		cp.Output = make([]api.Item, len(r.Output))
 		copy(cp.Output, r.Output)
+	} else {
+		cp.Output = []api.Item{}
 	}
 	return &cp
 }
@@ -492,4 +498,13 @@ func toolChoiceValue(tc *api.ToolChoice) any {
 		return tc.Function
 	}
 	return "auto"
+}
+
+// ensureTools returns the tools slice, defaulting to an empty slice (not nil)
+// so it serializes as [] instead of null.
+func ensureTools(tools []api.ToolDefinition) []api.ToolDefinition {
+	if tools == nil {
+		return []api.ToolDefinition{}
+	}
+	return tools
 }

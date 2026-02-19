@@ -24,10 +24,52 @@ type ContentPart struct {
 // OutputContentPart represents a part of model output content.
 // The Type field indicates the kind: output_text or summary_text.
 type OutputContentPart struct {
-	Type        string       `json:"type"`
-	Text        string       `json:"text"`
-	Annotations []Annotation `json:"annotations,omitempty"`
-	Logprobs    []TokenLogprob `json:"logprobs,omitempty"`
+	Type        string         `json:"-"`
+	Text        string         `json:"-"`
+	Annotations []Annotation   `json:"-"`
+	Logprobs    []TokenLogprob `json:"-"`
+}
+
+// MarshalJSON ensures annotations and logprobs are always arrays, never null.
+func (p OutputContentPart) MarshalJSON() ([]byte, error) {
+	type wire struct {
+		Type        string         `json:"type"`
+		Text        string         `json:"text"`
+		Annotations []Annotation   `json:"annotations"`
+		Logprobs    []TokenLogprob `json:"logprobs"`
+	}
+	w := wire{
+		Type:        p.Type,
+		Text:        p.Text,
+		Annotations: p.Annotations,
+		Logprobs:    p.Logprobs,
+	}
+	if w.Annotations == nil {
+		w.Annotations = []Annotation{}
+	}
+	if w.Logprobs == nil {
+		w.Logprobs = []TokenLogprob{}
+	}
+	return json.Marshal(w)
+}
+
+// UnmarshalJSON deserializes an OutputContentPart.
+func (p *OutputContentPart) UnmarshalJSON(data []byte) error {
+	type wire struct {
+		Type        string         `json:"type"`
+		Text        string         `json:"text"`
+		Annotations []Annotation   `json:"annotations"`
+		Logprobs    []TokenLogprob `json:"logprobs"`
+	}
+	var w wire
+	if err := json.Unmarshal(data, &w); err != nil {
+		return err
+	}
+	p.Type = w.Type
+	p.Text = w.Text
+	p.Annotations = w.Annotations
+	p.Logprobs = w.Logprobs
+	return nil
 }
 
 // Annotation represents an annotation on output text, such as a citation.
@@ -130,6 +172,264 @@ type Item struct {
 	Extension json.RawMessage `json:"extension,omitempty"`
 }
 
+// MarshalJSON serializes an Item to the OpenResponses wire format.
+// The wire format is flat: type-specific fields are at the top level,
+// not nested in a wrapper object (message, function_call, etc.).
+func (item Item) MarshalJSON() ([]byte, error) {
+	switch item.Type {
+	case ItemTypeMessage:
+		return item.marshalMessage()
+	case ItemTypeFunctionCall:
+		return item.marshalFunctionCall()
+	case ItemTypeFunctionCallOutput:
+		return item.marshalFunctionCallOutput()
+	case ItemTypeReasoning:
+		return item.marshalReasoning()
+	default:
+		// Extension types or unknown: include extension data.
+		type wireExtension struct {
+			itemWireBase
+			Extension json.RawMessage `json:"extension,omitempty"`
+		}
+		return json.Marshal(wireExtension{
+			itemWireBase: itemWireBase{ID: item.ID, Type: item.Type, Status: item.Status},
+			Extension:    item.Extension,
+		})
+	}
+}
+
+// itemWireBase contains fields common to all item types.
+type itemWireBase struct {
+	ID     string     `json:"id"`
+	Type   ItemType   `json:"type"`
+	Status ItemStatus `json:"status"`
+}
+
+// marshalMessage produces the flat message wire format:
+// {type, id, status, role, content: [...]}
+func (item Item) marshalMessage() ([]byte, error) {
+	type wireMessage struct {
+		itemWireBase
+		Role    MessageRole  `json:"role"`
+		Content []any        `json:"content"`
+	}
+
+	w := wireMessage{
+		itemWireBase: itemWireBase{
+			ID: item.ID, Type: item.Type, Status: item.Status,
+		},
+	}
+
+	if item.Message != nil {
+		w.Role = item.Message.Role
+
+		// Build content array from either Output (assistant) or Content (user).
+		if len(item.Message.Output) > 0 {
+			for _, part := range item.Message.Output {
+				w.Content = append(w.Content, part)
+			}
+		} else if len(item.Message.Content) > 0 {
+			for _, part := range item.Message.Content {
+				w.Content = append(w.Content, part)
+			}
+		}
+	}
+
+	if w.Content == nil {
+		w.Content = []any{}
+	}
+
+	return json.Marshal(w)
+}
+
+// marshalFunctionCall produces the flat function_call wire format:
+// {type, id, status, call_id, name, arguments}
+func (item Item) marshalFunctionCall() ([]byte, error) {
+	type wireFunctionCall struct {
+		itemWireBase
+		CallID    string `json:"call_id"`
+		Name      string `json:"name"`
+		Arguments string `json:"arguments"`
+	}
+
+	w := wireFunctionCall{
+		itemWireBase: itemWireBase{
+			ID: item.ID, Type: item.Type, Status: item.Status,
+		},
+	}
+
+	if item.FunctionCall != nil {
+		w.CallID = item.FunctionCall.CallID
+		w.Name = item.FunctionCall.Name
+		w.Arguments = item.FunctionCall.Arguments
+	}
+
+	return json.Marshal(w)
+}
+
+// marshalFunctionCallOutput produces the flat function_call_output wire format:
+// {type, id, status, call_id, output}
+func (item Item) marshalFunctionCallOutput() ([]byte, error) {
+	type wireFunctionCallOutput struct {
+		itemWireBase
+		CallID string `json:"call_id"`
+		Output string `json:"output"`
+	}
+
+	w := wireFunctionCallOutput{
+		itemWireBase: itemWireBase{
+			ID: item.ID, Type: item.Type, Status: item.Status,
+		},
+	}
+
+	if item.FunctionCallOutput != nil {
+		w.CallID = item.FunctionCallOutput.CallID
+		w.Output = item.FunctionCallOutput.Output
+	}
+
+	return json.Marshal(w)
+}
+
+// marshalReasoning produces the reasoning wire format.
+func (item Item) marshalReasoning() ([]byte, error) {
+	type wireReasoning struct {
+		itemWireBase
+		Content          string `json:"content,omitempty"`
+		EncryptedContent string `json:"encrypted_content,omitempty"`
+		Summary          string `json:"summary,omitempty"`
+	}
+
+	w := wireReasoning{
+		itemWireBase: itemWireBase{
+			ID: item.ID, Type: item.Type, Status: item.Status,
+		},
+	}
+
+	if item.Reasoning != nil {
+		w.Content = item.Reasoning.Content
+		w.EncryptedContent = item.Reasoning.EncryptedContent
+		w.Summary = item.Reasoning.Summary
+	}
+
+	return json.Marshal(w)
+}
+
+// UnmarshalJSON deserializes an Item from either the flat wire format
+// or the internal nested format, handling both for compatibility.
+func (item *Item) UnmarshalJSON(data []byte) error {
+	// First parse the base fields to determine type.
+	var base struct {
+		ID     string     `json:"id"`
+		Type   ItemType   `json:"type"`
+		Status ItemStatus `json:"status"`
+
+		// Flat wire format fields.
+		Role      MessageRole        `json:"role"`
+		Content   json.RawMessage    `json:"content"`
+		CallID    string             `json:"call_id"`
+		Name      string             `json:"name"`
+		Arguments string             `json:"arguments"`
+		Output    json.RawMessage    `json:"output"`
+
+		// Extension data.
+		Extension json.RawMessage    `json:"extension"`
+
+		// Nested format fields (internal/legacy).
+		Message            *MessageData            `json:"message"`
+		FunctionCall       *FunctionCallData       `json:"function_call"`
+		FunctionCallOutput *FunctionCallOutputData `json:"function_call_output"`
+		Reasoning          *ReasoningData          `json:"reasoning"`
+	}
+
+	if err := json.Unmarshal(data, &base); err != nil {
+		return err
+	}
+
+	item.ID = base.ID
+	item.Type = base.Type
+	item.Status = base.Status
+
+	switch base.Type {
+	case ItemTypeMessage:
+		if base.Message != nil {
+			// Nested format (internal).
+			item.Message = base.Message
+		} else if base.Role != "" {
+			// Flat wire format.
+			item.Message = &MessageData{Role: base.Role}
+			if len(base.Content) > 0 && string(base.Content) != "[]" && string(base.Content) != "null" {
+				// Parse content array into ContentPart or OutputContentPart
+				// based on the role.
+				if base.Role == RoleAssistant {
+					var parts []OutputContentPart
+					if err := json.Unmarshal(base.Content, &parts); err == nil && len(parts) > 0 {
+						item.Message.Output = parts
+					}
+				} else {
+					var parts []ContentPart
+					if err := json.Unmarshal(base.Content, &parts); err == nil && len(parts) > 0 {
+						item.Message.Content = parts
+					}
+				}
+			}
+		}
+
+	case ItemTypeFunctionCall:
+		if base.FunctionCall != nil {
+			item.FunctionCall = base.FunctionCall
+		} else if base.Name != "" || base.CallID != "" {
+			item.FunctionCall = &FunctionCallData{
+				Name:      base.Name,
+				CallID:    base.CallID,
+				Arguments: base.Arguments,
+			}
+		}
+
+	case ItemTypeFunctionCallOutput:
+		if base.FunctionCallOutput != nil {
+			item.FunctionCallOutput = base.FunctionCallOutput
+		} else if base.CallID != "" {
+			outputStr := ""
+			if len(base.Output) > 0 {
+				// Try as string first.
+				if err := json.Unmarshal(base.Output, &outputStr); err != nil {
+					outputStr = string(base.Output)
+				}
+			}
+			item.FunctionCallOutput = &FunctionCallOutputData{
+				CallID: base.CallID,
+				Output: outputStr,
+			}
+		}
+
+	case ItemTypeReasoning:
+		if base.Reasoning != nil {
+			item.Reasoning = base.Reasoning
+		} else {
+			// Flat wire format: reasoning fields are at the top level.
+			var r struct {
+				Content          string `json:"content"`
+				EncryptedContent string `json:"encrypted_content"`
+				Summary          string `json:"summary"`
+			}
+			if err := json.Unmarshal(data, &r); err == nil && (r.Content != "" || r.EncryptedContent != "" || r.Summary != "") {
+				item.Reasoning = &ReasoningData{
+					Content:          r.Content,
+					EncryptedContent: r.EncryptedContent,
+					Summary:          r.Summary,
+				}
+			}
+		}
+	}
+
+	// Preserve extension data.
+	if len(base.Extension) > 0 {
+		item.Extension = base.Extension
+	}
+
+	return nil
+}
+
 // IsExtensionType checks whether the given ItemType represents a provider
 // extension type, identified by a colon in the type string (e.g., "provider:type").
 func IsExtensionType(t ItemType) bool {
@@ -209,6 +509,7 @@ type ToolDefinition struct {
 	Name        string          `json:"name"`
 	Description string          `json:"description,omitempty"`
 	Parameters  json.RawMessage `json:"parameters,omitempty"`
+	Strict      bool            `json:"strict"`
 }
 
 // ---------------------------------------------------------------------------
@@ -308,7 +609,19 @@ type ReasoningConfig struct {
 
 // Usage holds token usage information for a response.
 type Usage struct {
-	InputTokens  int `json:"input_tokens"`
-	OutputTokens int `json:"output_tokens"`
-	TotalTokens  int `json:"total_tokens"`
+	InputTokens         int                  `json:"input_tokens"`
+	OutputTokens        int                  `json:"output_tokens"`
+	TotalTokens         int                  `json:"total_tokens"`
+	InputTokensDetails  InputTokensDetails   `json:"input_tokens_details"`
+	OutputTokensDetails OutputTokensDetails  `json:"output_tokens_details"`
+}
+
+// InputTokensDetails provides a breakdown of input token usage.
+type InputTokensDetails struct {
+	CachedTokens int `json:"cached_tokens"`
+}
+
+// OutputTokensDetails provides a breakdown of output token usage.
+type OutputTokensDetails struct {
+	ReasoningTokens int `json:"reasoning_tokens"`
 }

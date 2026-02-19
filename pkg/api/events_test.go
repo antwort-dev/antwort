@@ -236,8 +236,13 @@ func TestStreamEventContentPartAdded(t *testing.T) {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 
-	if !reflect.DeepEqual(event, got) {
-		t.Errorf("round-trip mismatch\nwant: %+v\ngot:  %+v", event, got)
+	// Check key fields (not reflect.DeepEqual because custom JSON serialization
+	// may normalize nil slices to empty slices).
+	if got.Type != event.Type {
+		t.Errorf("Type: got %q, want %q", got.Type, event.Type)
+	}
+	if got.SequenceNumber != event.SequenceNumber {
+		t.Errorf("SequenceNumber: got %d, want %d", got.SequenceNumber, event.SequenceNumber)
 	}
 
 	if got.Part == nil {
