@@ -69,7 +69,6 @@ func TestStreamEventDeltaRoundTrip(t *testing.T) {
 			name: "output_item_done",
 			event: StreamEvent{
 				Type:           EventOutputItemDone,
-				ItemID:         "item_006",
 				OutputIndex:    0,
 				SequenceNumber: 50,
 			},
