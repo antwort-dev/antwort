@@ -124,8 +124,17 @@ func (e *Engine) runAgenticLoopStreaming(ctx context.Context, req *api.CreateRes
 		Object:             "response",
 		Status:             api.ResponseStatusInProgress,
 		Model:              req.Model,
-		PreviousResponseID: req.PreviousResponseID,
+		PreviousResponseID: stringPtr(req.PreviousResponseID),
 		CreatedAt:          time.Now().Unix(),
+		Tools:              req.Tools,
+		Truncation:         getTruncation(req),
+		Store:              isStateful(req),
+		Text:               &api.TextConfig{Format: &api.TextFormat{Type: "text"}},
+		ServiceTier:        getServiceTier(req),
+		Metadata:           make(map[string]any),
+		Temperature:        derefFloat64(req.Temperature),
+		TopP:               derefFloat64(req.TopP),
+		MaxOutputTokens:    req.MaxOutputTokens,
 	}
 
 	state := &streamState{}
@@ -478,8 +487,17 @@ func (e *Engine) buildAndWriteResponse(ctx context.Context, req *api.CreateRespo
 		Model:              req.Model,
 		Usage:              usage,
 		Error:              respErr,
-		PreviousResponseID: req.PreviousResponseID,
+		PreviousResponseID: stringPtr(req.PreviousResponseID),
 		CreatedAt:          time.Now().Unix(),
+		Tools:              req.Tools,
+		Truncation:         getTruncation(req),
+		Store:              isStateful(req),
+		Text:               &api.TextConfig{Format: &api.TextFormat{Type: "text"}},
+		ServiceTier:        getServiceTier(req),
+		Metadata:           make(map[string]any),
+		Temperature:        derefFloat64(req.Temperature),
+		TopP:               derefFloat64(req.TopP),
+		MaxOutputTokens:    req.MaxOutputTokens,
 	}
 	return w.WriteResponse(ctx, resp)
 }

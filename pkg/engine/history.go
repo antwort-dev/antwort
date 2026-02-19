@@ -40,7 +40,11 @@ func loadConversationHistory(ctx context.Context, store transport.ResponseStore,
 		}
 
 		chain = append(chain, resp)
-		currentID = resp.PreviousResponseID
+		if resp.PreviousResponseID != nil {
+			currentID = *resp.PreviousResponseID
+		} else {
+			currentID = ""
+		}
 	}
 
 	// Reverse to chronological order (oldest first).

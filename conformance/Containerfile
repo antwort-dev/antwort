@@ -2,27 +2,28 @@
 # Runs via bun against a running antwort instance.
 #
 # Build: podman build -t antwort-conformance -f conformance/Containerfile .
-# Run:   podman run --rm --network=host -e BASE_URL=http://localhost:8080/v1 -e MODEL=mock-model antwort-conformance
-
-FROM oven/bun:1 AS builder
-
-WORKDIR /app
-
-# Clone the official OpenResponses repo.
-RUN apt-get update && apt-get install -y git && \
-    git clone --depth 1 https://github.com/openresponses/openresponses.git /app && \
-    bun install
+# Run:   podman run --rm --network=host \
+#          -e BASE_URL=http://host.containers.internal:8080/v1 \
+#          -e MODEL=mock-model \
+#          antwort-conformance
 
 FROM oven/bun:1
 
 WORKDIR /app
-COPY --from=builder /app /app
+
+# Clone the official OpenResponses repo and install dependencies.
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && \
+    git clone --depth 1 https://github.com/openresponses/openresponses.git /app && \
+    bun install --frozen-lockfile && \
+    apt-get purge -y git && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 
 # Environment variables for configuration.
-ENV BASE_URL=http://localhost:8080/v1
+ENV BASE_URL=http://host.containers.internal:8080/v1
 ENV MODEL=mock-model
-ENV API_KEY=""
+ENV API_KEY=test
+ENV FILTER=""
 
-# Run the compliance tests and output results.
-# The test:compliance script is defined in the openresponses package.json.
-CMD ["bun", "run", "test:compliance", "--base-url", "${BASE_URL}", "--model", "${MODEL}"]
+# Use shell form so env vars are expanded.
+# --json for machine-readable output, --filter for profile selection.
+ENTRYPOINT ["/bin/sh", "-c"]
+CMD ["exec bun run bin/compliance-test.ts --base-url \"$BASE_URL\" --model \"$MODEL\" --api-key \"$API_KEY\" --json ${FILTER:+--filter \"$FILTER\"}"]

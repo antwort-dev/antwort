@@ -248,18 +248,62 @@ const (
 )
 
 // Response represents the API response object returned by the Responses API.
+// All fields are required by the OpenResponses schema (nullable fields use pointer types).
 type Response struct {
 	ID                 string                     `json:"id"`
 	Object             string                     `json:"object"`
+	CreatedAt          int64                      `json:"created_at"`
+	CompletedAt        *int64                     `json:"completed_at"`
 	Status             ResponseStatus             `json:"status"`
+	IncompleteDetails  *IncompleteDetails         `json:"incomplete_details"`
+	Model              string                     `json:"model"`
+	PreviousResponseID *string                    `json:"previous_response_id"`
+	Instructions       *string                    `json:"instructions"`
 	Input              []Item                     `json:"input,omitempty"`
 	Output             []Item                     `json:"output"`
-	Model              string                     `json:"model"`
-	Usage              *Usage                     `json:"usage,omitempty"`
-	Error              *APIError                  `json:"error,omitempty"`
-	PreviousResponseID string                     `json:"previous_response_id,omitempty"`
-	CreatedAt          int64                      `json:"created_at"`
+	Error              *APIError                  `json:"error"`
+	Tools              []ToolDefinition           `json:"tools"`
+	ToolChoice         any                        `json:"tool_choice"`
+	Truncation         string                     `json:"truncation"`
+	ParallelToolCalls  bool                       `json:"parallel_tool_calls"`
+	Text               *TextConfig                `json:"text"`
+	TopP               float64                    `json:"top_p"`
+	PresencePenalty    float64                    `json:"presence_penalty"`
+	FrequencyPenalty   float64                    `json:"frequency_penalty"`
+	TopLogprobs        int                        `json:"top_logprobs"`
+	Temperature        float64                    `json:"temperature"`
+	Reasoning          *ReasoningConfig           `json:"reasoning"`
+	Usage              *Usage                     `json:"usage"`
+	MaxOutputTokens    *int                       `json:"max_output_tokens"`
+	MaxToolCalls       *int                       `json:"max_tool_calls"`
+	Store              bool                       `json:"store"`
+	Background         bool                       `json:"background"`
+	ServiceTier        string                     `json:"service_tier"`
+	Metadata           map[string]any             `json:"metadata"`
+	SafetyIdentifier   *string                    `json:"safety_identifier"`
+	PromptCacheKey     *string                    `json:"prompt_cache_key"`
 	Extensions         map[string]json.RawMessage `json:"extensions,omitempty"`
+}
+
+// IncompleteDetails provides information about why a response is incomplete.
+type IncompleteDetails struct {
+	Reason string `json:"reason,omitempty"`
+}
+
+// TextConfig holds text generation configuration echoed in the response.
+type TextConfig struct {
+	Format *TextFormat `json:"format,omitempty"`
+}
+
+// TextFormat specifies the output text format.
+type TextFormat struct {
+	Type string `json:"type"`
+}
+
+// ReasoningConfig holds reasoning configuration echoed in the response.
+type ReasoningConfig struct {
+	Effort  *string `json:"effort"`
+	Summary *string `json:"summary"`
 }
 
 // Usage holds token usage information for a response.

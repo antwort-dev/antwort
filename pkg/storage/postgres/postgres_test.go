@@ -213,9 +213,9 @@ func TestPostgres_ChainReconstruction(t *testing.T) {
 
 	respA := makeTestResponse("resp_chain_a_" + ts)
 	respB := makeTestResponse("resp_chain_b_" + ts)
-	respB.PreviousResponseID = respA.ID
+	respB.PreviousResponseID = &respA.ID
 	respC := makeTestResponse("resp_chain_c_" + ts)
-	respC.PreviousResponseID = respB.ID
+	respC.PreviousResponseID = &respB.ID
 
 	store.SaveResponse(ctx, respA)
 	store.SaveResponse(ctx, respB)
@@ -229,8 +229,8 @@ func TestPostgres_ChainReconstruction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetResponseForChain(B) failed: %v", err)
 	}
-	if gotB.PreviousResponseID != respA.ID {
-		t.Errorf("chain link: B.previous = %q, want %q", gotB.PreviousResponseID, respA.ID)
+	if gotB.PreviousResponseID == nil || *gotB.PreviousResponseID != respA.ID {
+		t.Errorf("chain link: B.previous = %v, want %q", gotB.PreviousResponseID, respA.ID)
 	}
 }
 

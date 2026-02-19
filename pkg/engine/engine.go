@@ -114,8 +114,17 @@ func (e *Engine) handleNonStreaming(ctx context.Context, req *api.CreateResponse
 		Output:             provResp.Items,
 		Model:              provResp.Model,
 		Usage:              &provResp.Usage,
-		PreviousResponseID: req.PreviousResponseID,
+		PreviousResponseID: stringPtr(req.PreviousResponseID),
 		CreatedAt:          time.Now().Unix(),
+		Tools:              req.Tools,
+		Truncation:         getTruncation(req),
+		Store:              isStateful(req),
+		Text:               &api.TextConfig{Format: &api.TextFormat{Type: "text"}},
+		ServiceTier:        getServiceTier(req),
+		Metadata:           make(map[string]any),
+		Temperature:        derefFloat64(req.Temperature),
+		TopP:               derefFloat64(req.TopP),
+		MaxOutputTokens:    req.MaxOutputTokens,
 	}
 
 	// Write the response to the client first.
@@ -146,8 +155,17 @@ func (e *Engine) handleStreaming(ctx context.Context, req *api.CreateResponseReq
 		Object:             "response",
 		Status:             api.ResponseStatusInProgress,
 		Model:              req.Model,
-		PreviousResponseID: req.PreviousResponseID,
+		PreviousResponseID: stringPtr(req.PreviousResponseID),
 		CreatedAt:          time.Now().Unix(),
+		Tools:              req.Tools,
+		Truncation:         getTruncation(req),
+		Store:              isStateful(req),
+		Text:               &api.TextConfig{Format: &api.TextFormat{Type: "text"}},
+		ServiceTier:        getServiceTier(req),
+		Metadata:           make(map[string]any),
+		Temperature:        derefFloat64(req.Temperature),
+		TopP:               derefFloat64(req.TopP),
+		MaxOutputTokens:    req.MaxOutputTokens,
 	}
 
 	// Initialize the stream state for event mapping.
@@ -427,4 +445,51 @@ func isStateful(req *api.CreateResponseRequest) bool {
 		return true
 	}
 	return *req.Store
+}
+
+// stringPtr converts a string to a pointer to string.
+func stringPtr(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
+// getTruncation returns the truncation setting from the request, defaulting to "disabled".
+func getTruncation(req *api.CreateResponseRequest) string {
+	if req.Truncation != "" {
+		return req.Truncation
+	}
+	return "disabled"
+}
+
+// getServiceTier returns the service tier from the request, defaulting to "default".
+func getServiceTier(req *api.CreateResponseRequest) string {
+	if req.ServiceTier != "" {
+		return req.ServiceTier
+	}
+	return "default"
+}
+
+// derefFloat64 returns the value of a *float64, or 0.0 if nil.
+func derefFloat64(p *float64) float64 {
+	if p == nil {
+		return 0.0
+	}
+	return *p
+}
+
+// toolChoiceValue converts a *ToolChoice to a serializable value for the response.
+// Returns "auto" as default when nil.
+func toolChoiceValue(tc *api.ToolChoice) any {
+	if tc == nil {
+		return "auto"
+	}
+	if tc.String != "" {
+		return tc.String
+	}
+	if tc.Function != nil {
+		return tc.Function
+	}
+	return "auto"
 }

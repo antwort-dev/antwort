@@ -42,6 +42,8 @@ func (s *mockStore) HealthCheck(_ context.Context) error { return nil }
 func (s *mockStore) Close() error                        { return nil }
 
 func TestLoadConversationHistory_ChainOfThree(t *testing.T) {
+	respA := "resp_A"
+	respB := "resp_B"
 	store := &mockStore{
 		responses: map[string]*api.Response{
 			"resp_A": {
@@ -51,13 +53,13 @@ func TestLoadConversationHistory_ChainOfThree(t *testing.T) {
 			},
 			"resp_B": {
 				ID:                 "resp_B",
-				PreviousResponseID: "resp_A",
+				PreviousResponseID: &respA,
 				Input:              []api.Item{{Type: api.ItemTypeMessage, Message: &api.MessageData{Role: api.RoleUser, Content: []api.ContentPart{{Type: "input_text", Text: "How are you?"}}}}},
 				Output:             []api.Item{{Type: api.ItemTypeMessage, Message: &api.MessageData{Role: api.RoleAssistant, Output: []api.OutputContentPart{{Type: "output_text", Text: "I am fine."}}}}},
 			},
 			"resp_C": {
 				ID:                 "resp_C",
-				PreviousResponseID: "resp_B",
+				PreviousResponseID: &respB,
 				Input:              []api.Item{{Type: api.ItemTypeMessage, Message: &api.MessageData{Role: api.RoleUser, Content: []api.ContentPart{{Type: "input_text", Text: "Goodbye"}}}}},
 				Output:             []api.Item{{Type: api.ItemTypeMessage, Message: &api.MessageData{Role: api.RoleAssistant, Output: []api.OutputContentPart{{Type: "output_text", Text: "See you!"}}}}},
 			},
@@ -99,10 +101,12 @@ func TestLoadConversationHistory_ChainOfThree(t *testing.T) {
 }
 
 func TestLoadConversationHistory_CycleDetection(t *testing.T) {
+	respA := "resp_A"
+	respB := "resp_B"
 	store := &mockStore{
 		responses: map[string]*api.Response{
-			"resp_A": {ID: "resp_A", PreviousResponseID: "resp_B"},
-			"resp_B": {ID: "resp_B", PreviousResponseID: "resp_A"},
+			"resp_A": {ID: "resp_A", PreviousResponseID: &respB},
+			"resp_B": {ID: "resp_B", PreviousResponseID: &respA},
 		},
 	}
 
@@ -166,6 +170,7 @@ func TestLoadConversationHistory_SingleResponse(t *testing.T) {
 }
 
 func TestLoadConversationHistory_FunctionCallItems(t *testing.T) {
+	resp1 := "resp_1"
 	store := &mockStore{
 		responses: map[string]*api.Response{
 			"resp_1": {
@@ -177,7 +182,7 @@ func TestLoadConversationHistory_FunctionCallItems(t *testing.T) {
 			},
 			"resp_2": {
 				ID:                 "resp_2",
-				PreviousResponseID: "resp_1",
+				PreviousResponseID: &resp1,
 				Input: []api.Item{
 					{Type: api.ItemTypeFunctionCallOutput, FunctionCallOutput: &api.FunctionCallOutputData{CallID: "call_1", Output: "22°C, sunny"}},
 				},

@@ -13,7 +13,11 @@
       "Write",
       "mcp__*",
       "Bash(bd show:*)",
-      "Bash(go test:*)"
+      "Bash(go test:*)",
+      "Bash(bd sync:*)",
+      "Bash(\"/Users/rhuss/.claude/plugins/cache/sdd-plugin-development/sdd/1.0.0/scripts/sdd-beads-sync.py\" \"/Users/rhuss/Development/ai/antwort/specs/005-storage/tasks.md\")",
+      "Bash(go build:*)",
+      "Bash(bd close:*)"
     ]
   }
 }

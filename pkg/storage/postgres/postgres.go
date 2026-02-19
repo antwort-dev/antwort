@@ -107,7 +107,7 @@ func (s *Store) SaveResponse(ctx context.Context, resp *api.Response) error {
 			error, extensions, created_at
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 	`,
-		resp.ID, tenantID, string(resp.Status), resp.Model, nullString(resp.PreviousResponseID),
+		resp.ID, tenantID, string(resp.Status), resp.Model, resp.PreviousResponseID,
 		inputJSON, outputJSON,
 		usageIn, usageOut, usageTotal,
 		nullJSON(errorJSON), nullJSON(extensionsJSON), resp.CreatedAt,
@@ -181,9 +181,7 @@ func (s *Store) getResponse(ctx context.Context, id string, excludeDeleted bool)
 
 	resp.Object = "response"
 	resp.Status = api.ResponseStatus(status)
-	if prevID != nil {
-		resp.PreviousResponseID = *prevID
-	}
+	resp.PreviousResponseID = prevID
 
 	if err := json.Unmarshal(inputJSON, &resp.Input); err != nil {
 		return nil, fmt.Errorf("unmarshaling input: %w", err)

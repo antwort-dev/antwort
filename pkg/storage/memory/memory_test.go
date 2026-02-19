@@ -224,9 +224,11 @@ func TestChainWithSoftDelete(t *testing.T) {
 	// Save chain: A -> B -> C
 	respA := makeResponse("resp_chain_a")
 	respB := makeResponse("resp_chain_b")
-	respB.PreviousResponseID = "resp_chain_a"
+	prevA := "resp_chain_a"
+	respB.PreviousResponseID = &prevA
 	respC := makeResponse("resp_chain_c")
-	respC.PreviousResponseID = "resp_chain_b"
+	prevB := "resp_chain_b"
+	respC.PreviousResponseID = &prevB
 
 	s.SaveResponse(ctx, respA)
 	s.SaveResponse(ctx, respB)
@@ -245,7 +247,7 @@ func TestChainWithSoftDelete(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetResponseForChain for deleted B should work: %v", err)
 	}
-	if got.PreviousResponseID != "resp_chain_a" {
-		t.Errorf("chain link broken: previous = %q, want %q", got.PreviousResponseID, "resp_chain_a")
+	if got.PreviousResponseID == nil || *got.PreviousResponseID != "resp_chain_a" {
+		t.Errorf("chain link broken: previous = %v, want %q", got.PreviousResponseID, "resp_chain_a")
 	}
 }

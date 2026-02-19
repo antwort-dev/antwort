@@ -283,6 +283,7 @@ func TestCreateResponseRequestRoundTrip(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestResponseRoundTrip(t *testing.T) {
+	prevID := "resp-prev-000"
 	resp := Response{
 		ID:     "resp-001",
 		Object: "response",
@@ -312,7 +313,7 @@ func TestResponseRoundTrip(t *testing.T) {
 			Param:   "input",
 			Message: "something went wrong",
 		},
-		PreviousResponseID: "resp-prev-000",
+		PreviousResponseID: &prevID,
 		CreatedAt:          1700000000,
 		Extensions: map[string]json.RawMessage{
 			"acme:metrics": json.RawMessage(`{"latency_ms":42}`),
