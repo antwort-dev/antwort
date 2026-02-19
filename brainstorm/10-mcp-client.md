@@ -95,13 +95,20 @@ type MCPServerConfig struct {
 
 ## Security Considerations
 
-- MCP servers running via stdio execute as subprocesses of antwort. In a Kubernetes deployment, these run inside the antwort pod with the same security context.
-- HTTP-based MCP servers should use TLS. Integration with the cluster's SPIFFE/SPIRE identity (from Spec 11) for mTLS is desirable.
+- Antwort NEVER executes external code itself. MCP servers are remote HTTP services, not local subprocesses. Stdio transport is explicitly deferred (desktop concern, not server-side).
+- HTTP-based MCP servers should use TLS. Authentication is handled via pluggable MCPAuthProvider (see brainstorm/10-mcp-security.md).
 - Tool results from MCP servers are untrusted input. The engine should sanitize or validate results before feeding them back to the model.
+- MCP security (OAuth, token exchange) is a first-class concern. See brainstorm/10-mcp-security.md for the full design.
 
-## Open Questions
+## Decisions (Session 2026-02-19)
 
-- Should MCP tool discovery happen at startup (eager) or on first use (lazy)?
-- How to handle MCP server disconnections during an agentic loop turn?
-- Should antwort expose MCP server health status via its own health endpoint?
-- How to handle MCP servers that require authentication (API keys, OAuth)?
+- **No stdio transport**: Antwort is a server-side framework. Stdio MCP servers are designed for desktop usage and require subprocess execution, which violates "antwort never executes external code." HTTP transports (SSE, streamable HTTP) are the priority.
+- **Use Go MCP SDK**: Use `github.com/mark3labs/mcp-go` (or equivalent) as an external dependency in the adapter package (`pkg/tools/mcp/`). Permitted by Constitution Principle II.
+- **Lazy tool discovery**: Discover tools on first use, cache results. Resilient to MCP server downtime at startup.
+- **Disconnection handling**: Return error result for the tool call. The agentic loop feeds it back to the model per Spec 04 FR-027.
+- **No health endpoint coupling**: MCP server status does not affect antwort's readiness probe.
+- **Auth via MCPAuthProvider**: Pluggable per-server authentication. P1: API key headers. P2+: OAuth client_credentials, token exchange.
+
+## Open Questions (Resolved)
+
+All open questions resolved in the decisions above.
