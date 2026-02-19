@@ -353,8 +353,8 @@ func TestStreamingInFlightRegistration(t *testing.T) {
 	// and cleaned up after completion.
 	creator := &mockCreator{
 		events: []api.StreamEvent{
-			{Type: api.EventResponseCreated, SequenceNumber: 0, Response: &api.Response{ID: "resp_inflightABCD567890123450", Status: api.ResponseStatusInProgress}},
-			{Type: api.EventResponseCompleted, SequenceNumber: 1, Response: &api.Response{ID: "resp_inflightABCD567890123450", Status: api.ResponseStatusCompleted}},
+			{Type: api.EventResponseCreated, SequenceNumber: 0, Response: &api.Response{ID: "resp_inflightABCD567890123450", Status: api.ResponseStatusInProgress, Output: []api.Item{}, Tools: []api.ToolDefinition{}, Metadata: map[string]any{}}},
+			{Type: api.EventResponseCompleted, SequenceNumber: 1, Response: &api.Response{ID: "resp_inflightABCD567890123450", Status: api.ResponseStatusCompleted, Output: []api.Item{}, Tools: []api.ToolDefinition{}, Metadata: map[string]any{}}},
 		},
 	}
 

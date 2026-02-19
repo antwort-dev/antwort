@@ -12,6 +12,7 @@ Auto-generated from all feature plans. Last updated: 2026-02-16
 - Go 1.22+ (consistent with Specs 001-004) + `pgx/v5` (PostgreSQL driver, adapter package only). Go standard library for core interface and in-memory store. (005-storage)
 - PostgreSQL 14+ for production. In-memory for testing/development. (005-storage)
 - Go 1.22+ for server and mock binaries. TypeScript/bun for the official compliance suite (run via container). + Existing antwort packages (api, transport, engine, provider, storage, tools). No new Go dependencies. (006-conformance)
+- Go 1.22+ (consistent with Specs 001-006) + Go stdlib for core + API key. `golang.org/x/crypto` for constant-time comparison (optional). JWT validation needs a JWKS library (adapter package only). (007-auth)
 
 - Go 1.22+ + None (Go standard library only: `encoding/json`, `crypto/rand`, `errors`, `fmt`, `strings`, `regexp`) (001-core-protocol)
 
@@ -31,9 +32,9 @@ tests/
 Go 1.22+: Follow standard conventions
 
 ## Recent Changes
+- 007-auth: Added Go 1.22+ (consistent with Specs 001-006) + Go stdlib for core + API key. `golang.org/x/crypto` for constant-time comparison (optional). JWT validation needs a JWKS library (adapter package only).
 - 006-conformance: Added Go 1.22+ for server and mock binaries. TypeScript/bun for the official compliance suite (run via container). + Existing antwort packages (api, transport, engine, provider, storage, tools). No new Go dependencies.
 - 005-storage: Added Go 1.22+ (consistent with Specs 001-004) + `pgx/v5` (PostgreSQL driver, adapter package only). Go standard library for core interface and in-memory store.
-- 004-agentic-loop: Added Go 1.22+ (consistent with Specs 001-003) + None (Go standard library only: `context`, `sync`, `log/slog`, `fmt`, `strings`, `time`)
 
 
 <!-- MANUAL ADDITIONS START -->
