@@ -23,6 +23,11 @@ The goal is a CI-integrated conformance pipeline: on every PR, start antwort wit
 - Q: How to handle features not yet implemented? -> A: Test profiles. A "core" profile runs tests 1-4 and 6 (basic, streaming, system prompt, tool calling, multi-turn). Multi-turn (test 6) works without storage because the official test sends conversation history inline via the input array, not via previous_response_id. An "extended" profile adds test 5 (image input, requires vision-capable backend mock). Profiles grow as future specs add testable features.
 - Q: How does profile filtering work with the official suite? -> A: The official suite runs all 6 tests. Profile filtering is post-hoc: all tests execute, but results are filtered by profile. Tests outside the profile are reported as "skipped" regardless of outcome. This preserves the "run as-is" principle without forking the suite.
 
+### Evolution 2026-02-19 (ROSA Test Drive)
+
+- The openresponses.org/compliance web UI runs tests from the browser, requiring CORS headers from the server. Added FR-005a for CORS support (Access-Control-Allow-Origin, preflight OPTIONS handling).
+- Tool calling test results are non-deterministic with smaller models (7B). The model may choose to answer with text instead of calling a tool. This is model behavior, not a conformance issue.
+
 ## User Scenarios & Testing
 
 ### User Story 1 - Run Antwort as a Standalone Server (Priority: P1)
@@ -126,6 +131,7 @@ A project maintainer tracks the conformance score over time. Each test run recor
 - **FR-003**: The server MUST expose `/v1/responses` (POST, GET, DELETE) endpoints per Spec 002
 - **FR-004**: The server MUST support graceful shutdown on SIGINT/SIGTERM
 - **FR-005**: The server MUST optionally expose a health endpoint for readiness checks
+- **FR-005a**: The server MUST include CORS headers (`Access-Control-Allow-Origin: *`, `Access-Control-Allow-Methods`, `Access-Control-Allow-Headers`) and handle OPTIONS preflight requests to enable browser-based compliance testing from the openresponses.org web UI
 
 **Mock Backend**
 
