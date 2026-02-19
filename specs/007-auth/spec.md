@@ -20,6 +20,7 @@ The spec delivers three authenticator adapters (NoOp, API key, JWT/OIDC), an own
 - Q: Audit logging: auth spec or observability? -> A: Auth middleware logs security decisions via slog (subject, action, result, remote_addr). Detailed audit trails are Spec 07.
 - Q: Do we need all adapters in the initial spec? -> A: P1: NoOp + API key. P2: JWT/OIDC. P3: OAuth proxy + mTLS (deferred to future spec).
 - Q: How does auth connect to storage tenant isolation? -> A: The auth middleware extracts tenant from Identity.Metadata["tenant_id"] and calls storage.SetTenant(ctx, tenantID). This bridges auth and storage multi-tenancy.
+- Q: What is the relationship between subject and tenant? -> A: Subject is the individual user (e.g., "alice"). Tenant is the organization or scope (e.g., "org-1"). In multi-tenant deployments, multiple users share a tenant and can see each other's responses within that tenant. In single-user deployments, the subject can serve as the tenant. The storage layer scopes by tenant, not by subject. Ownership isolation within a tenant is a future enhancement.
 
 ## User Scenarios & Testing
 
@@ -171,8 +172,8 @@ An operator deploys antwort with auth enabled. Kubernetes liveness and readiness
 
 **Authorization**
 
-- **FR-019**: The system MUST enforce ownership-based isolation: users can only access their own responses. Cross-user access MUST return 404, not 403.
-- **FR-020**: Authorization MUST use the identity's subject to scope storage queries (via tenant context)
+- **FR-019**: The system MUST enforce tenant-based isolation: users can only access responses within their tenant scope. Cross-tenant access MUST return 404, not 403. In single-user deployments, the subject serves as the tenant.
+- **FR-020**: Authorization MUST use the identity's tenant (from Identity.Metadata["tenant_id"]) to scope storage queries via `storage.SetTenant`. When no tenant is present, storage operates without scoping (backward compatible with single-tenant mode).
 
 **Rate Limiting**
 
