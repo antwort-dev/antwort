@@ -1,23 +1,20 @@
 package vllm
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/http"
-	"strings"
 	"time"
 
-	"github.com/rhuss/antwort/pkg/api"
 	"github.com/rhuss/antwort/pkg/provider"
+	"github.com/rhuss/antwort/pkg/provider/openaicompat"
 )
 
 // VLLMProvider implements provider.Provider for vLLM and OpenAI-compatible
-// Chat Completions backends.
+// Chat Completions backends. It delegates HTTP communication to the shared
+// openaicompat.Client.
 type VLLMProvider struct {
 	cfg    Config
-	client *http.Client
+	client *openaicompat.Client
 	caps   provider.ProviderCapabilities
 }
 
@@ -31,17 +28,12 @@ func New(cfg Config) (*VLLMProvider, error) {
 		return nil, fmt.Errorf("vllm: BaseURL is required")
 	}
 
-	// Normalize: remove trailing slash from base URL.
-	cfg.BaseURL = strings.TrimRight(cfg.BaseURL, "/")
-
 	// Apply default timeout if not set.
 	if cfg.Timeout == 0 {
 		cfg.Timeout = 120 * time.Second
 	}
 
-	client := &http.Client{
-		Timeout: cfg.Timeout,
-	}
+	client := openaicompat.NewClient(cfg.BaseURL, cfg.APIKey, cfg.Timeout)
 
 	return &VLLMProvider{
 		cfg:    cfg,
@@ -75,159 +67,23 @@ func (p *VLLMProvider) Capabilities() provider.ProviderCapabilities {
 
 // Complete performs non-streaming inference against the Chat Completions endpoint.
 func (p *VLLMProvider) Complete(ctx context.Context, req *provider.ProviderRequest) (*provider.ProviderResponse, error) {
-	// Ensure we are not in streaming mode for Complete.
-	reqCopy := *req
-	reqCopy.Stream = false
-
-	// Translate to Chat Completions format.
-	chatReq := translateToChat(&reqCopy)
-
-	// Marshal request body.
-	body, err := json.Marshal(chatReq)
-	if err != nil {
-		return nil, api.NewServerError(fmt.Sprintf("failed to marshal request: %s", err.Error()))
-	}
-
-	// Build HTTP request.
-	url := p.cfg.BaseURL + "/v1/chat/completions"
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
-	if err != nil {
-		return nil, api.NewServerError(fmt.Sprintf("failed to create HTTP request: %s", err.Error()))
-	}
-
-	httpReq.Header.Set("Content-Type", "application/json")
-	if p.cfg.APIKey != "" {
-		httpReq.Header.Set("Authorization", "Bearer "+p.cfg.APIKey)
-	}
-
-	// Send request.
-	httpResp, err := p.client.Do(httpReq)
-	if err != nil {
-		return nil, mapNetworkError(err)
-	}
-	defer httpResp.Body.Close()
-
-	// Check for error status codes.
-	if httpResp.StatusCode < 200 || httpResp.StatusCode >= 300 {
-		return nil, mapHTTPError(httpResp)
-	}
-
-	// Parse response.
-	var chatResp chatCompletionResponse
-	if err := json.NewDecoder(httpResp.Body).Decode(&chatResp); err != nil {
-		return nil, api.NewServerError(fmt.Sprintf("failed to parse backend response: %s", err.Error()))
-	}
-
-	// Translate to ProviderResponse.
-	return translateResponse(&chatResp), nil
+	return p.client.Complete(ctx, req)
 }
 
 // Stream performs streaming inference against the Chat Completions endpoint.
 // It returns a channel of ProviderEvents. The channel is closed when the
 // stream completes, errors, or the context is cancelled.
-//
-// The HTTP client timeout is not applied for streaming requests because a
-// stream can legitimately last longer than any fixed timeout. Lifecycle
-// control relies on context cancellation instead.
 func (p *VLLMProvider) Stream(ctx context.Context, req *provider.ProviderRequest) (<-chan provider.ProviderEvent, error) {
-	// Force streaming mode.
-	reqCopy := *req
-	reqCopy.Stream = true
-
-	// Translate to Chat Completions format (includes stream_options).
-	chatReq := translateToChat(&reqCopy)
-
-	// Marshal request body.
-	body, err := json.Marshal(chatReq)
-	if err != nil {
-		return nil, api.NewServerError(fmt.Sprintf("failed to marshal request: %s", err.Error()))
-	}
-
-	// Build HTTP request.
-	url := p.cfg.BaseURL + "/v1/chat/completions"
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
-	if err != nil {
-		return nil, api.NewServerError(fmt.Sprintf("failed to create HTTP request: %s", err.Error()))
-	}
-
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Accept", "text/event-stream")
-	if p.cfg.APIKey != "" {
-		httpReq.Header.Set("Authorization", "Bearer "+p.cfg.APIKey)
-	}
-
-	// Use a client without timeout for streaming. The context controls
-	// the request lifetime instead.
-	streamClient := &http.Client{
-		Transport: p.client.Transport,
-	}
-
-	// Send request.
-	httpResp, err := streamClient.Do(httpReq)
-	if err != nil {
-		return nil, mapNetworkError(err)
-	}
-
-	// Check for error status codes before starting the stream.
-	if httpResp.StatusCode < 200 || httpResp.StatusCode >= 300 {
-		httpResp.Body.Close()
-		return nil, mapHTTPError(httpResp)
-	}
-
-	// Create the event channel and spawn a goroutine to parse the stream.
-	ch := make(chan provider.ProviderEvent, 16)
-
-	go func() {
-		defer close(ch)
-		defer httpResp.Body.Close()
-		parseSSEStream(ctx, httpResp.Body, ch)
-	}()
-
-	return ch, nil
+	return p.client.Stream(ctx, req)
 }
 
 // ListModels returns available models from the backend by querying
 // the /v1/models endpoint.
 func (p *VLLMProvider) ListModels(ctx context.Context) ([]provider.ModelInfo, error) {
-	url := p.cfg.BaseURL + "/v1/models"
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, api.NewServerError(fmt.Sprintf("failed to create HTTP request: %s", err.Error()))
-	}
-
-	if p.cfg.APIKey != "" {
-		httpReq.Header.Set("Authorization", "Bearer "+p.cfg.APIKey)
-	}
-
-	httpResp, err := p.client.Do(httpReq)
-	if err != nil {
-		return nil, mapNetworkError(err)
-	}
-	defer httpResp.Body.Close()
-
-	if httpResp.StatusCode < 200 || httpResp.StatusCode >= 300 {
-		return nil, mapHTTPError(httpResp)
-	}
-
-	var modelsResp chatModelsResponse
-	if err := json.NewDecoder(httpResp.Body).Decode(&modelsResp); err != nil {
-		return nil, api.NewServerError(fmt.Sprintf("failed to parse models response: %s", err.Error()))
-	}
-
-	var models []provider.ModelInfo
-	for _, m := range modelsResp.Data {
-		models = append(models, provider.ModelInfo{
-			ID:      m.ID,
-			Object:  m.Object,
-			OwnedBy: m.OwnedBy,
-		})
-	}
-
-	return models, nil
+	return p.client.ListModels(ctx)
 }
 
 // Close releases provider resources.
 func (p *VLLMProvider) Close() error {
-	p.client.CloseIdleConnections()
-	return nil
+	return p.client.Close()
 }
