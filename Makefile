@@ -1,10 +1,12 @@
 # Antwort - OpenResponses Gateway
 # ================================
 
-PROFILE ?= core
-BIN_DIR := bin
+PROFILE   ?= core
+BIN_DIR   := bin
+IMAGE_REPO ?= ghcr.io/rhuss/antwort
+IMAGE_TAG  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
 
-.PHONY: build test vet conformance clean
+.PHONY: build test vet conformance clean image-build image-push image-latest
 
 # Build server and mock-backend binaries.
 build:
@@ -24,6 +26,19 @@ vet:
 #        make conformance PROFILE=extended
 conformance: build
 	./conformance/run.sh $(PROFILE)
+
+# Build container image.
+image-build:
+	podman build -t $(IMAGE_REPO):$(IMAGE_TAG) -f Containerfile .
+
+# Push container image.
+image-push: image-build
+	podman push $(IMAGE_REPO):$(IMAGE_TAG)
+
+# Tag and push as latest.
+image-latest: image-build
+	podman tag $(IMAGE_REPO):$(IMAGE_TAG) $(IMAGE_REPO):latest
+	podman push $(IMAGE_REPO):latest
 
 # Clean build artifacts.
 clean:
