@@ -5,6 +5,7 @@
 //	ANTWORT_BACKEND_URL  - Chat Completions backend URL (required)
 //	ANTWORT_MODEL        - Default model name (optional)
 //	ANTWORT_PORT         - Listen port (default: 8080)
+//	ANTWORT_PROVIDER     - Provider type: "vllm" (default) or "litellm"
 //	ANTWORT_STORAGE      - Storage type: "memory" or "none" (default: "memory")
 //	ANTWORT_STORAGE_SIZE - Max responses in memory store (default: 10000)
 package main
@@ -25,6 +26,8 @@ import (
 	"github.com/rhuss/antwort/pkg/auth/apikey"
 	"github.com/rhuss/antwort/pkg/auth/noop"
 	"github.com/rhuss/antwort/pkg/engine"
+	"github.com/rhuss/antwort/pkg/provider"
+	"github.com/rhuss/antwort/pkg/provider/litellm"
 	"github.com/rhuss/antwort/pkg/provider/vllm"
 	"github.com/rhuss/antwort/pkg/storage/memory"
 	"github.com/rhuss/antwort/pkg/transport"
@@ -47,6 +50,7 @@ func run() error {
 
 	defaultModel := os.Getenv("ANTWORT_MODEL")
 	port := envOrDefault("ANTWORT_PORT", "8080")
+	providerType := envOrDefault("ANTWORT_PROVIDER", "vllm")
 	storageType := envOrDefault("ANTWORT_STORAGE", "memory")
 	storageSizeStr := envOrDefault("ANTWORT_STORAGE_SIZE", "10000")
 
@@ -56,10 +60,7 @@ func run() error {
 	}
 
 	// Create provider.
-	prov, err := vllm.New(vllm.Config{
-		BaseURL: backendURL,
-		Timeout: 120 * time.Second,
-	})
+	prov, err := createProvider(providerType, backendURL)
 	if err != nil {
 		return fmt.Errorf("creating provider: %w", err)
 	}
@@ -116,7 +117,7 @@ func run() error {
 	// Start server in background.
 	errCh := make(chan error, 1)
 	go func() {
-		slog.Info("server starting", "port", port, "backend", backendURL, "model", defaultModel)
+		slog.Info("server starting", "port", port, "backend", backendURL, "provider", providerType, "model", defaultModel)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			errCh <- err
 		}
@@ -202,6 +203,42 @@ func parseAPIKeys(jsonStr string) []apikey.RawKeyEntry {
 
 // Ensure noop package is available (used indirectly via auth chain default).
 var _ auth.Authenticator = (*noop.Authenticator)(nil)
+
+// createProvider creates a provider.Provider based on the given type name.
+// Supported types: "vllm" (default), "litellm".
+func createProvider(providerType, backendURL string) (provider.Provider, error) {
+	apiKey := os.Getenv("ANTWORT_API_KEY")
+
+	switch providerType {
+	case "vllm", "":
+		return vllm.New(vllm.Config{
+			BaseURL: backendURL,
+			APIKey:  apiKey,
+			Timeout: 120 * time.Second,
+		})
+
+	case "litellm":
+		cfg := litellm.Config{
+			BaseURL: backendURL,
+			APIKey:  apiKey,
+			Timeout: 120 * time.Second,
+		}
+		// Parse model mapping from ANTWORT_MODEL_MAPPING if set.
+		// Format: JSON object, e.g. {"gpt-4":"openai/gpt-4","claude":"anthropic/claude-3-opus"}
+		if mappingJSON := os.Getenv("ANTWORT_MODEL_MAPPING"); mappingJSON != "" {
+			var mapping map[string]string
+			if err := json.Unmarshal([]byte(mappingJSON), &mapping); err != nil {
+				return nil, fmt.Errorf("invalid ANTWORT_MODEL_MAPPING: %w", err)
+			}
+			cfg.ModelMapping = mapping
+			slog.Info("model mapping configured", "mappings", len(mapping))
+		}
+		return litellm.New(cfg)
+
+	default:
+		return nil, fmt.Errorf("unknown provider type %q (supported: vllm, litellm)", providerType)
+	}
+}
 
 func envOrDefault(key, defaultValue string) string {
 	if v := os.Getenv(key); v != "" {
