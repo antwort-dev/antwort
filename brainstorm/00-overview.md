@@ -51,7 +51,10 @@ Antwort is designed exclusively for Kubernetes. There is no standalone or local 
 | 04 | Agentic Loop & Tool Orchestration | `004-agentic-loop` | Tool types, choice enforcement, agentic cycle |
 | 05 | State Management & Storage | `005-storage` | Storage interface + PostgreSQL adapter |
 | 06 | Authentication & Authorization | `006-auth` | Auth interface + adapters |
-| 07 | Deployment & Operations | `007-deployment` | Container, k8s, observability |
+| 07a | Container Image | `007a-container-image` | Containerfile, multi-stage build |
+| 07b | Kubernetes Deployment | `007b-kustomize` | Kustomize base + overlays |
+| 07c | Helm Chart | `007c-helm` | Parameterized Helm deployment |
+| 07d | Observability | `007d-observability` | Metrics, tracing, structured logging |
 | 08 | Provider: LiteLLM | `008-provider-litellm` | LiteLLM adapter implementation |
 | 09 | Configuration | `009-configuration` | Unified config model, env vars, validation, hot reload |
 | 10 | MCP Client | `010-mcp-client` | Model Context Protocol client integration |
