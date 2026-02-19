@@ -11,6 +11,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -20,6 +21,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/rhuss/antwort/pkg/auth"
+	"github.com/rhuss/antwort/pkg/auth/apikey"
+	"github.com/rhuss/antwort/pkg/auth/noop"
 	"github.com/rhuss/antwort/pkg/engine"
 	"github.com/rhuss/antwort/pkg/provider/vllm"
 	"github.com/rhuss/antwort/pkg/storage/memory"
@@ -81,6 +85,9 @@ func run() error {
 	// Create HTTP adapter.
 	adapter := transporthttp.NewAdapter(eng, store, transporthttp.DefaultConfig())
 
+	// Build auth chain.
+	authChain := buildAuthChain()
+
 	// Build HTTP mux with health endpoint.
 	mux := http.NewServeMux()
 	mux.Handle("/", adapter.Handler())
@@ -89,10 +96,17 @@ func run() error {
 		w.Write([]byte("ok\n"))
 	})
 
+	// Wrap with auth middleware.
+	var handler http.Handler = mux
+	if authChain != nil {
+		authMiddleware := auth.Middleware(authChain, nil, auth.DefaultBypassEndpoints)
+		handler = authMiddleware(mux)
+	}
+
 	// Create server.
 	srv := &http.Server{
 		Addr:    ":" + port,
-		Handler: mux,
+		Handler: handler,
 	}
 
 	// Graceful shutdown.
@@ -119,6 +133,75 @@ func run() error {
 		return err
 	}
 }
+
+// buildAuthChain creates an auth chain from environment configuration.
+// Returns nil when auth is disabled (ANTWORT_AUTH_TYPE=none or unset).
+func buildAuthChain() *auth.AuthChain {
+	authType := os.Getenv("ANTWORT_AUTH_TYPE")
+
+	switch authType {
+	case "apikey":
+		keys := parseAPIKeys(os.Getenv("ANTWORT_API_KEYS"))
+		if len(keys) == 0 {
+			slog.Warn("ANTWORT_AUTH_TYPE=apikey but no ANTWORT_API_KEYS configured")
+			return nil
+		}
+		slog.Info("auth enabled", "type", "apikey", "keys", len(keys))
+		return &auth.AuthChain{
+			Authenticators:  []auth.Authenticator{apikey.New(keys)},
+			DefaultDecision: auth.No,
+		}
+
+	case "none", "":
+		// No auth (development mode).
+		return nil
+
+	default:
+		slog.Warn("unknown ANTWORT_AUTH_TYPE, auth disabled", "type", authType)
+		return nil
+	}
+}
+
+// parseAPIKeys parses a JSON array of key entries from an env var.
+// Format: [{"key":"sk-...","subject":"alice","tenant_id":"org-1","service_tier":"standard"}]
+func parseAPIKeys(jsonStr string) []apikey.RawKeyEntry {
+	if jsonStr == "" {
+		return nil
+	}
+
+	type rawKey struct {
+		Key         string `json:"key"`
+		Subject     string `json:"subject"`
+		TenantID    string `json:"tenant_id"`
+		ServiceTier string `json:"service_tier"`
+	}
+
+	var keys []rawKey
+	if err := json.Unmarshal([]byte(jsonStr), &keys); err != nil {
+		slog.Error("failed to parse ANTWORT_API_KEYS", "error", err)
+		return nil
+	}
+
+	var entries []apikey.RawKeyEntry
+	for _, k := range keys {
+		metadata := map[string]string{}
+		if k.TenantID != "" {
+			metadata["tenant_id"] = k.TenantID
+		}
+		entries = append(entries, apikey.RawKeyEntry{
+			Key: k.Key,
+			Identity: auth.Identity{
+				Subject:     k.Subject,
+				ServiceTier: k.ServiceTier,
+				Metadata:    metadata,
+			},
+		})
+	}
+	return entries
+}
+
+// Ensure noop package is available (used indirectly via auth chain default).
+var _ auth.Authenticator = (*noop.Authenticator)(nil)
 
 func envOrDefault(key, defaultValue string) string {
 	if v := os.Getenv(key); v != "" {
