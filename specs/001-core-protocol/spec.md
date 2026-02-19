@@ -23,6 +23,20 @@ Antwort introduces a two-tier API classification (stateless vs stateful) that de
 - Q: What is the default value for `tool_choice` when omitted? → A: `auto` (model decides whether to invoke tools). Matches OpenResponses and OpenAI convention.
 - Q: Should the spec define upper bounds on input size? → A: Yes, configurable limits. The spec requires enforcement (max input Items, max content size per part) but values are deployment-configurable, not hardcoded in the protocol.
 
+### Evolution 2026-02-19 (Conformance Testing)
+
+Running the official OpenResponses compliance suite revealed several schema requirements not captured in the original spec:
+
+- **Response schema expansion**: The OpenResponses Zod schema requires 30+ fields on Response (not just the 12 originally specified). Added fields echo back request parameters: tools, tool_choice, truncation, temperature, top_p, presence_penalty, frequency_penalty, top_logprobs, parallel_tool_calls, text config, reasoning config, max_output_tokens, max_tool_calls, store, background, service_tier, metadata, safety_identifier, prompt_cache_key, completed_at, incomplete_details.
+- **Item wire format**: The OpenResponses wire format uses a flat structure for Items (role and content at the item top level), not a nested wrapper. Internal representation remains nested for engine logic; custom JSON marshaling produces the flat wire format.
+- **PreviousResponseID**: Changed from `string` to `*string` (nullable) to match the Zod schema that requires the field to be present with null value rather than omitted.
+- **OutputContentPart**: `annotations` and `logprobs` arrays are required by the Zod schema (not optional). Empty arrays are serialized as `[]`, never as `null`.
+- **ToolDefinition**: Added `strict` boolean field required by the Zod schema.
+- **Usage details**: Added `input_tokens_details` (cached_tokens) and `output_tokens_details` (reasoning_tokens) sub-objects.
+- **StreamEvent serialization**: Each event type requires specific fields at the top level. Custom MarshalJSON produces the correct fields per event type (output_index, item_id, content_index, logprobs as needed).
+- **requires_action status**: Added as terminal response status (Spec 004 amendment). State machine: `in_progress -> requires_action`, no outgoing transitions.
+- **incomplete status**: Added to response status enum for max-turns scenarios.
+
 ## User Scenarios & Testing
 
 ### User Story 1 - Submit a Prompt and Receive a Response (Priority: P1)
@@ -114,8 +128,8 @@ A provider-specific integration sends Items or request parameters with custom ty
 **Content Models**
 
 - **FR-006**: User content MUST support multimodal input: text, image, audio, and video
-- **FR-007**: Model output content MUST support two content types: `output_text` (primary text output with optional token-level log probabilities) and `summary_text` (reasoning summaries safe for user display)
-- **FR-007a**: Content parts MUST support an optional annotations field for inline metadata such as citations and links
+- **FR-007**: Model output content MUST support two content types: `output_text` (primary text output with token-level log probabilities) and `summary_text` (reasoning summaries safe for user display)
+- **FR-007a**: Output content parts MUST include `annotations` (array, required, empty when no annotations) and `logprobs` (array, required, empty when no log probabilities) fields. These MUST serialize as `[]` not `null`.
 - **FR-008**: User content and model output content MUST be asymmetric (different schemas), reflecting the difference between what users provide and what models produce
 
 **Message Items**
@@ -127,6 +141,7 @@ A provider-specific integration sends Items or request parameters with custom ty
 **Function Call Items**
 
 - **FR-012**: Function call Items MUST contain a function name, a call identifier, and arguments (as a JSON-encoded string)
+- **FR-012b**: Tool definitions MUST include a `strict` boolean field indicating whether the tool uses strict schema validation
 
 **Function Call Output Items**
 
@@ -149,19 +164,26 @@ A provider-specific integration sends Items or request parameters with custom ty
 
 **Response Schema**
 
-- **FR-022**: Responses MUST contain: a unique identifier (prefixed format: `resp_` followed by a random alphanumeric string), an object type marker (`response`), a status, output Items, the model used, and a creation timestamp
-- **FR-023**: Responses MUST optionally include: usage statistics (input/output/total tokens), an error object, a previous response reference, and extensions
-- **FR-024**: Response status MUST be one of: `queued`, `in_progress`, `completed`, `failed`, or `cancelled`. The `queued` state indicates the server accepted the request but has not yet started processing (e.g., for batch or async `service_tier` requests).
-- **FR-024a**: The response state machine transitions are: `queued` -> `in_progress` -> `completed` | `failed` | `cancelled`. A response MAY skip `queued` and start directly in `in_progress` for synchronous processing.
+- **FR-022**: Responses MUST contain all fields required by the OpenResponses Zod schema: id, object, created_at, completed_at (nullable), status, incomplete_details (nullable), model, previous_response_id (nullable), instructions (nullable), output (array), error (nullable), tools (array), tool_choice, truncation, parallel_tool_calls, text config, top_p, presence_penalty, frequency_penalty, top_logprobs, temperature, reasoning (nullable), usage (nullable), max_output_tokens (nullable), max_tool_calls (nullable), store, background, service_tier, metadata, safety_identifier (nullable), prompt_cache_key (nullable)
+- **FR-022a**: Response MUST echo back request parameters (tools, tool_choice, truncation, temperature, top_p, store, etc.) so clients can verify what settings were used
+- **FR-023**: Usage statistics MUST include input_tokens, output_tokens, total_tokens, input_tokens_details (with cached_tokens), and output_tokens_details (with reasoning_tokens)
+- **FR-024**: Response status MUST be one of: `queued`, `in_progress`, `completed`, `incomplete`, `failed`, `cancelled`, or `requires_action`
+- **FR-024a**: The response state machine transitions are: `queued` -> `in_progress` -> `completed` | `incomplete` | `failed` | `cancelled` | `requires_action`. A response MAY skip `queued` and start directly in `in_progress` for synchronous processing. `requires_action` is terminal (Spec 004).
 - **FR-025**: Responses in terminal states (`completed`, `failed`, `cancelled`) MUST be immutable
 
 **Streaming Event Types**
 
 - **FR-026**: System MUST define delta events for incremental content delivery: item added, content part added/done, text delta/done, function call arguments delta/done
 - **FR-027**: System MUST define state machine events for lifecycle transitions: `response.created`, `response.queued`, `response.in_progress`, `response.completed`, `response.failed`, `response.cancelled`
-- **FR-028**: Each streaming event MUST carry a type identifier, a monotonically increasing sequence number for ordering, and the relevant payload (response snapshot, item, content part, or text delta)
-- **FR-028a**: Delta events MUST include context fields (item identifier, output index, and content index) to enable client-side correlation of incremental updates with the correct item and content part
+- **FR-028**: Each streaming event MUST carry a type identifier, a monotonically increasing sequence number for ordering, and the relevant payload. The payload fields vary by event type: lifecycle events carry a response snapshot, item events carry output_index and item, content part events carry item_id/output_index/content_index/part, text delta events carry item_id/output_index/content_index/delta/logprobs.
+- **FR-028a**: Delta events MUST include context fields (item identifier, output index, and content index) to enable client-side correlation of incremental updates with the correct item and content part. Text delta and text done events MUST include a `logprobs` array (empty when no log probabilities are available).
 - **FR-029**: Extension streaming events MUST be supported using the `provider:event_type` naming convention
+
+**Wire Format**
+
+- **FR-029a**: Items MUST serialize to a flat wire format where type-specific fields are at the top level (not nested in a wrapper). Message items serialize with `role` and `content` at the top level. Function call items serialize with `call_id`, `name`, and `arguments` at the top level. Internal representation MAY use nested wrappers for engine logic.
+- **FR-029b**: Arrays that are part of the OpenResponses schema (tools, output, annotations, logprobs, content) MUST serialize as `[]` when empty, never as `null`
+- **FR-029c**: Nullable fields (previous_response_id, completed_at, error, reasoning, etc.) MUST be present in the JSON with `null` value, not omitted
 
 **Error System**
 
