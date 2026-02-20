@@ -133,6 +133,7 @@ The system also exposes metrics following the [OTel GenAI semantic conventions](
 - **SC-002**: Request count and duration metrics are recorded for every request
 - **SC-003**: Provider latency and token metrics are recorded for every inference call
 - **SC-004**: Metrics are scrapable by Prometheus via the existing ServiceMonitor
+- **SC-005**: The `gen_ai.*` metrics follow OTel GenAI semantic conventions and include TTFT and time-per-output-token for streaming requests
 
 ## Assumptions
 
@@ -154,6 +155,8 @@ The system also exposes metrics following the [OTel GenAI semantic conventions](
 - `/metrics` endpoint
 - LLM-tuned histogram buckets
 - Request, provider, tool, rate limiting metrics
+- OTel GenAI semantic convention metrics (gen_ai.*)
+- TTFT and time-per-output-token for streaming
 - Config integration (enabled/disabled)
 
 ### Out of Scope
