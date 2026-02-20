@@ -159,19 +159,71 @@ func (c *Config) Validate() error {
 }
 ```
 
-## Runtime Reload
+## Runtime Reload via ConfigMap Watch
 
-Some configuration can change without restart. Others require restart.
+The instance can watch a Kubernetes ConfigMap for configuration changes and apply them without restart. This is the bridge between a future operator and the running instance.
 
-**Hot-reloadable** (via admin API or file watch):
-- Provider registrations (add/remove backends)
+### Architecture
+
+```
+                                    ┌─────────────────────┐
+ AntwortGateway CR ──► Operator ──► │ ConfigMap            │
+ (future)              (future)     │ (config.yaml data)   │
+                                    └──────────┬──────────┘
+                                               │ watch
+                                    ┌──────────▼──────────┐
+                                    │ Antwort Instance     │
+                                    │ (applies changes)    │
+                                    └─────────────────────┘
+```
+
+The instance watches a ConfigMap (configurable via `--watch-config` flag or `ANTWORT_WATCH_CONFIGMAP` env var). When the ConfigMap changes, the instance reads the new `config.yaml` from the ConfigMap data and applies hot-reloadable settings.
+
+### Hot-reloadable vs restart-required
+
+**Hot-reloadable** (applied on ConfigMap change):
+- MCP server connections (add/remove/change servers)
 - Auth keys (add/revoke API keys)
 - Log level
+- Tool configurations
+- Rate limit tiers
 
-**Restart required**:
+**Restart required** (ConfigMap change triggers rolling restart via annotation hash):
 - Storage type/connection
 - Server listen address/port
 - Auth type change (api_key to jwt)
+- Provider backend URL
+
+For restart-required changes, the operator (or Helm) updates a pod annotation hash that triggers a rolling restart. The instance itself doesn't need to handle this.
+
+### ConfigMap format
+
+The ConfigMap carries the same `config.yaml` format as the file:
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: antwort-config
+data:
+  config.yaml: |
+    server:
+      port: 8080
+    engine:
+      model_endpoint: http://vllm:8000
+    mcp:
+      servers:
+        - name: tools
+          url: http://mcp-server:8080/mcp
+    auth:
+      type: api_key
+```
+
+### Implementation approach
+
+- P1: File-based config (read at startup)
+- P2: ConfigMap watch (Kubernetes informer or poll)
+- P3: Operator rendering ConfigMap from CRD (separate spec)
 
 ## Admin API
 
