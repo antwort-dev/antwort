@@ -190,6 +190,25 @@ func resolveFileReferences(cfg *Config) error {
 		}
 	}
 
+	// mcp.servers[*].auth.client_id_file -> mcp.servers[*].auth.client_id
+	// mcp.servers[*].auth.client_secret_file -> mcp.servers[*].auth.client_secret
+	for i := range cfg.MCP.Servers {
+		if cfg.MCP.Servers[i].Auth.ClientIDFile != "" && cfg.MCP.Servers[i].Auth.ClientID == "" {
+			val, err := readSecretFile(cfg.MCP.Servers[i].Auth.ClientIDFile)
+			if err != nil {
+				return fmt.Errorf("mcp.servers[%d].auth.client_id_file: %w", i, err)
+			}
+			cfg.MCP.Servers[i].Auth.ClientID = val
+		}
+		if cfg.MCP.Servers[i].Auth.ClientSecretFile != "" && cfg.MCP.Servers[i].Auth.ClientSecret == "" {
+			val, err := readSecretFile(cfg.MCP.Servers[i].Auth.ClientSecretFile)
+			if err != nil {
+				return fmt.Errorf("mcp.servers[%d].auth.client_secret_file: %w", i, err)
+			}
+			cfg.MCP.Servers[i].Auth.ClientSecret = val
+		}
+	}
+
 	return nil
 }
 

@@ -219,6 +219,9 @@ func createMCPExecutor(cfg *config.Config) (*mcptools.MCPExecutor, error) {
 			Headers:   serverCfg.Headers,
 		}
 
+		// Configure auth provider based on auth type.
+		mcpCfg.Auth = buildMCPAuthConfig(serverCfg.Auth)
+
 		client := mcptools.NewMCPClient(mcpCfg)
 		if err := client.Connect(ctx); err != nil {
 			// Close already-connected clients on failure.
@@ -229,10 +232,27 @@ func createMCPExecutor(cfg *config.Config) (*mcptools.MCPExecutor, error) {
 		}
 
 		clients[serverCfg.Name] = client
-		slog.Info("MCP server connected", "name", serverCfg.Name, "url", serverCfg.URL, "transport", serverCfg.Transport)
+		authType := serverCfg.Auth.Type
+		if authType == "" {
+			authType = "none"
+		}
+		slog.Info("MCP server connected", "name", serverCfg.Name, "url", serverCfg.URL, "transport", serverCfg.Transport, "auth", authType)
 	}
 
 	return mcptools.NewMCPExecutor(clients), nil
+}
+
+// buildMCPAuthConfig converts a config.MCPAuthConfig to the MCP package's MCPAuthConfig.
+func buildMCPAuthConfig(authCfg config.MCPAuthConfig) mcptools.MCPAuthConfig {
+	return mcptools.MCPAuthConfig{
+		Type:             authCfg.Type,
+		TokenURL:         authCfg.TokenURL,
+		ClientID:         authCfg.ClientID,
+		ClientIDFile:     authCfg.ClientIDFile,
+		ClientSecret:     authCfg.ClientSecret,
+		ClientSecretFile: authCfg.ClientSecretFile,
+		Scopes:           authCfg.Scopes,
+	}
 }
 
 // buildAuthChain creates an auth chain from config.

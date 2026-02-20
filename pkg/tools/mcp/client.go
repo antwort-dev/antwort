@@ -70,13 +70,15 @@ func (c *MCPClient) ConnectWithTransport(ctx context.Context, transport mcp.Tran
 
 // createTransport creates an MCP transport based on the server configuration.
 func (c *MCPClient) createTransport() (mcp.Transport, error) {
+	httpClient := c.buildHTTPClient()
+
 	switch c.cfg.Transport {
 	case "sse":
 		transport := &mcp.SSEClientTransport{
 			Endpoint: c.cfg.URL,
 		}
-		if len(c.cfg.Headers) > 0 {
-			transport.HTTPClient = c.httpClientWithHeaders()
+		if httpClient != nil {
+			transport.HTTPClient = httpClient
 		}
 		return transport, nil
 
@@ -84,8 +86,8 @@ func (c *MCPClient) createTransport() (mcp.Transport, error) {
 		transport := &mcp.StreamableClientTransport{
 			Endpoint: c.cfg.URL,
 		}
-		if len(c.cfg.Headers) > 0 {
-			transport.HTTPClient = c.httpClientWithHeaders()
+		if httpClient != nil {
+			transport.HTTPClient = httpClient
 		}
 		return transport, nil
 
@@ -94,19 +96,66 @@ func (c *MCPClient) createTransport() (mcp.Transport, error) {
 	}
 }
 
-// httpClientWithHeaders returns an HTTP client that injects the configured
-// headers into every request via a custom RoundTripper.
-func (c *MCPClient) httpClientWithHeaders() *http.Client {
+// buildHTTPClient returns an HTTP client with the appropriate transport
+// for authentication. Returns nil if no auth or custom headers are configured.
+func (c *MCPClient) buildHTTPClient() *http.Client {
+	var authProvider AuthProvider
+
+	switch c.cfg.Auth.Type {
+	case "oauth_client_credentials":
+		authProvider = NewOAuthClientCredentials(
+			c.cfg.Auth.TokenURL,
+			c.cfg.Auth.ClientID,
+			c.cfg.Auth.ClientSecret,
+			c.cfg.Auth.Scopes,
+		)
+	}
+
+	// Build transport chain: static headers + auth provider.
+	hasStaticHeaders := len(c.cfg.Headers) > 0
+	if !hasStaticHeaders && authProvider == nil {
+		return nil
+	}
+
 	return &http.Client{
-		Transport: &headerTransport{
-			base:    http.DefaultTransport,
-			headers: c.cfg.Headers,
+		Transport: &authAwareTransport{
+			base:         http.DefaultTransport,
+			headers:      c.cfg.Headers,
+			authProvider: authProvider,
 		},
 	}
 }
 
+// authAwareTransport is an http.RoundTripper that adds static headers and
+// dynamically obtained auth headers to every request.
+type authAwareTransport struct {
+	base         http.RoundTripper
+	headers      map[string]string
+	authProvider AuthProvider
+}
+
+func (t *authAwareTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Apply static headers first.
+	for k, v := range t.headers {
+		req.Header.Set(k, v)
+	}
+
+	// Apply auth provider headers (may override static headers, e.g. Authorization).
+	if t.authProvider != nil {
+		authHeaders, err := t.authProvider.GetHeaders(req.Context())
+		if err != nil {
+			return nil, fmt.Errorf("getting auth headers: %w", err)
+		}
+		for k, v := range authHeaders {
+			req.Header.Set(k, v)
+		}
+	}
+
+	return t.base.RoundTrip(req)
+}
+
 // headerTransport is an http.RoundTripper that adds custom headers to
-// every request.
+// every request. Kept for backward compatibility.
 type headerTransport struct {
 	base    http.RoundTripper
 	headers map[string]string
