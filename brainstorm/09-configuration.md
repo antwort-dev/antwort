@@ -179,10 +179,23 @@ The instance can watch a Kubernetes ConfigMap for configuration changes and appl
 
 The instance watches a ConfigMap (configurable via `--watch-config` flag or `ANTWORT_WATCH_CONFIGMAP` env var). When the ConfigMap changes, the instance reads the new `config.yaml` from the ConfigMap data and applies hot-reloadable settings.
 
+### What gets watched
+
+The instance watches **both** config files and secret files:
+
+1. **Config file** (config.yaml from ConfigMap): structural config changes
+2. **Secret files** (from `_file` references): credential rotation, key changes
+
+When any watched file changes (kubelet atomically updates symlinks for both ConfigMap and Secret mounts), the reload path fires: re-read all files, validate, apply changes.
+
+This handles the most frequent operational change: **secret rotation** (API key expiry, credential compromise, regular rotation). No pod restart needed.
+
 ### Hot-reloadable vs restart-required
 
-**Hot-reloadable** (applied on ConfigMap change):
+**Hot-reloadable** (applied on file change):
 - MCP server connections (add/remove/change servers)
+- MCP server credentials (rotated API keys)
+- Backend API key (rotated provider credentials)
 - Auth keys (add/revoke API keys)
 - Log level
 - Tool configurations
