@@ -9,6 +9,7 @@ import (
 	"github.com/rhuss/antwort/pkg/api"
 	"github.com/rhuss/antwort/pkg/provider"
 	"github.com/rhuss/antwort/pkg/tools"
+	mcptools "github.com/rhuss/antwort/pkg/tools/mcp"
 	"github.com/rhuss/antwort/pkg/transport"
 )
 
@@ -53,6 +54,9 @@ func (e *Engine) CreateResponse(ctx context.Context, req *api.CreateResponseRequ
 	if apiErr := provider.ValidateCapabilities(e.provider.Capabilities(), req); apiErr != nil {
 		return apiErr
 	}
+
+	// Merge MCP-discovered tools into the request before translation.
+	e.mergeMCPTools(ctx, req)
 
 	// Translate the request to provider format.
 	provReq := translateRequest(req)
@@ -404,6 +408,35 @@ func snapshotResponse(r *api.Response) *api.Response {
 		cp.Output = []api.Item{}
 	}
 	return &cp
+}
+
+// mergeMCPTools discovers tools from MCP executors and merges them into
+// the request's tool list. Explicit tools in the request take precedence
+// over MCP-discovered tools with the same name.
+func (e *Engine) mergeMCPTools(ctx context.Context, req *api.CreateResponseRequest) {
+	for _, exec := range e.executors {
+		if mcpExec, ok := exec.(*mcptools.MCPExecutor); ok {
+			discovered := mcpExec.DiscoveredTools()
+			if len(discovered) == 0 {
+				// Trigger lazy discovery.
+				mcpExec.CanExecute("__trigger_discovery__")
+				discovered = mcpExec.DiscoveredTools()
+			}
+
+			// Build a set of existing tool names for dedup.
+			existing := make(map[string]bool, len(req.Tools))
+			for _, t := range req.Tools {
+				existing[t.Name] = true
+			}
+
+			// Merge discovered tools that don't conflict.
+			for _, t := range discovered {
+				if !existing[t.Name] {
+					req.Tools = append(req.Tools, t)
+				}
+			}
+		}
+	}
 }
 
 // hasExecutors returns true if any tool executors are registered.
