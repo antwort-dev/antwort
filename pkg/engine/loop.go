@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/rhuss/antwort/pkg/api"
+	"github.com/rhuss/antwort/pkg/observability"
 	"github.com/rhuss/antwort/pkg/provider"
 	"github.com/rhuss/antwort/pkg/tools"
 	"github.com/rhuss/antwort/pkg/transport"
@@ -28,13 +29,25 @@ func (e *Engine) runAgenticLoop(ctx context.Context, req *api.CreateResponseRequ
 		}
 
 		// Call the provider.
+		startTime := time.Now()
 		provResp, err := e.provider.Complete(ctx, provReq)
+		duration := time.Since(startTime)
+		provName := e.provider.Name()
+
 		if err != nil {
+			observability.ProviderRequestsTotal.WithLabelValues(provName, req.Model, "error").Inc()
+			observability.ProviderLatency.WithLabelValues(provName, req.Model).Observe(duration.Seconds())
 			if ctx.Err() != nil {
 				return e.buildAndWriteResponse(ctx, req, allOutputItems, &cumulativeUsage, api.ResponseStatusCancelled, nil, w)
 			}
 			return err
 		}
+
+		observability.ProviderRequestsTotal.WithLabelValues(provName, req.Model, "success").Inc()
+		observability.ProviderLatency.WithLabelValues(provName, req.Model).Observe(duration.Seconds())
+		observability.ProviderTokensTotal.WithLabelValues(provName, req.Model, "input").Add(float64(provResp.Usage.InputTokens))
+		observability.ProviderTokensTotal.WithLabelValues(provName, req.Model, "output").Add(float64(provResp.Usage.OutputTokens))
+		observability.RecordGenAIMetrics(provName, req.Model, duration, provResp.Usage.InputTokens, provResp.Usage.OutputTokens, nil)
 
 		// Accumulate usage.
 		cumulativeUsage.InputTokens += provResp.Usage.InputTokens
@@ -161,8 +174,12 @@ func (e *Engine) runAgenticLoopStreaming(ctx context.Context, req *api.CreateRes
 		}
 
 		// Start provider stream for this turn.
+		turnStreamStart := time.Now()
 		eventCh, err := e.provider.Stream(ctx, provReq)
 		if err != nil {
+			provName := e.provider.Name()
+			observability.ProviderRequestsTotal.WithLabelValues(provName, req.Model, "error").Inc()
+			observability.ProviderLatency.WithLabelValues(provName, req.Model).Observe(time.Since(turnStreamStart).Seconds())
 			if ctx.Err() != nil {
 				return e.emitCancelled(ctx, resp, state, w)
 			}
@@ -171,6 +188,26 @@ func (e *Engine) runAgenticLoopStreaming(ctx context.Context, req *api.CreateRes
 
 		// Consume events from this turn, accumulating items.
 		turnItems, turnUsage, turnErr := e.consumeStreamTurn(ctx, eventCh, state, w)
+		turnDuration := time.Since(turnStreamStart)
+
+		// Record provider metrics for this streaming turn.
+		{
+			provName := e.provider.Name()
+			if turnErr != nil {
+				observability.ProviderRequestsTotal.WithLabelValues(provName, req.Model, "error").Inc()
+			} else {
+				observability.ProviderRequestsTotal.WithLabelValues(provName, req.Model, "success").Inc()
+			}
+			observability.ProviderLatency.WithLabelValues(provName, req.Model).Observe(turnDuration.Seconds())
+			if turnUsage != nil {
+				observability.ProviderTokensTotal.WithLabelValues(provName, req.Model, "input").Add(float64(turnUsage.InputTokens))
+				observability.ProviderTokensTotal.WithLabelValues(provName, req.Model, "output").Add(float64(turnUsage.OutputTokens))
+				observability.RecordGenAIMetrics(provName, req.Model, turnDuration, turnUsage.InputTokens, turnUsage.OutputTokens, nil)
+			} else {
+				observability.RecordGenAIMetrics(provName, req.Model, turnDuration, 0, 0, nil)
+			}
+		}
+
 		if turnErr != nil {
 			return turnErr
 		}
@@ -432,6 +469,7 @@ func (e *Engine) executeToolsConcurrently(ctx context.Context, calls []tools.Too
 					Output:  "no executor found for tool " + tc.Name,
 					IsError: true,
 				}
+				observability.ToolExecutionsTotal.WithLabelValues(tc.Name, "error").Inc()
 				return
 			}
 
@@ -447,8 +485,15 @@ func (e *Engine) executeToolsConcurrently(ctx context.Context, calls []tools.Too
 					Output:  err.Error(),
 					IsError: true,
 				}
+				observability.ToolExecutionsTotal.WithLabelValues(tc.Name, "error").Inc()
 				return
 			}
+
+			status := "success"
+			if result.IsError {
+				status = "error"
+			}
+			observability.ToolExecutionsTotal.WithLabelValues(tc.Name, status).Inc()
 
 			results[idx] = *result
 		}(i, call)

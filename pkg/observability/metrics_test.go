@@ -22,14 +22,18 @@ func TestMetricsRegistered(t *testing.T) {
 	}
 
 	expected := map[string]bool{
-		"antwort_requests_total":              false,
-		"antwort_request_duration_seconds":    false,
-		"antwort_streaming_connections_active": false,
-		"antwort_provider_requests_total":      false,
-		"antwort_provider_latency_seconds":     false,
-		"antwort_provider_tokens_total":        false,
-		"antwort_tool_executions_total":        false,
-		"antwort_ratelimit_rejected_total":     false,
+		"antwort_requests_total":                     false,
+		"antwort_request_duration_seconds":           false,
+		"antwort_streaming_connections_active":        false,
+		"antwort_provider_requests_total":             false,
+		"antwort_provider_latency_seconds":            false,
+		"antwort_provider_tokens_total":               false,
+		"antwort_tool_executions_total":               false,
+		"antwort_ratelimit_rejected_total":            false,
+		"gen_ai_client_token_usage":                   false,
+		"gen_ai_client_operation_duration_seconds":    false,
+		"gen_ai_server_time_to_first_token_seconds":   false,
+		"gen_ai_server_time_per_output_token_seconds": false,
 	}
 
 	for _, mf := range families {
@@ -48,6 +52,11 @@ func TestMetricsRegistered(t *testing.T) {
 	ProviderTokensTotal.WithLabelValues("vllm", "test", "input").Add(10)
 	ToolExecutionsTotal.WithLabelValues("test_tool", "ok").Inc()
 	RateLimitRejectedTotal.WithLabelValues("default").Inc()
+
+	// Seed GenAI metrics.
+	RecordGenAIMetrics("vllm", "test-model", 1*time.Second, 100, 50, nil)
+	ttft := 200 * time.Millisecond
+	RecordGenAIMetrics("vllm", "test-model", 2*time.Second, 200, 100, &ttft)
 
 	families, err = prometheus.DefaultGatherer.Gather()
 	if err != nil {
@@ -165,6 +174,55 @@ func TestStatusWriterFlush(t *testing.T) {
 
 	if !rec.Flushed {
 		t.Error("expected underlying writer to be flushed")
+	}
+}
+
+// TestRecordGenAIMetrics verifies that the RecordGenAIMetrics helper records
+// all expected OTel GenAI metrics in a single call.
+func TestRecordGenAIMetrics(t *testing.T) {
+	// Capture baselines.
+	durationBefore := histogramCount(t, GenAIClientOperationDuration, "chat", "test-prov", "mdl", "mdl", "")
+	inputBefore := histogramCount(t, GenAIClientTokenUsage, "chat", "test-prov", "input", "mdl", "mdl")
+	outputBefore := histogramCount(t, GenAIClientTokenUsage, "chat", "test-prov", "output", "mdl", "mdl")
+	ttftBefore := histogramCount(t, GenAIServerTimeToFirstToken, "chat", "test-prov", "mdl")
+	perTokenBefore := histogramCount(t, GenAIServerTimePerOutputToken, "chat", "test-prov", "mdl")
+
+	ttft := 150 * time.Millisecond
+	RecordGenAIMetrics("test-prov", "mdl", 2*time.Second, 500, 200, &ttft)
+
+	durationAfter := histogramCount(t, GenAIClientOperationDuration, "chat", "test-prov", "mdl", "mdl", "")
+	inputAfter := histogramCount(t, GenAIClientTokenUsage, "chat", "test-prov", "input", "mdl", "mdl")
+	outputAfter := histogramCount(t, GenAIClientTokenUsage, "chat", "test-prov", "output", "mdl", "mdl")
+	ttftAfter := histogramCount(t, GenAIServerTimeToFirstToken, "chat", "test-prov", "mdl")
+	perTokenAfter := histogramCount(t, GenAIServerTimePerOutputToken, "chat", "test-prov", "mdl")
+
+	if durationAfter-durationBefore != 1 {
+		t.Errorf("expected 1 duration observation, got delta=%d", durationAfter-durationBefore)
+	}
+	if inputAfter-inputBefore != 1 {
+		t.Errorf("expected 1 input token observation, got delta=%d", inputAfter-inputBefore)
+	}
+	if outputAfter-outputBefore != 1 {
+		t.Errorf("expected 1 output token observation, got delta=%d", outputAfter-outputBefore)
+	}
+	if ttftAfter-ttftBefore != 1 {
+		t.Errorf("expected 1 TTFT observation, got delta=%d", ttftAfter-ttftBefore)
+	}
+	if perTokenAfter-perTokenBefore != 1 {
+		t.Errorf("expected 1 per-token observation, got delta=%d", perTokenAfter-perTokenBefore)
+	}
+}
+
+// TestRecordGenAIMetrics_NoTTFT verifies that RecordGenAIMetrics skips TTFT
+// recording when ttft is nil (non-streaming case).
+func TestRecordGenAIMetrics_NoTTFT(t *testing.T) {
+	ttftBefore := histogramCount(t, GenAIServerTimeToFirstToken, "chat", "no-ttft-prov", "mdl2")
+
+	RecordGenAIMetrics("no-ttft-prov", "mdl2", 1*time.Second, 100, 50, nil)
+
+	ttftAfter := histogramCount(t, GenAIServerTimeToFirstToken, "chat", "no-ttft-prov", "mdl2")
+	if ttftAfter-ttftBefore != 0 {
+		t.Errorf("expected 0 TTFT observations without ttft, got delta=%d", ttftAfter-ttftBefore)
 	}
 }
 

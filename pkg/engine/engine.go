@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/rhuss/antwort/pkg/api"
+	"github.com/rhuss/antwort/pkg/observability"
 	"github.com/rhuss/antwort/pkg/provider"
 	"github.com/rhuss/antwort/pkg/tools"
 	mcptools "github.com/rhuss/antwort/pkg/tools/mcp"
@@ -93,10 +94,22 @@ func (e *Engine) CreateResponse(ctx context.Context, req *api.CreateResponseRequ
 
 // handleNonStreaming processes a non-streaming request.
 func (e *Engine) handleNonStreaming(ctx context.Context, req *api.CreateResponseRequest, provReq *provider.ProviderRequest, w transport.ResponseWriter) error {
+	startTime := time.Now()
 	provResp, err := e.provider.Complete(ctx, provReq)
+	duration := time.Since(startTime)
+
+	provName := e.provider.Name()
 	if err != nil {
+		observability.ProviderRequestsTotal.WithLabelValues(provName, req.Model, "error").Inc()
+		observability.ProviderLatency.WithLabelValues(provName, req.Model).Observe(duration.Seconds())
 		return err
 	}
+
+	observability.ProviderRequestsTotal.WithLabelValues(provName, req.Model, "success").Inc()
+	observability.ProviderLatency.WithLabelValues(provName, req.Model).Observe(duration.Seconds())
+	observability.ProviderTokensTotal.WithLabelValues(provName, req.Model, "input").Add(float64(provResp.Usage.InputTokens))
+	observability.ProviderTokensTotal.WithLabelValues(provName, req.Model, "output").Add(float64(provResp.Usage.OutputTokens))
+	observability.RecordGenAIMetrics(provName, req.Model, duration, provResp.Usage.InputTokens, provResp.Usage.OutputTokens, nil)
 
 	// Check for empty output (backend returned no choices).
 	if provResp.Status == api.ResponseStatusFailed && len(provResp.Items) == 0 {
@@ -149,10 +162,16 @@ func (e *Engine) handleNonStreaming(ctx context.Context, req *api.CreateResponse
 // content_part.done, output_item.done, and response.completed/failed/cancelled.
 func (e *Engine) handleStreaming(ctx context.Context, req *api.CreateResponseRequest, provReq *provider.ProviderRequest, w transport.ResponseWriter) error {
 	// Start the provider stream.
+	streamStart := time.Now()
 	eventCh, err := e.provider.Stream(ctx, provReq)
 	if err != nil {
+		provName := e.provider.Name()
+		observability.ProviderRequestsTotal.WithLabelValues(provName, req.Model, "error").Inc()
+		observability.ProviderLatency.WithLabelValues(provName, req.Model).Observe(time.Since(streamStart).Seconds())
 		return err
 	}
+
+	var firstTokenTime *time.Duration
 
 	// Build the initial response skeleton.
 	resp := &api.Response{
@@ -228,6 +247,10 @@ func (e *Engine) handleStreaming(ctx context.Context, req *api.CreateResponseReq
 
 		// Emit output_item.added and content_part.added on first text content event.
 		if !itemAdded && (ev.Type == provider.ProviderEventTextDelta || ev.Type == provider.ProviderEventTextDone) {
+			if firstTokenTime == nil {
+				ttft := time.Since(streamStart)
+				firstTokenTime = &ttft
+			}
 			if err := e.emitItemLifecycleStart(ctx, &outputItem, state, w); err != nil {
 				return err
 			}
@@ -250,6 +273,19 @@ func (e *Engine) handleStreaming(ctx context.Context, req *api.CreateResponseReq
 			// Update usage if provided.
 			if ev.Usage != nil {
 				resp.Usage = ev.Usage
+			}
+
+			// Record provider metrics for the streaming call.
+			duration := time.Since(streamStart)
+			provName := e.provider.Name()
+			observability.ProviderRequestsTotal.WithLabelValues(provName, req.Model, "success").Inc()
+			observability.ProviderLatency.WithLabelValues(provName, req.Model).Observe(duration.Seconds())
+			if ev.Usage != nil {
+				observability.ProviderTokensTotal.WithLabelValues(provName, req.Model, "input").Add(float64(ev.Usage.InputTokens))
+				observability.ProviderTokensTotal.WithLabelValues(provName, req.Model, "output").Add(float64(ev.Usage.OutputTokens))
+				observability.RecordGenAIMetrics(provName, req.Model, duration, ev.Usage.InputTokens, ev.Usage.OutputTokens, firstTokenTime)
+			} else {
+				observability.RecordGenAIMetrics(provName, req.Model, duration, 0, 0, firstTokenTime)
 			}
 
 			// Emit terminal lifecycle events.

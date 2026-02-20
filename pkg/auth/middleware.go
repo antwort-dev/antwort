@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/rhuss/antwort/pkg/observability"
 	"github.com/rhuss/antwort/pkg/storage"
 )
 
@@ -62,6 +63,7 @@ func Middleware(chain *AuthChain, limiter RateLimiter, bypassEndpoints []string)
 						"subject", result.Identity.Subject,
 						"tier", result.Identity.ServiceTier,
 					)
+					observability.RateLimitRejectedTotal.WithLabelValues(result.Identity.ServiceTier).Inc()
 					http.Error(w, `{"error":{"type":"too_many_requests","message":"rate limit exceeded"}}`, http.StatusTooManyRequests)
 					return
 				}
