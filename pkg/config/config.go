@@ -13,11 +13,23 @@ import "time"
 
 // Config holds all configuration for the antwort gateway.
 type Config struct {
-	Server  ServerConfig  `yaml:"server"`
-	Engine  EngineConfig  `yaml:"engine"`
-	Storage StorageConfig `yaml:"storage"`
-	Auth    AuthConfig    `yaml:"auth"`
-	MCP     MCPConfig     `yaml:"mcp"`
+	Server        ServerConfig        `yaml:"server"`
+	Engine        EngineConfig        `yaml:"engine"`
+	Storage       StorageConfig       `yaml:"storage"`
+	Auth          AuthConfig          `yaml:"auth"`
+	MCP           MCPConfig           `yaml:"mcp"`
+	Observability ObservabilityConfig `yaml:"observability"`
+}
+
+// ObservabilityConfig holds monitoring and instrumentation settings.
+type ObservabilityConfig struct {
+	Metrics MetricsConfig `yaml:"metrics"`
+}
+
+// MetricsConfig holds Prometheus metrics endpoint settings.
+type MetricsConfig struct {
+	Enabled bool   `yaml:"enabled"` // default: true
+	Path    string `yaml:"path"`    // default: "/metrics"
 }
 
 // ServerConfig holds HTTP server settings.
@@ -101,6 +113,12 @@ func Defaults() Config {
 		},
 		Auth: AuthConfig{
 			Type: "none",
+		},
+		Observability: ObservabilityConfig{
+			Metrics: MetricsConfig{
+				Enabled: true,
+				Path:    "/metrics",
+			},
 		},
 	}
 }

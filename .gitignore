@@ -36,6 +36,10 @@ Thumbs.db
 
 # Build
 dist/
-.claude/settings.local.json
 /server
 /mock-backend
+
+# Claude Code (local-only files)
+.claude/settings.local.json
+.claude/worktrees/
+.claude/projects/

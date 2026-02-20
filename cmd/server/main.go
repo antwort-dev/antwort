@@ -19,11 +19,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rhuss/antwort/pkg/auth"
 	"github.com/rhuss/antwort/pkg/auth/apikey"
 	"github.com/rhuss/antwort/pkg/auth/noop"
 	"github.com/rhuss/antwort/pkg/config"
 	"github.com/rhuss/antwort/pkg/engine"
+	"github.com/rhuss/antwort/pkg/observability"
 	"github.com/rhuss/antwort/pkg/provider"
 	"github.com/rhuss/antwort/pkg/provider/litellm"
 	"github.com/rhuss/antwort/pkg/provider/vllm"
@@ -97,8 +99,20 @@ func run() error {
 		w.Write([]byte("ok\n"))
 	})
 
+	// Register Prometheus metrics endpoint if enabled.
+	if cfg.Observability.Metrics.Enabled {
+		metricsPath := cfg.Observability.Metrics.Path
+		mux.Handle("GET "+metricsPath, promhttp.Handler())
+		slog.Info("metrics endpoint enabled", "path", metricsPath)
+	}
+
 	// Wrap with CORS middleware (for browser-based compliance testing).
 	var handler http.Handler = corsMiddleware(mux)
+
+	// Wrap with metrics middleware (before auth so all requests are counted).
+	if cfg.Observability.Metrics.Enabled {
+		handler = observability.MetricsMiddleware(handler)
+	}
 
 	// Wrap with auth middleware.
 	if authChain != nil {
