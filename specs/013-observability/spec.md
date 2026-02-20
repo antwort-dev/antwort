@@ -20,6 +20,14 @@ OpenTelemetry distributed tracing is deferred to a follow-up spec.
 - Q: Where to record metrics? -> A: Transport middleware (request count/duration), engine (provider latency, tool executions), auth (rate limit rejections). Small instrumentation points, not a rewrite.
 - Q: Log level configuration? -> A: Already handled by Spec 012 (config system). The observability spec focuses on metrics, not logging.
 
+### Evolution 2026-02-20 (OTel GenAI Semantic Conventions)
+
+Added `gen_ai.*` metrics following the [OpenTelemetry Semantic Conventions for Generative AI](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-metrics/). These are emitted alongside the `antwort_*` operational metrics for interoperability with LLM observability tooling (Datadog, Grafana, etc.).
+
+New metrics: `gen_ai_client_token_usage`, `gen_ai_client_operation_duration_seconds`, `gen_ai_server_time_to_first_token_seconds`, `gen_ai_server_time_per_output_token_seconds`.
+
+TTFT and time-per-output-token require timing changes in the streaming path (record first chunk timestamp, compute per-token timing).
+
 ## User Scenarios & Testing
 
 ### User Story 1 - Monitor Request Traffic (Priority: P1)
@@ -93,13 +101,23 @@ An operator monitors MCP tool execution. They can see which tools are called, ho
 
 - **FR-011**: The system MUST record `antwort_ratelimit_rejected_total` counter with label: tier
 
+**OpenTelemetry GenAI Semantic Conventions (gen_ai.*)**
+
+The system also exposes metrics following the [OTel GenAI semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-metrics/) for interoperability with LLM observability tooling. These are emitted alongside the `antwort_*` operational metrics.
+
+- **FR-012a**: The system MUST record `gen_ai_client_token_usage` histogram with attributes: `gen_ai.operation.name`, `gen_ai.provider.name`, `gen_ai.token.type` (input/output), `gen_ai.request.model`, `gen_ai.response.model`
+- **FR-012b**: The system MUST record `gen_ai_client_operation_duration_seconds` histogram with attributes: `gen_ai.operation.name`, `gen_ai.provider.name`, `gen_ai.request.model`, `gen_ai.response.model`, `error.type`
+- **FR-012c**: The system MUST record `gen_ai_server_time_to_first_token_seconds` histogram for streaming requests, measuring the time from request start to the first content token received from the backend
+- **FR-012d**: The system MUST record `gen_ai_server_time_per_output_token_seconds` histogram measuring decode latency: (total duration minus TTFT) divided by (output tokens minus 1)
+
 **LLM-Tuned Buckets**
 
-- **FR-012**: Duration histograms MUST use LLM-tuned bucket boundaries: 0.1, 0.5, 1, 2, 5, 10, 30, 60, 120 seconds
+- **FR-013**: Duration histograms MUST use LLM-tuned bucket boundaries: 0.1, 0.5, 1, 2, 5, 10, 30, 60, 120 seconds
+- **FR-013a**: Token histograms MUST use token-count bucket boundaries: 1, 4, 16, 64, 256, 1024, 4096, 16384
 
 **Configuration**
 
-- **FR-013**: Metrics MUST be configurable via the config system (Spec 012): enabled/disabled, endpoint path
+- **FR-014**: Metrics MUST be configurable via the config system (Spec 012): enabled/disabled, endpoint path
 
 ### Key Entities
 
