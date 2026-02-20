@@ -8,6 +8,8 @@
 //	ANTWORT_PROVIDER     - Provider type: "vllm" (default) or "litellm"
 //	ANTWORT_STORAGE      - Storage type: "memory" or "none" (default: "memory")
 //	ANTWORT_STORAGE_SIZE - Max responses in memory store (default: 10000)
+//	ANTWORT_MCP_SERVERS  - JSON array of MCP server configs (optional)
+//	                       Format: [{"name":"my-server","transport":"streamable-http","url":"http://...","headers":{"Authorization":"Bearer ..."}}]
 package main
 
 import (
@@ -30,6 +32,8 @@ import (
 	"github.com/rhuss/antwort/pkg/provider/litellm"
 	"github.com/rhuss/antwort/pkg/provider/vllm"
 	"github.com/rhuss/antwort/pkg/storage/memory"
+	"github.com/rhuss/antwort/pkg/tools"
+	mcptools "github.com/rhuss/antwort/pkg/tools/mcp"
 	"github.com/rhuss/antwort/pkg/transport"
 	transporthttp "github.com/rhuss/antwort/pkg/transport/http"
 )
@@ -75,9 +79,21 @@ func run() error {
 		slog.Info("storage disabled")
 	}
 
+	// Create MCP executor if configured.
+	var executors []tools.ToolExecutor
+	mcpExecutor, err := createMCPExecutor()
+	if err != nil {
+		return fmt.Errorf("creating MCP executor: %w", err)
+	}
+	if mcpExecutor != nil {
+		executors = append(executors, mcpExecutor)
+		defer mcpExecutor.Close()
+	}
+
 	// Create engine.
 	eng, err := engine.New(prov, store, engine.Config{
 		DefaultModel: defaultModel,
+		Executors:    executors,
 	})
 	if err != nil {
 		return fmt.Errorf("creating engine: %w", err)
@@ -256,6 +272,50 @@ func createProvider(providerType, backendURL string) (provider.Provider, error) 
 	default:
 		return nil, fmt.Errorf("unknown provider type %q (supported: vllm, litellm)", providerType)
 	}
+}
+
+// createMCPExecutor reads ANTWORT_MCP_SERVERS, connects to each MCP server,
+// and returns an MCPExecutor. Returns nil if the env var is not set.
+func createMCPExecutor() (*mcptools.MCPExecutor, error) {
+	mcpJSON := os.Getenv("ANTWORT_MCP_SERVERS")
+	if mcpJSON == "" {
+		return nil, nil
+	}
+
+	var servers []mcptools.ServerConfig
+	if err := json.Unmarshal([]byte(mcpJSON), &servers); err != nil {
+		return nil, fmt.Errorf("invalid ANTWORT_MCP_SERVERS JSON: %w", err)
+	}
+
+	if len(servers) == 0 {
+		return nil, nil
+	}
+
+	ctx := context.Background()
+	clients := make(map[string]*mcptools.MCPClient, len(servers))
+
+	for _, cfg := range servers {
+		if cfg.Name == "" {
+			return nil, fmt.Errorf("MCP server config missing 'name'")
+		}
+		if cfg.URL == "" {
+			return nil, fmt.Errorf("MCP server %q missing 'url'", cfg.Name)
+		}
+
+		client := mcptools.NewMCPClient(cfg)
+		if err := client.Connect(ctx); err != nil {
+			// Close already-connected clients on failure.
+			for _, c := range clients {
+				_ = c.Close()
+			}
+			return nil, fmt.Errorf("connecting to MCP server %q: %w", cfg.Name, err)
+		}
+
+		clients[cfg.Name] = client
+		slog.Info("MCP server connected", "name", cfg.Name, "url", cfg.URL, "transport", cfg.Transport)
+	}
+
+	return mcptools.NewMCPExecutor(clients), nil
 }
 
 func envOrDefault(key, defaultValue string) string {
