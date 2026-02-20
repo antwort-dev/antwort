@@ -90,6 +90,18 @@ type MCPServerConfig struct {
 	Transport string            `yaml:"transport"` // "sse" or "streamable-http"
 	URL       string            `yaml:"url"`
 	Headers   map[string]string `yaml:"headers"`
+	Auth      MCPAuthConfig     `yaml:"auth"`
+}
+
+// MCPAuthConfig describes the authentication configuration for an MCP server.
+type MCPAuthConfig struct {
+	Type             string   `yaml:"type" json:"type"`                                           // "static", "oauth_client_credentials"
+	TokenURL         string   `yaml:"token_url" json:"token_url,omitempty"`                       // OAuth token endpoint
+	ClientID         string   `yaml:"client_id" json:"client_id,omitempty"`                       // OAuth client ID
+	ClientIDFile     string   `yaml:"client_id_file" json:"client_id_file,omitempty"`             // File path for client ID
+	ClientSecret     string   `yaml:"client_secret" json:"client_secret,omitempty"`               // OAuth client secret
+	ClientSecretFile string   `yaml:"client_secret_file" json:"client_secret_file,omitempty"`     // File path for client secret
+	Scopes           []string `yaml:"scopes" json:"scopes,omitempty"`                             // OAuth scopes
 }
 
 // Defaults returns a Config with all default values filled in.
