@@ -1,32 +1,28 @@
 // Command server runs the antwort OpenResponses gateway.
 //
-// Configuration via environment variables:
+// Configuration can be provided via:
+//   - YAML config file (--config flag, ANTWORT_CONFIG env, ./config.yaml, /etc/antwort/config.yaml)
+//   - Environment variables with ANTWORT_ prefix (override config file values)
+//   - Legacy env vars: ANTWORT_BACKEND_URL, ANTWORT_MODEL, ANTWORT_PORT, etc.
 //
-//	ANTWORT_BACKEND_URL  - Chat Completions backend URL (required)
-//	ANTWORT_MODEL        - Default model name (optional)
-//	ANTWORT_PORT         - Listen port (default: 8080)
-//	ANTWORT_PROVIDER     - Provider type: "vllm" (default) or "litellm"
-//	ANTWORT_STORAGE      - Storage type: "memory" or "none" (default: "memory")
-//	ANTWORT_STORAGE_SIZE - Max responses in memory store (default: 10000)
-//	ANTWORT_MCP_SERVERS  - JSON array of MCP server configs (optional)
-//	                       Format: [{"name":"my-server","transport":"streamable-http","url":"http://...","headers":{"Authorization":"Bearer ..."}}]
+// See config.example.yaml for full documentation of available settings.
 package main
 
 import (
 	"context"
-	"encoding/json"
+	"flag"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 	"time"
 
 	"github.com/rhuss/antwort/pkg/auth"
 	"github.com/rhuss/antwort/pkg/auth/apikey"
 	"github.com/rhuss/antwort/pkg/auth/noop"
+	"github.com/rhuss/antwort/pkg/config"
 	"github.com/rhuss/antwort/pkg/engine"
 	"github.com/rhuss/antwort/pkg/provider"
 	"github.com/rhuss/antwort/pkg/provider/litellm"
@@ -46,42 +42,29 @@ func main() {
 }
 
 func run() error {
-	// Read configuration from environment.
-	backendURL := os.Getenv("ANTWORT_BACKEND_URL")
-	if backendURL == "" {
-		return fmt.Errorf("ANTWORT_BACKEND_URL is required")
-	}
+	// Parse command-line flags.
+	configPath := flag.String("config", "", "path to YAML config file")
+	flag.Parse()
 
-	defaultModel := os.Getenv("ANTWORT_MODEL")
-	port := envOrDefault("ANTWORT_PORT", "8080")
-	providerType := envOrDefault("ANTWORT_PROVIDER", "vllm")
-	storageType := envOrDefault("ANTWORT_STORAGE", "memory")
-	storageSizeStr := envOrDefault("ANTWORT_STORAGE_SIZE", "10000")
-
-	storageSize, err := strconv.Atoi(storageSizeStr)
+	// Load configuration (YAML file + env overrides + defaults).
+	cfg, err := config.Load(*configPath)
 	if err != nil {
-		return fmt.Errorf("invalid ANTWORT_STORAGE_SIZE: %w", err)
+		return fmt.Errorf("loading configuration: %w", err)
 	}
 
-	// Create provider.
-	prov, err := createProvider(providerType, backendURL)
+	// Create provider from config.
+	prov, err := createProvider(cfg)
 	if err != nil {
 		return fmt.Errorf("creating provider: %w", err)
 	}
 	defer prov.Close()
 
-	// Create optional store.
-	var store transport.ResponseStore
-	if storageType == "memory" {
-		store = memory.New(storageSize)
-		slog.Info("storage enabled", "type", "memory", "max_size", storageSize)
-	} else {
-		slog.Info("storage disabled")
-	}
+	// Create storage from config.
+	store := createStore(cfg)
 
 	// Create MCP executor if configured.
 	var executors []tools.ToolExecutor
-	mcpExecutor, err := createMCPExecutor()
+	mcpExecutor, err := createMCPExecutor(cfg)
 	if err != nil {
 		return fmt.Errorf("creating MCP executor: %w", err)
 	}
@@ -92,8 +75,9 @@ func run() error {
 
 	// Create engine.
 	eng, err := engine.New(prov, store, engine.Config{
-		DefaultModel: defaultModel,
-		Executors:    executors,
+		DefaultModel:    cfg.Engine.DefaultModel,
+		MaxAgenticTurns: cfg.Engine.MaxTurns,
+		Executors:       executors,
 	})
 	if err != nil {
 		return fmt.Errorf("creating engine: %w", err)
@@ -102,8 +86,8 @@ func run() error {
 	// Create HTTP adapter.
 	adapter := transporthttp.NewAdapter(eng, store, transporthttp.DefaultConfig())
 
-	// Build auth chain.
-	authChain := buildAuthChain()
+	// Build auth chain from config.
+	authChain := buildAuthChain(cfg)
 
 	// Build HTTP mux with health endpoint.
 	mux := http.NewServeMux()
@@ -122,10 +106,13 @@ func run() error {
 		handler = authMiddleware(handler)
 	}
 
-	// Create server.
+	// Create server with configured timeouts.
+	addr := fmt.Sprintf(":%d", cfg.Server.Port)
 	srv := &http.Server{
-		Addr:    ":" + port,
-		Handler: handler,
+		Addr:         addr,
+		Handler:      handler,
+		ReadTimeout:  cfg.Server.ReadTimeout,
+		WriteTimeout: cfg.Server.WriteTimeout,
 	}
 
 	// Graceful shutdown.
@@ -135,7 +122,12 @@ func run() error {
 	// Start server in background.
 	errCh := make(chan error, 1)
 	go func() {
-		slog.Info("server starting", "port", port, "backend", backendURL, "provider", providerType, "model", defaultModel)
+		slog.Info("server starting",
+			"port", cfg.Server.Port,
+			"backend", cfg.Engine.BackendURL,
+			"provider", cfg.Engine.Provider,
+			"model", cfg.Engine.DefaultModel,
+		)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			errCh <- err
 		}
@@ -153,16 +145,90 @@ func run() error {
 	}
 }
 
-// buildAuthChain creates an auth chain from environment configuration.
-// Returns nil when auth is disabled (ANTWORT_AUTH_TYPE=none or unset).
-func buildAuthChain() *auth.AuthChain {
-	authType := os.Getenv("ANTWORT_AUTH_TYPE")
+// createProvider creates a provider.Provider from the config.
+func createProvider(cfg *config.Config) (provider.Provider, error) {
+	switch cfg.Engine.Provider {
+	case "vllm", "":
+		return vllm.New(vllm.Config{
+			BaseURL: cfg.Engine.BackendURL,
+			APIKey:  cfg.Engine.APIKey,
+			Timeout: cfg.Server.WriteTimeout,
+		})
 
-	switch authType {
+	case "litellm":
+		return litellm.New(litellm.Config{
+			BaseURL: cfg.Engine.BackendURL,
+			APIKey:  cfg.Engine.APIKey,
+			Timeout: cfg.Server.WriteTimeout,
+		})
+
+	default:
+		return nil, fmt.Errorf("unknown provider type %q (supported: vllm, litellm)", cfg.Engine.Provider)
+	}
+}
+
+// createStore creates a ResponseStore from the config.
+func createStore(cfg *config.Config) transport.ResponseStore {
+	switch cfg.Storage.Type {
+	case "memory":
+		store := memory.New(cfg.Storage.MaxSize)
+		slog.Info("storage enabled", "type", "memory", "max_size", cfg.Storage.MaxSize)
+		return store
+	default:
+		slog.Info("storage disabled")
+		return nil
+	}
+}
+
+// createMCPExecutor creates an MCP executor from the config.
+// Returns nil if no MCP servers are configured.
+func createMCPExecutor(cfg *config.Config) (*mcptools.MCPExecutor, error) {
+	if len(cfg.MCP.Servers) == 0 {
+		return nil, nil
+	}
+
+	ctx := context.Background()
+	clients := make(map[string]*mcptools.MCPClient, len(cfg.MCP.Servers))
+
+	for _, serverCfg := range cfg.MCP.Servers {
+		if serverCfg.Name == "" {
+			return nil, fmt.Errorf("MCP server config missing 'name'")
+		}
+		if serverCfg.URL == "" {
+			return nil, fmt.Errorf("MCP server %q missing 'url'", serverCfg.Name)
+		}
+
+		mcpCfg := mcptools.ServerConfig{
+			Name:      serverCfg.Name,
+			Transport: serverCfg.Transport,
+			URL:       serverCfg.URL,
+			Headers:   serverCfg.Headers,
+		}
+
+		client := mcptools.NewMCPClient(mcpCfg)
+		if err := client.Connect(ctx); err != nil {
+			// Close already-connected clients on failure.
+			for _, c := range clients {
+				_ = c.Close()
+			}
+			return nil, fmt.Errorf("connecting to MCP server %q: %w", serverCfg.Name, err)
+		}
+
+		clients[serverCfg.Name] = client
+		slog.Info("MCP server connected", "name", serverCfg.Name, "url", serverCfg.URL, "transport", serverCfg.Transport)
+	}
+
+	return mcptools.NewMCPExecutor(clients), nil
+}
+
+// buildAuthChain creates an auth chain from config.
+// Returns nil when auth is disabled (type=none).
+func buildAuthChain(cfg *config.Config) *auth.AuthChain {
+	switch cfg.Auth.Type {
 	case "apikey":
-		keys := parseAPIKeys(os.Getenv("ANTWORT_API_KEYS"))
+		keys := convertAPIKeys(cfg.Auth.APIKeys)
 		if len(keys) == 0 {
-			slog.Warn("ANTWORT_AUTH_TYPE=apikey but no ANTWORT_API_KEYS configured")
+			slog.Warn("auth.type=apikey but no api_keys configured")
 			return nil
 		}
 		slog.Info("auth enabled", "type", "apikey", "keys", len(keys))
@@ -176,31 +242,13 @@ func buildAuthChain() *auth.AuthChain {
 		return nil
 
 	default:
-		slog.Warn("unknown ANTWORT_AUTH_TYPE, auth disabled", "type", authType)
+		slog.Warn("unknown auth type, auth disabled", "type", cfg.Auth.Type)
 		return nil
 	}
 }
 
-// parseAPIKeys parses a JSON array of key entries from an env var.
-// Format: [{"key":"sk-...","subject":"alice","tenant_id":"org-1","service_tier":"standard"}]
-func parseAPIKeys(jsonStr string) []apikey.RawKeyEntry {
-	if jsonStr == "" {
-		return nil
-	}
-
-	type rawKey struct {
-		Key         string `json:"key"`
-		Subject     string `json:"subject"`
-		TenantID    string `json:"tenant_id"`
-		ServiceTier string `json:"service_tier"`
-	}
-
-	var keys []rawKey
-	if err := json.Unmarshal([]byte(jsonStr), &keys); err != nil {
-		slog.Error("failed to parse ANTWORT_API_KEYS", "error", err)
-		return nil
-	}
-
+// convertAPIKeys converts config API key entries to the apikey package format.
+func convertAPIKeys(keys []config.APIKeyConfig) []apikey.RawKeyEntry {
 	var entries []apikey.RawKeyEntry
 	for _, k := range keys {
 		metadata := map[string]string{}
@@ -237,90 +285,3 @@ func corsMiddleware(next http.Handler) http.Handler {
 
 // Ensure noop package is available (used indirectly via auth chain default).
 var _ auth.Authenticator = (*noop.Authenticator)(nil)
-
-// createProvider creates a provider.Provider based on the given type name.
-// Supported types: "vllm" (default), "litellm".
-func createProvider(providerType, backendURL string) (provider.Provider, error) {
-	apiKey := os.Getenv("ANTWORT_API_KEY")
-
-	switch providerType {
-	case "vllm", "":
-		return vllm.New(vllm.Config{
-			BaseURL: backendURL,
-			APIKey:  apiKey,
-			Timeout: 120 * time.Second,
-		})
-
-	case "litellm":
-		cfg := litellm.Config{
-			BaseURL: backendURL,
-			APIKey:  apiKey,
-			Timeout: 120 * time.Second,
-		}
-		// Parse model mapping from ANTWORT_MODEL_MAPPING if set.
-		// Format: JSON object, e.g. {"gpt-4":"openai/gpt-4","claude":"anthropic/claude-3-opus"}
-		if mappingJSON := os.Getenv("ANTWORT_MODEL_MAPPING"); mappingJSON != "" {
-			var mapping map[string]string
-			if err := json.Unmarshal([]byte(mappingJSON), &mapping); err != nil {
-				return nil, fmt.Errorf("invalid ANTWORT_MODEL_MAPPING: %w", err)
-			}
-			cfg.ModelMapping = mapping
-			slog.Info("model mapping configured", "mappings", len(mapping))
-		}
-		return litellm.New(cfg)
-
-	default:
-		return nil, fmt.Errorf("unknown provider type %q (supported: vllm, litellm)", providerType)
-	}
-}
-
-// createMCPExecutor reads ANTWORT_MCP_SERVERS, connects to each MCP server,
-// and returns an MCPExecutor. Returns nil if the env var is not set.
-func createMCPExecutor() (*mcptools.MCPExecutor, error) {
-	mcpJSON := os.Getenv("ANTWORT_MCP_SERVERS")
-	if mcpJSON == "" {
-		return nil, nil
-	}
-
-	var servers []mcptools.ServerConfig
-	if err := json.Unmarshal([]byte(mcpJSON), &servers); err != nil {
-		return nil, fmt.Errorf("invalid ANTWORT_MCP_SERVERS JSON: %w", err)
-	}
-
-	if len(servers) == 0 {
-		return nil, nil
-	}
-
-	ctx := context.Background()
-	clients := make(map[string]*mcptools.MCPClient, len(servers))
-
-	for _, cfg := range servers {
-		if cfg.Name == "" {
-			return nil, fmt.Errorf("MCP server config missing 'name'")
-		}
-		if cfg.URL == "" {
-			return nil, fmt.Errorf("MCP server %q missing 'url'", cfg.Name)
-		}
-
-		client := mcptools.NewMCPClient(cfg)
-		if err := client.Connect(ctx); err != nil {
-			// Close already-connected clients on failure.
-			for _, c := range clients {
-				_ = c.Close()
-			}
-			return nil, fmt.Errorf("connecting to MCP server %q: %w", cfg.Name, err)
-		}
-
-		clients[cfg.Name] = client
-		slog.Info("MCP server connected", "name", cfg.Name, "url", cfg.URL, "transport", cfg.Transport)
-	}
-
-	return mcptools.NewMCPExecutor(clients), nil
-}
-
-func envOrDefault(key, defaultValue string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return defaultValue
-}

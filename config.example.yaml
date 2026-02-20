@@ -1,0 +1,109 @@
+# antwort gateway configuration
+#
+# This file documents all available configuration options with their
+# default values. Copy this file to config.yaml and adjust as needed.
+#
+# Configuration is loaded in layers:
+#   1. Built-in defaults (shown below)
+#   2. YAML config file (this file)
+#   3. Environment variable overrides (ANTWORT_* prefix)
+#
+# File discovery order:
+#   1. --config flag
+#   2. ANTWORT_CONFIG environment variable
+#   3. ./config.yaml
+#   4. /etc/antwort/config.yaml
+#
+# All settings can be overridden with environment variables:
+#   ANTWORT_BACKEND_URL  -> engine.backend_url
+#   ANTWORT_MODEL        -> engine.default_model
+#   ANTWORT_PORT         -> server.port
+#   ANTWORT_PROVIDER     -> engine.provider
+#   ANTWORT_API_KEY      -> engine.api_key
+#   ANTWORT_STORAGE      -> storage.type
+#   ANTWORT_STORAGE_SIZE -> storage.max_size
+#   ANTWORT_AUTH_TYPE    -> auth.type
+#   ANTWORT_API_KEYS     -> auth.api_keys (JSON array)
+#   ANTWORT_MCP_SERVERS  -> mcp.servers (JSON array)
+
+# HTTP server settings.
+server:
+  # Listen port.
+  port: 8080
+
+  # Read timeout for incoming requests.
+  read_timeout: 30s
+
+  # Write timeout for outgoing responses. Set this high enough for
+  # streaming responses and long inference calls.
+  write_timeout: 120s
+
+# Inference engine and backend provider settings.
+engine:
+  # Provider type: "vllm" for vLLM/OpenAI-compatible backends,
+  # "litellm" for LiteLLM proxy.
+  provider: vllm
+
+  # Backend URL for the Chat Completions endpoint (required).
+  # Example: http://localhost:8000
+  backend_url: ""
+
+  # API key for authenticating with the backend (optional).
+  # Use api_key_file to read from a file instead.
+  api_key: ""
+  # api_key_file: /run/secrets/backend-api-key
+
+  # Default model name used when the request omits the model field.
+  default_model: ""
+
+  # Maximum number of agentic loop turns before returning an
+  # incomplete response. Prevents runaway tool-calling loops.
+  max_turns: 10
+
+# State management settings.
+storage:
+  # Storage type: "memory" for in-memory store, "postgres" for PostgreSQL.
+  type: memory
+
+  # Maximum number of responses to keep in the memory store.
+  max_size: 10000
+
+  # PostgreSQL settings (only used when type is "postgres").
+  postgres:
+    # Connection string. Use dsn_file to read from a file instead.
+    dsn: ""
+    # dsn_file: /run/secrets/postgres-dsn
+
+    # Maximum number of connections in the pool.
+    max_conns: 25
+
+    # Run database migrations on startup.
+    migrate_on_start: false
+
+# Authentication settings.
+auth:
+  # Auth type: "none" disables authentication, "apikey" enables
+  # API key validation via Bearer tokens.
+  type: none
+
+  # API key entries (only used when type is "apikey").
+  # Each key entry can use key_file to read the key from a file.
+  # api_keys:
+  #   - key: sk-my-api-key
+  #     subject: alice
+  #     tenant_id: org-1
+  #     service_tier: standard
+  #   - key_file: /run/secrets/api-key-bob
+  #     subject: bob
+  #     tenant_id: org-2
+  #     service_tier: premium
+
+# MCP (Model Context Protocol) server connections for tool calling.
+mcp:
+  # List of MCP servers to connect to.
+  # servers:
+  #   - name: my-tools
+  #     transport: streamable-http  # or "sse"
+  #     url: http://localhost:3000/mcp
+  #     headers:
+  #       Authorization: "Bearer tok-123"
