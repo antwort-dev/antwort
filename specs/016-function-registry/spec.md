@@ -20,6 +20,7 @@ This is the framework only. Concrete providers (web search, file search, code in
 - Q: How do providers export metrics? -> A: Two levels. The registry records automatic execution metrics (tool count, duration) for every provider. Providers can also register custom Prometheus collectors via `Collectors()` that appear at `/metrics`.
 - Q: How does tenant scoping work? -> A: The auth middleware injects tenant into context. Providers that store data read `storage.GetTenant(ctx)` and scope accordingly. The registry delivers the tenant, providers respect it.
 - Q: Where do provider routes go? -> A: The registry merges all provider routes into a single `http.Handler` that the server mounts. Auth + metrics middleware wraps each route.
+- Q: How is provider configuration structured? -> A: A top-level `providers` section in config.yaml with a map keyed by provider type. Each value is provider-specific (schema defined by the provider). The registry reads the map, finds the factory for each type, passes the config to the factory. Unknown types produce a startup error.
 
 ## User Scenarios & Testing
 
@@ -92,13 +93,32 @@ A provider registers custom Prometheus metrics (e.g., web search query count, ve
 
 **Configuration**
 
-- **FR-014**: Each provider MUST be individually enableable/disableable via the config system (Spec 012)
-- **FR-015**: Disabled providers MUST NOT have their tools offered to the model or their routes mounted
+- **FR-014**: The config system MUST include a top-level `providers` section containing a map keyed by provider type name (e.g., `web_search`, `file_search`). Each key maps to a provider-specific configuration schema.
+- **FR-015**: Each provider entry MUST support an `enabled` field (default: false). Disabled providers MUST NOT have their tools offered to the model or their routes mounted.
+- **FR-016**: The provider-specific config schema MUST be defined by the provider itself. The registry passes the raw config (as a generic map or typed struct) to the provider's constructor.
+- **FR-017**: The registry MUST validate that each configured provider type has a registered factory. Unknown provider types MUST produce a startup error.
+
+Example config structure:
+```yaml
+providers:
+  web_search:
+    enabled: true
+    backend: searxng
+    url: http://searxng:8080
+    max_results: 5
+  file_search:
+    enabled: true
+    vector_db: pgvector
+    embedding_url: http://llm:8080/v1/embeddings
+    chunk_size: 512
+  code_interpreter:
+    enabled: false
+```
 
 **Error Handling**
 
-- **FR-016**: The registry MUST recover from provider execution panics and return an error result
-- **FR-017**: Tool name conflicts across providers MUST be resolved deterministically (first registered wins) with a warning logged
+- **FR-018**: The registry MUST recover from provider execution panics and return an error result
+- **FR-019**: Tool name conflicts across providers MUST be resolved deterministically (first registered wins) with a warning logged
 
 ### Key Entities
 
