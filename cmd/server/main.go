@@ -31,6 +31,7 @@ import (
 	"github.com/rhuss/antwort/pkg/provider/vllm"
 	"github.com/rhuss/antwort/pkg/storage/memory"
 	"github.com/rhuss/antwort/pkg/tools"
+	"github.com/rhuss/antwort/pkg/tools/builtins/websearch"
 	mcptools "github.com/rhuss/antwort/pkg/tools/mcp"
 	"github.com/rhuss/antwort/pkg/tools/registry"
 	"github.com/rhuss/antwort/pkg/transport"
@@ -172,14 +173,26 @@ func run() error {
 	}
 }
 
-// createFunctionRegistry creates a FunctionRegistry and logs which providers are configured.
-// Concrete provider registration will be added in future specs as providers are implemented.
+// createFunctionRegistry creates a FunctionRegistry and registers concrete providers
+// based on the configuration.
 func createFunctionRegistry(cfg *config.Config) *registry.FunctionRegistry {
 	reg := registry.New()
 
-	// Log configured providers (no concrete providers exist yet).
 	for name, provCfg := range cfg.Providers {
-		if provCfg.Enabled {
+		if !provCfg.Enabled {
+			continue
+		}
+
+		switch name {
+		case "web_search":
+			provider, err := websearch.New(provCfg.Settings)
+			if err != nil {
+				slog.Error("failed to create web_search provider", "error", err)
+				continue
+			}
+			reg.Register(provider)
+
+		default:
 			slog.Info("builtin provider configured (no implementation yet)", "provider", name)
 		}
 	}
