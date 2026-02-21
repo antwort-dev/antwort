@@ -1,0 +1,39 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: download-model
+spec:
+  template:
+    spec:
+      containers:
+        - name: downloader
+          image: python:3.11-slim
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              export HOME=/tmp
+              pip install --user huggingface_hub
+              export PATH="/tmp/.local/bin:$PATH"
+              echo "Downloading Qwen/Qwen2.5-7B-Instruct..."
+              python -c "
+              from huggingface_hub import snapshot_download
+              import os
+              os.makedirs('/mnt/models', exist_ok=True)
+              snapshot_download(
+                  repo_id='Qwen/Qwen2.5-7B-Instruct',
+                  local_dir='/mnt/models',
+                  ignore_patterns=['*.pt', '*.bin', '*.gguf']
+              )
+              print('Download complete!')
+              "
+          volumeMounts:
+            - name: model-storage
+              mountPath: /mnt/models
+      volumes:
+        - name: model-storage
+          persistentVolumeClaim:
+            claimName: llm-model-storage
+      restartPolicy: Never
+  backoffLimit: 2
