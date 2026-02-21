@@ -32,6 +32,7 @@ import (
 	"github.com/rhuss/antwort/pkg/storage/memory"
 	"github.com/rhuss/antwort/pkg/tools"
 	mcptools "github.com/rhuss/antwort/pkg/tools/mcp"
+	"github.com/rhuss/antwort/pkg/tools/registry"
 	"github.com/rhuss/antwort/pkg/transport"
 	transporthttp "github.com/rhuss/antwort/pkg/transport/http"
 )
@@ -75,6 +76,13 @@ func run() error {
 		defer mcpExecutor.Close()
 	}
 
+	// Create builtin function provider registry.
+	funcRegistry := createFunctionRegistry(cfg)
+	if funcRegistry.HasProviders() {
+		executors = append(executors, funcRegistry)
+		defer funcRegistry.Close()
+	}
+
 	// Create engine.
 	eng, err := engine.New(prov, store, engine.Config{
 		DefaultModel:    cfg.Engine.DefaultModel,
@@ -94,6 +102,11 @@ func run() error {
 	// Build HTTP mux with health endpoint.
 	mux := http.NewServeMux()
 	mux.Handle("/", adapter.Handler())
+
+	// Mount builtin provider routes (behind auth via server-level middleware).
+	if funcRegistry.HasProviders() {
+		mux.Handle("/builtin/", http.StripPrefix("/builtin", funcRegistry.HTTPHandler()))
+	}
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("ok\n"))
@@ -157,6 +170,21 @@ func run() error {
 	case err := <-errCh:
 		return err
 	}
+}
+
+// createFunctionRegistry creates a FunctionRegistry and logs which providers are configured.
+// Concrete provider registration will be added in future specs as providers are implemented.
+func createFunctionRegistry(cfg *config.Config) *registry.FunctionRegistry {
+	reg := registry.New()
+
+	// Log configured providers (no concrete providers exist yet).
+	for name, provCfg := range cfg.Providers {
+		if provCfg.Enabled {
+			slog.Info("builtin provider configured (no implementation yet)", "provider", name)
+		}
+	}
+
+	return reg
 }
 
 // createProvider creates a provider.Provider from the config.

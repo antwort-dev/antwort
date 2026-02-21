@@ -13,12 +13,19 @@ import "time"
 
 // Config holds all configuration for the antwort gateway.
 type Config struct {
-	Server        ServerConfig        `yaml:"server"`
-	Engine        EngineConfig        `yaml:"engine"`
-	Storage       StorageConfig       `yaml:"storage"`
-	Auth          AuthConfig          `yaml:"auth"`
-	MCP           MCPConfig           `yaml:"mcp"`
-	Observability ObservabilityConfig `yaml:"observability"`
+	Server        ServerConfig                `yaml:"server"`
+	Engine        EngineConfig                `yaml:"engine"`
+	Storage       StorageConfig               `yaml:"storage"`
+	Auth          AuthConfig                  `yaml:"auth"`
+	MCP           MCPConfig                   `yaml:"mcp"`
+	Providers     map[string]ProviderConfig   `yaml:"providers"`
+	Observability ObservabilityConfig         `yaml:"observability"`
+}
+
+// ProviderConfig holds settings for a built-in function provider.
+type ProviderConfig struct {
+	Enabled  bool                   `yaml:"enabled"`
+	Settings map[string]interface{} `yaml:"settings,omitempty"`
 }
 
 // ObservabilityConfig holds monitoring and instrumentation settings.
@@ -126,6 +133,7 @@ func Defaults() Config {
 		Auth: AuthConfig{
 			Type: "none",
 		},
+		Providers: map[string]ProviderConfig{},
 		Observability: ObservabilityConfig{
 			Metrics: MetricsConfig{
 				Enabled: true,

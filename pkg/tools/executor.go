@@ -22,6 +22,10 @@ const (
 	// sandbox pod. The engine delegates execution to a pod from the
 	// sandbox pool and collects the result.
 	ToolKindSandbox
+
+	// ToolKindBuiltin is a tool provided by a built-in function provider.
+	// The engine executes it server-side via the function provider registry.
+	ToolKindBuiltin
 )
 
 // ToolExecutor executes tool calls. Implementations exist for each
