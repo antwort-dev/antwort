@@ -53,8 +53,8 @@
 
 **Goal**: JWT validation against JWKS endpoint.
 
-- [ ] T009 (antwort-gw2.1) [US4] Implement JWT authenticator in `pkg/auth/jwt/jwt.go`: extract Bearer token, parse JWT, fetch and cache JWKS from configured URL, validate signature/expiration/issuer/audience, extract subject/tenant/scopes from configurable claims. Return Yes/No/Abstain. Write tests in `pkg/auth/jwt/jwt_test.go` with test JWKS server (httptest) (FR-013, FR-014, FR-015, FR-016, FR-017).
-- [ ] T010 (antwort-gw2.2) [US4] Add JWT dependency (golang-jwt/jwt/v5) to go.mod.
+- [x] T009 (antwort-gw2.1) [US4] Implement JWT authenticator in `pkg/auth/jwt/jwt.go`: extract Bearer token, parse JWT, fetch and cache JWKS from configured URL, validate signature/expiration/issuer/audience, extract subject/tenant/scopes from configurable claims. Return Yes/No/Abstain. Write tests in `pkg/auth/jwt/jwt_test.go` with test JWKS server (httptest) (FR-013, FR-014, FR-015, FR-016, FR-017).
+- [x] T010 (antwort-gw2.2) [US4] Add JWT dependency (golang-jwt/jwt/v5) to go.mod.
 
 **Checkpoint**: JWT auth works.
 
