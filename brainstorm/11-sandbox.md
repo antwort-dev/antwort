@@ -340,6 +340,21 @@ Scaling is managed by the agent-sandbox `SandboxWarmPool`, not by antwort:
 - **Release policy**: Antwort releases `SandboxClaim` resources when a sandbox is no longer needed, returning it to the pool
 - **Specialized pools**: Separate `SandboxWarmPool` resources per tool type (file search, web search, etc.)
 
+## Code Interpreter Provider (Future)
+
+The sandbox is the execution backend for a `code_interpreter` FunctionProvider (see Brainstorm 12: Function Registry). The code_interpreter provider:
+
+- Registers a `code_interpreter` tool that the model can call with Python code
+- Executes the code in an isolated sandbox pod via the sandbox REST API
+- Returns stdout, generated files, and execution metadata
+- Matches OpenAI's `code_interpreter` built-in tool behavior
+
+The code_interpreter provider depends on:
+1. The Function Registry framework (Brainstorm 12)
+2. This sandbox execution system (Brainstorm 11)
+
+It will be implemented as `pkg/tools/builtins/codeinterpreter/` after both dependencies are ready.
+
 ## Open Questions
 
 - How should large file transfers between antwort and sandbox pods be handled (inline base64 in REST, or via shared PVC/object storage)?
