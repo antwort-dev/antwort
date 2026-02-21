@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: antwort
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: antwort
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: antwort
+    spec:
+      serviceAccountName: antwort
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: antwort
+          image: quay.io/rhuss/antwort:latest
+          args: ["--config", "/etc/antwort/config.yaml"]
+          ports:
+            - name: http
+              containerPort: 8080
+          volumeMounts:
+            - name: config
+              mountPath: /etc/antwort
+              readOnly: true
+            - name: postgres-secret
+              mountPath: /run/secrets/postgres
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+      volumes:
+        - name: config
+          configMap:
+            name: antwort-config
+        - name: postgres-secret
+          secret:
+            secretName: postgres-credentials
+            items:
+              - key: dsn
+                path: dsn
