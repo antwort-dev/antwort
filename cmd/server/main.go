@@ -22,6 +22,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rhuss/antwort/pkg/auth"
 	"github.com/rhuss/antwort/pkg/auth/apikey"
+	authjwt "github.com/rhuss/antwort/pkg/auth/jwt"
 	"github.com/rhuss/antwort/pkg/auth/noop"
 	"github.com/rhuss/antwort/pkg/config"
 	"github.com/rhuss/antwort/pkg/engine"
@@ -312,6 +313,35 @@ func buildAuthChain(cfg *config.Config) *auth.AuthChain {
 			DefaultDecision: auth.No,
 		}
 
+	case "jwt":
+		jwtAuth := buildJWTAuthenticator(cfg)
+		slog.Info("auth enabled", "type", "jwt", "jwks_url", cfg.Auth.JWT.JWKSURL)
+		return &auth.AuthChain{
+			Authenticators:  []auth.Authenticator{jwtAuth},
+			DefaultDecision: auth.No,
+		}
+
+	case "chain":
+		// Chain combines API key and JWT authenticators. A request is
+		// authenticated if either method succeeds (first Yes wins).
+		var authenticators []auth.Authenticator
+
+		keys := convertAPIKeys(cfg.Auth.APIKeys)
+		if len(keys) > 0 {
+			authenticators = append(authenticators, apikey.New(keys))
+			slog.Info("auth chain: apikey authenticator added", "keys", len(keys))
+		}
+
+		jwtAuth := buildJWTAuthenticator(cfg)
+		authenticators = append(authenticators, jwtAuth)
+		slog.Info("auth chain: jwt authenticator added", "jwks_url", cfg.Auth.JWT.JWKSURL)
+
+		slog.Info("auth enabled", "type", "chain", "authenticators", len(authenticators))
+		return &auth.AuthChain{
+			Authenticators:  authenticators,
+			DefaultDecision: auth.No,
+		}
+
 	case "none", "":
 		// No auth (development mode).
 		return nil
@@ -320,6 +350,18 @@ func buildAuthChain(cfg *config.Config) *auth.AuthChain {
 		slog.Warn("unknown auth type, auth disabled", "type", cfg.Auth.Type)
 		return nil
 	}
+}
+
+// buildJWTAuthenticator creates a JWT authenticator from config.
+func buildJWTAuthenticator(cfg *config.Config) *authjwt.Authenticator {
+	return authjwt.New(authjwt.Config{
+		Issuer:      cfg.Auth.JWT.Issuer,
+		Audience:    cfg.Auth.JWT.Audience,
+		JWKSURL:     cfg.Auth.JWT.JWKSURL,
+		UserClaim:   cfg.Auth.JWT.UserClaim,
+		TenantClaim: cfg.Auth.JWT.TenantClaim,
+		ScopesClaim: cfg.Auth.JWT.ScopesClaim,
+	})
 }
 
 // convertAPIKeys converts config API key entries to the apikey package format.

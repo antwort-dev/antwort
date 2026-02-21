@@ -37,10 +37,17 @@ func (c *Config) Validate() error {
 
 	// auth.type must be a known value.
 	switch c.Auth.Type {
-	case "none", "apikey", "jwt":
+	case "none", "apikey", "jwt", "chain":
 		// valid
 	default:
-		errs = append(errs, fmt.Errorf("auth.type must be \"none\", \"apikey\", or \"jwt\", got %q", c.Auth.Type))
+		errs = append(errs, fmt.Errorf("auth.type must be \"none\", \"apikey\", \"jwt\", or \"chain\", got %q", c.Auth.Type))
+	}
+
+	// If auth.type requires JWT, jwks_url must be set.
+	if c.Auth.Type == "jwt" || c.Auth.Type == "chain" {
+		if c.Auth.JWT.JWKSURL == "" {
+			errs = append(errs, fmt.Errorf("auth.jwt.jwks_url is required when auth.type is %q", c.Auth.Type))
+		}
 	}
 
 	// engine.provider must be a known value if set.
