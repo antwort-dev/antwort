@@ -51,13 +51,13 @@ spec:
           livenessProbe:
             httpGet:
               path: /health/live
-              port: http
+              port: 9000
             initialDelaySeconds: 60
             periodSeconds: 15
           readinessProbe:
             httpGet:
               path: /health/ready
-              port: http
+              port: 9000
             initialDelaySeconds: 30
             periodSeconds: 10
           resources:
