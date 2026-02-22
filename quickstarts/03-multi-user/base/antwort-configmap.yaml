@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: antwort-config
+data:
+  config.yaml: |
+    server:
+      port: 8080
+
+    engine:
+      provider: vllm
+      backend_url: http://llm-predictor.llm-serving.svc.cluster.local:8080
+      default_model: /mnt/models
+
+    storage:
+      type: postgres
+      postgres:
+        dsn_file: /run/secrets/postgres/dsn
+        migrate_on_start: true
+
+    auth:
+      type: jwt
+      jwt:
+        issuer: http://keycloak:8080/realms/antwort
+        audience: antwort-gateway
+        jwks_url: http://keycloak:8080/realms/antwort/protocol/openid-connect/certs
+        user_claim: sub
+        tenant_claim: tenant_id
+        scopes_claim: scope
+
+    observability:
+      metrics:
+        enabled: true
