@@ -49,7 +49,9 @@ Adds PostgreSQL for persistent response storage and Prometheus + Grafana for mon
 
 **Status**: Done
 
-Adds Keycloak as an identity provider with JWT authentication. Two test users (alice and bob) in separate tenants demonstrate that each user can only access their own responses. Keycloak runs in dev mode with embedded H2 (no external database needed). Token exchange feature is pre-enabled for quickstart 05. Tested on ROSA: tenant isolation verified (bob gets 404 on alice's response).
+Adds Keycloak as an identity provider with JWT authentication. Two test users (alice and bob) in separate tenants demonstrate that each user can only access their own responses. Keycloak runs in dev mode with embedded H2 (no external database needed). Token exchange feature is pre-enabled for quickstart 05.
+
+Verified on ROSA (2026-02-22): all 7 acceptance tests pass. Unauthenticated=401, alice creates+retrieves=200, bob accesses alice's=404, alice accesses bob's=404, health bypass=200.
 
 **Prerequisites**: 02-Production (or shared LLM backend for minimal setup)
 **Demonstrates**: JWT authentication via Keycloak, tenant isolation (alice cannot see bob's responses), OIDC token acquisition
@@ -71,7 +73,7 @@ Adds an MCP server with tools (get_time, echo, web_search). The model calls tool
 
 ### 05-MCP Secured: OAuth for Tool Servers
 
-**Status**: Not started
+**Status**: Not started (Keycloak with token exchange pre-enabled from quickstart 03)
 
 Configures OAuth client_credentials authentication for the MCP server. Antwort obtains tokens from Keycloak and passes them to the MCP server. Demonstrates secure tool execution in enterprise environments.
 
