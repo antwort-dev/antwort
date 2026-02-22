@@ -43,3 +43,6 @@ dist/
 .claude/settings.local.json
 .claude/worktrees/
 .claude/projects/
+
+# MCP config (local)
+.mcp.json
