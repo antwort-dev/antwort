@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/rhuss/antwort/pkg/api"
+	"github.com/rhuss/antwort/pkg/storage"
 	"github.com/rhuss/antwort/pkg/transport"
 )
 
@@ -217,11 +218,15 @@ func (a *Adapter) handleGetResponse(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := a.store.GetResponse(r.Context(), id)
 	if err != nil {
-		var apiErr *api.APIError
-		if errors.As(err, &apiErr) {
-			transport.WriteAPIError(w, apiErr)
+		if errors.Is(err, storage.ErrNotFound) {
+			transport.WriteAPIError(w, api.NewNotFoundError("response "+id+" not found"))
 		} else {
-			transport.WriteAPIError(w, api.NewServerError(err.Error()))
+			var apiErr *api.APIError
+			if errors.As(err, &apiErr) {
+				transport.WriteAPIError(w, apiErr)
+			} else {
+				transport.WriteAPIError(w, api.NewServerError(err.Error()))
+			}
 		}
 		return
 	}
@@ -259,11 +264,15 @@ func (a *Adapter) handleDeleteResponse(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := a.store.DeleteResponse(r.Context(), id); err != nil {
-		var apiErr *api.APIError
-		if errors.As(err, &apiErr) {
-			transport.WriteAPIError(w, apiErr)
+		if errors.Is(err, storage.ErrNotFound) {
+			transport.WriteAPIError(w, api.NewNotFoundError("response "+id+" not found"))
 		} else {
-			transport.WriteAPIError(w, api.NewServerError(err.Error()))
+			var apiErr *api.APIError
+			if errors.As(err, &apiErr) {
+				transport.WriteAPIError(w, apiErr)
+			} else {
+				transport.WriteAPIError(w, api.NewServerError(err.Error()))
+			}
 		}
 		return
 	}

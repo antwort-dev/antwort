@@ -49,7 +49,7 @@ Adds PostgreSQL for persistent response storage and Prometheus + Grafana for mon
 
 **Status**: Done
 
-Adds Keycloak as an identity provider with JWT authentication. Two test users (alice and bob) in separate tenants demonstrate that each user can only access their own responses. Keycloak runs in dev mode with embedded H2 (no external database needed). Token exchange feature is pre-enabled for quickstart 05.
+Adds Keycloak as an identity provider with JWT authentication. Two test users (alice and bob) in separate tenants demonstrate that each user can only access their own responses. Keycloak runs in dev mode with embedded H2 (no external database needed). Token exchange feature is pre-enabled for quickstart 05. Tested on ROSA: tenant isolation verified (bob gets 404 on alice's response).
 
 **Prerequisites**: 02-Production (or shared LLM backend for minimal setup)
 **Demonstrates**: JWT authentication via Keycloak, tenant isolation (alice cannot see bob's responses), OIDC token acquisition

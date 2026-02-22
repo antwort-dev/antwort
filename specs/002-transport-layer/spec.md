@@ -15,6 +15,10 @@ This spec covers the HTTP/SSE adapter only. gRPC support is deferred to a future
 
 ## Clarifications
 
+### Evolution 2026-02-22 (Storage Error Mapping)
+
+Fixed GET /v1/responses/{id} and DELETE /v1/responses/{id} to return 404 (not 500) when a response is not found due to tenant isolation or soft delete. The transport layer now checks for `storage.ErrNotFound` before falling back to generic error mapping.
+
 ### Session 2026-02-17
 
 - Q: Should the transport layer define the handler interface now, or wait for the core engine? -> A: Define it now. The three operations (create, get, delete) are directly from the OpenResponses spec and stable. Split into two interfaces: ResponseCreator (create, both tiers) and ResponseStore (get/delete, stateful only).
