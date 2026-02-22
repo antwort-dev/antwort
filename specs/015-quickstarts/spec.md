@@ -35,7 +35,7 @@ The simplest deployment: antwort with in-memory storage, no authentication, conn
 
 ### 02-Production: Persistent Storage + Monitoring
 
-**Status**: Not started
+**Status**: Done
 
 Adds PostgreSQL for persistent response storage and Prometheus + Grafana for monitoring. Includes a pre-configured Grafana dashboard with LLM-specific panels (request latency, token throughput, streaming connections, OTel GenAI metrics).
 
@@ -47,19 +47,19 @@ Adds PostgreSQL for persistent response storage and Prometheus + Grafana for mon
 
 ### 03-Multi-User: Authentication + Tenant Isolation
 
-**Status**: Not started
+**Status**: Done
 
-Adds Keycloak as an identity provider with JWT authentication. Two test users (alice and bob) in separate tenants demonstrate that each user can only access their own responses.
+Adds Keycloak as an identity provider with JWT authentication. Two test users (alice and bob) in separate tenants demonstrate that each user can only access their own responses. Keycloak runs in dev mode with embedded H2 (no external database needed). Token exchange feature is pre-enabled for quickstart 05.
 
-**Prerequisites**: 02-Production
-**Demonstrates**: JWT authentication via Keycloak, tenant isolation (alice cannot see bob's responses), rate limiting by service tier
-**New pods**: Keycloak (Deployment + PostgreSQL)
+**Prerequisites**: 02-Production (or shared LLM backend for minimal setup)
+**Demonstrates**: JWT authentication via Keycloak, tenant isolation (alice cannot see bob's responses), OIDC token acquisition
+**New pods**: Keycloak (Deployment with H2), PostgreSQL (for antwort responses only)
 
 ---
 
 ### 04-MCP Tools: Agentic Tool Calling
 
-**Status**: Not started
+**Status**: Done
 
 Adds an MCP server with tools (get_time, echo, web_search). The model calls tools, antwort executes them via MCP, feeds results back, and the model produces a final answer. The full agentic loop in action.
 

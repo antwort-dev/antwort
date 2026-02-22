@@ -20,25 +20,16 @@ spec:
       containers:
         - name: keycloak
           image: quay.io/keycloak/keycloak:26.0
-          args: ["start-dev", "--import-realm"]
+          args:
+            - start-dev
+            - --import-realm
+            - --features=token-exchange,admin-fine-grained-authz
+            - --hostname-strict=false
+            - --proxy-headers=xforwarded
           ports:
             - name: http
               containerPort: 8080
           env:
-            - name: KC_DB
-              value: postgres
-            - name: KC_DB_URL
-              value: jdbc:postgresql://postgres:5432/keycloak
-            - name: KC_DB_USERNAME
-              valueFrom:
-                secretKeyRef:
-                  name: postgres-credentials
-                  key: keycloak-username
-            - name: KC_DB_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: postgres-credentials
-                  key: keycloak-password
             - name: KC_HEALTH_ENABLED
               value: "true"
             - name: KC_METRICS_ENABLED

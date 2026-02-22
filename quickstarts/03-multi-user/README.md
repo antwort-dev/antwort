@@ -15,11 +15,13 @@ Deploy antwort with Keycloak for JWT-based authentication and tenant isolation. 
 | Component | Description |
 |-----------|-------------|
 | antwort | OpenResponses gateway with JWT auth (1 pod) |
-| Keycloak | Identity provider with realm import (1 pod) |
-| PostgreSQL | Shared database for antwort and Keycloak (StatefulSet, 5Gi PVC) |
+| Keycloak | Identity provider with embedded H2 database, realm import (1 pod) |
+| PostgreSQL | Database for antwort response storage (StatefulSet, 5Gi PVC) |
 | ConfigMap | JWT auth config pointing to Keycloak OIDC |
 | Secrets | PostgreSQL credentials, Keycloak admin credentials |
 | Routes (OpenShift) | Edge TLS for antwort and Keycloak |
+
+Keycloak runs in dev mode with its embedded H2 database, which simplifies the deployment (no external database dependency). Token exchange and admin fine-grained authorization features are pre-enabled for use in later quickstarts.
 
 ### Pre-configured Users
 
@@ -37,13 +39,11 @@ kubectl create namespace antwort
 # Deploy everything (antwort + PostgreSQL + Keycloak)
 kubectl apply -k quickstarts/03-multi-user/base/ -n antwort
 
-# Wait for PostgreSQL to be ready first (Keycloak depends on it)
-kubectl rollout status statefulset/postgres -n antwort --timeout=120s
-
 # Wait for Keycloak to be ready (needs realm import, may take ~60s)
 kubectl rollout status deployment/keycloak -n antwort --timeout=180s
 
-# Wait for antwort to be ready
+# Wait for PostgreSQL and antwort to be ready
+kubectl rollout status statefulset/postgres -n antwort --timeout=120s
 kubectl rollout status deployment/antwort -n antwort --timeout=60s
 ```
 
@@ -265,4 +265,4 @@ Key auth settings:
 kubectl delete namespace antwort
 ```
 
-This also removes the PostgreSQL PVC and all stored data.
+This also removes the PostgreSQL PVC and all stored data. Keycloak's embedded H2 data is ephemeral and lost with the pod.
