@@ -12,12 +12,12 @@
 
 **Goal**: PostgreSQL persistence + Prometheus + Grafana monitoring
 
-- [ ] T004 [US2] Create `quickstarts/02-production/postgres/`: StatefulSet, Service, Secret (credentials), PVC for PostgreSQL
-- [ ] T005 [US2] Create `quickstarts/02-production/monitoring/`: Prometheus Deployment + config (scrape antwort /metrics), Grafana Deployment + ConfigMap with pre-built antwort dashboard JSON
-- [ ] T006 [US2] Create `quickstarts/02-production/base/`: antwort ConfigMap (storage=postgres, DSN from Secret), Deployment, Service, kustomization.yaml referencing postgres/ and monitoring/
-- [ ] T007 [US2] Create `quickstarts/02-production/openshift/`: Route overlay
-- [ ] T008 [US2] Write `quickstarts/02-production/README.md`: deploy instructions, test persistence (create + pod restart + retrieve), access Grafana dashboard, cleanup
-- [ ] T009 [US2] Validate `kustomize build` for base and openshift overlays
+- [x] T004 [US2] Create `quickstarts/02-production/postgres/`: StatefulSet, Service, Secret (credentials), PVC for PostgreSQL
+- [x] T005 [US2] Create `quickstarts/02-production/monitoring/`: Prometheus Deployment + config (scrape antwort /metrics), Grafana Deployment + ConfigMap with pre-built antwort dashboard JSON
+- [x] T006 [US2] Create `quickstarts/02-production/base/`: antwort ConfigMap (storage=postgres, DSN from Secret), Deployment, Service, kustomization.yaml referencing postgres/ and monitoring/
+- [x] T007 [US2] Create `quickstarts/02-production/openshift/`: Route overlay
+- [x] T008 [US2] Write `quickstarts/02-production/README.md`: deploy instructions, test persistence (create + pod restart + retrieve), access Grafana dashboard, cleanup
+- [x] T009 [US2] Validate `kustomize build` for base and openshift overlays
 
 **Checkpoint**: Production quickstart ready. Test on ROSA.
 
@@ -27,11 +27,11 @@
 
 **Goal**: MCP server + agentic tool calling demo
 
-- [ ] T010 [US4] Create `quickstarts/04-mcp-tools/mcp-server/`: Deployment + Service for antwort MCP test server (quay.io/rhuss/antwort:mcp-test)
-- [ ] T011 [US4] Create `quickstarts/04-mcp-tools/base/`: antwort ConfigMap with MCP server config, Deployment, Service, kustomization.yaml
-- [ ] T012 [US4] Create `quickstarts/04-mcp-tools/openshift/`: Route overlay
-- [ ] T013 [US4] Write `quickstarts/04-mcp-tools/README.md`: deploy instructions, test agentic loop (ask time, echo), verify tool discovery, cleanup
-- [ ] T014 [US4] Validate `kustomize build` for base and openshift overlays
+- [x] T010 [US4] Create `quickstarts/04-mcp-tools/mcp-server/`: Deployment + Service for antwort MCP test server (quay.io/rhuss/antwort:mcp-test)
+- [x] T011 [US4] Create `quickstarts/04-mcp-tools/base/`: antwort ConfigMap with MCP server config, Deployment, Service, kustomization.yaml
+- [x] T012 [US4] Create `quickstarts/04-mcp-tools/openshift/`: Route overlay
+- [x] T013 [US4] Write `quickstarts/04-mcp-tools/README.md`: deploy instructions, test agentic loop (ask time, echo), verify tool discovery, cleanup
+- [x] T014 [US4] Validate `kustomize build` for base and openshift overlays
 
 **Checkpoint**: MCP tools quickstart ready. Test on ROSA.
 
@@ -41,12 +41,12 @@
 
 **Goal**: Keycloak + JWT auth + tenant isolation
 
-- [ ] T015 [US3] Create `quickstarts/03-multi-user/keycloak/`: Keycloak Deployment, Service, PostgreSQL, realm import ConfigMap (two users: alice, bob in separate tenants)
-- [ ] T016 [US3] Create `quickstarts/03-multi-user/base/`: antwort ConfigMap (auth=jwt, JWKS URL from Keycloak), Deployment, Service
-- [ ] T017 [US3] Write `quickstarts/03-multi-user/README.md`: deploy instructions, obtain JWT from Keycloak, test tenant isolation
-- [ ] T018 [US3] Validate kustomize builds
+- [x] T015 [US3] Create `quickstarts/03-multi-user/keycloak/`: Keycloak Deployment, Service, PostgreSQL, realm import ConfigMap (two users: alice, bob in separate tenants)
+- [x] T016 [US3] Create `quickstarts/03-multi-user/base/`: antwort ConfigMap (auth=jwt, JWKS URL from Keycloak), Deployment, Service
+- [x] T017 [US3] Write `quickstarts/03-multi-user/README.md`: deploy instructions, obtain JWT from Keycloak, test tenant isolation
+- [x] T018 [US3] Validate kustomize builds
 
-**Blocked**: Requires JWT authenticator implementation (Spec 007 P2)
+**Unblocked**: JWT authenticator implemented (Spec 007 P2, commit 48c7977)
 
 ---
 

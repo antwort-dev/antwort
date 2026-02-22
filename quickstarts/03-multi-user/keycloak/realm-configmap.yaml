@@ -1,0 +1,169 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-realm
+  labels:
+    app.kubernetes.io/component: keycloak
+data:
+  antwort-realm.json: |
+    {
+      "realm": "antwort",
+      "enabled": true,
+      "accessTokenLifespan": 300,
+      "ssoSessionIdleTimeout": 1800,
+      "ssoSessionMaxLifespan": 36000,
+      "roles": {
+        "realm": [
+          {
+            "name": "standard",
+            "description": "Standard tier user"
+          },
+          {
+            "name": "premium",
+            "description": "Premium tier user"
+          }
+        ]
+      },
+      "clientScopes": [
+        {
+          "name": "tenant_id",
+          "description": "Maps tenant_id user attribute to JWT claims",
+          "protocol": "openid-connect",
+          "attributes": {
+            "include.in.token.scope": "true",
+            "display.on.consent.screen": "false"
+          },
+          "protocolMappers": [
+            {
+              "name": "tenant_id-mapper",
+              "protocol": "openid-connect",
+              "protocolMapper": "oidc-usermodel-attribute-mapper",
+              "consentRequired": false,
+              "config": {
+                "userinfo.token.claim": "true",
+                "user.attribute": "tenant_id",
+                "id.token.claim": "true",
+                "access.token.claim": "true",
+                "claim.name": "tenant_id",
+                "jsonType.label": "String"
+              }
+            }
+          ]
+        },
+        {
+          "name": "roles_scope",
+          "description": "Maps realm roles to JWT claims",
+          "protocol": "openid-connect",
+          "attributes": {
+            "include.in.token.scope": "true",
+            "display.on.consent.screen": "false"
+          },
+          "protocolMappers": [
+            {
+              "name": "realm-roles-mapper",
+              "protocol": "openid-connect",
+              "protocolMapper": "oidc-usermodel-realm-role-mapper",
+              "consentRequired": false,
+              "config": {
+                "userinfo.token.claim": "true",
+                "multivalued": "true",
+                "id.token.claim": "true",
+                "access.token.claim": "true",
+                "claim.name": "realm_roles",
+                "jsonType.label": "String"
+              }
+            }
+          ]
+        }
+      ],
+      "defaultDefaultClientScopes": [
+        "tenant_id",
+        "roles_scope"
+      ],
+      "clients": [
+        {
+          "clientId": "antwort-gateway",
+          "name": "Antwort Gateway",
+          "description": "Confidential client for antwort server to validate JWTs",
+          "enabled": true,
+          "clientAuthenticatorType": "client-secret",
+          "secret": "antwort-gateway-secret",
+          "publicClient": false,
+          "bearerOnly": true,
+          "standardFlowEnabled": false,
+          "directAccessGrantsEnabled": false,
+          "serviceAccountsEnabled": false,
+          "protocol": "openid-connect",
+          "defaultClientScopes": [
+            "tenant_id",
+            "roles_scope"
+          ]
+        },
+        {
+          "clientId": "antwort-cli",
+          "name": "Antwort CLI",
+          "description": "Public client for users to obtain tokens via direct access grants",
+          "enabled": true,
+          "publicClient": true,
+          "bearerOnly": false,
+          "standardFlowEnabled": true,
+          "directAccessGrantsEnabled": true,
+          "serviceAccountsEnabled": false,
+          "protocol": "openid-connect",
+          "redirectUris": [
+            "http://localhost:*"
+          ],
+          "webOrigins": [
+            "+"
+          ],
+          "defaultClientScopes": [
+            "tenant_id",
+            "roles_scope"
+          ]
+        }
+      ],
+      "users": [
+        {
+          "username": "alice",
+          "enabled": true,
+          "email": "alice@example.com",
+          "firstName": "Alice",
+          "lastName": "Smith",
+          "emailVerified": true,
+          "credentials": [
+            {
+              "type": "password",
+              "value": "alice123",
+              "temporary": false
+            }
+          ],
+          "attributes": {
+            "tenant_id": ["tenant-alice"]
+          },
+          "realmRoles": [
+            "standard"
+          ]
+        },
+        {
+          "username": "bob",
+          "enabled": true,
+          "email": "bob@example.com",
+          "firstName": "Bob",
+          "lastName": "Jones",
+          "emailVerified": true,
+          "credentials": [
+            {
+              "type": "password",
+              "value": "bob123",
+              "temporary": false
+            }
+          ],
+          "attributes": {
+            "tenant_id": ["tenant-bob"]
+          },
+          "realmRoles": [
+            "premium"
+          ]
+        }
+      ]
+    }
