@@ -17,7 +17,7 @@ Create a GitHub Pages site at `antwort.github.io` that serves two purposes:
 | Doc format | AsciiDoc | Project standard, semantic line breaks, rich cross-referencing |
 | Doc tooling | Antora | Standard for AsciiDoc multi-component docs, versioning, search |
 | Doc source location | Main `antwort` repo | Docs stay close to code, Antora playbook in website repo aggregates |
-| Landing page | Single self-contained HTML | Maximum design control, no framework dependency, I/AI generate it |
+| Landing page | Astro + AstroWind template | Production-ready design defaults (hero, features, comparison, CTA). Dark mode, responsive, Tailwind CSS. Content as component props, not raw HTML. Node.js already required for Antora. |
 | Theme | Dark background + cyan/teal accents | Developer-oriented, security connotation, modern feel |
 | Roadmap tone | Vision-forward, prominent | Show full platform vision with "Coming Soon" labels on unreleased features |
 | Competitor comparison | Yes, direct table | Antwort vs OpenClaw vs LlamaStack vs LangServe vs manual K8s. OpenResponses compliance as lead differentiator. |

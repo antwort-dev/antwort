@@ -9,18 +9,20 @@
 
 Antwort needs a public-facing website that serves two purposes: a marketing landing page that communicates the project's value proposition to platform engineers and AI developers, and a reference documentation site for users who adopt the project. The website is hosted on GitHub Pages at `antwort.github.io`.
 
+The landing page is built with Astro using the AstroWind template, which provides production-ready, professionally designed components (hero, features, comparison, steps, FAQs, call-to-action) with built-in dark mode, responsive design, and Tailwind CSS. Content is authored as Astro component props, not raw HTML. This gives polished design defaults without custom CSS work.
+
 The landing page positions Antwort as "the server-side agentic framework" with three core differentiators: OpenResponses API compliance, Kubernetes-native security, and production-grade operations. It includes an honest feature comparison with LlamaStack, OpenClaw, and LangGraph Platform.
 
-The documentation is authored in AsciiDoc and managed by Antora, with sources living in the main `antwort` repository alongside the code. The Antora playbook in the website repository aggregates docs from the main repo and builds the documentation site.
+The documentation is authored in AsciiDoc and managed by Antora, with sources living in the main `antwort` repository alongside the code. The Antora playbook in the website repository aggregates docs from the main repo. The Astro build and Antora build run independently in CI, and their outputs are merged for deployment (Astro at `/`, Antora at `/docs/`).
 
 ## Assumptions
 
 - The website repository is `antwort.github.io` under the same GitHub account as the main `antwort` repo
 - No custom domain is needed at this time (GitHub Pages default URL is sufficient)
-- The landing page is a single self-contained HTML page with linked CSS and SVG assets
+- The landing page is built with Astro (static site generator) using the AstroWind template for professional design defaults. This is an explicit design decision: AstroWind provides production-ready components, dark mode, responsive layout, and Tailwind CSS integration, avoiding the need for hand-crafted CSS.
+- Astro and Antora both require Node.js, so no new build dependency is introduced
+- The Astro build outputs to `dist/` and the Antora build outputs to `dist/docs/`. Both run in the same GitHub Actions workflow.
 - Documentation sources live in the main `antwort` repo under a `docs/` directory
-- The Antora build runs via GitHub Actions and deploys to GitHub Pages
-- Fonts (Inter, Inter Tight, JetBrains Mono) are loaded from a CDN (Google Fonts or similar), not self-hosted
 - The logo is an SVG that can be generated programmatically (no external design tool required)
 - The comparison table reflects the state of competing projects as of February 2026 and will need periodic updates
 
@@ -118,7 +120,7 @@ When a developer pushes changes to the website repository (landing page updates)
 
 **Acceptance Scenarios**:
 
-1. **Given** a commit is pushed to the `main` branch of the website repository, **When** GitHub Actions detects the push, **Then** the workflow builds the Antora docs, copies the landing page assets, and deploys to GitHub Pages
+1. **Given** a commit is pushed to the `main` branch of the website repository, **When** GitHub Actions detects the push, **Then** the workflow builds the Astro landing page, builds the Antora docs into the Astro output directory, and deploys the combined site to GitHub Pages
 2. **Given** the Antora build runs, **When** it fetches documentation sources from the main `antwort` repo, **Then** it successfully clones the repo and builds the docs from the `docs/` directory
 
 ---
@@ -150,7 +152,7 @@ When someone shares the Antwort landing page URL on social media, Slack, or othe
 
 **Landing Page:**
 
-- **FR-001**: The landing page MUST be a single HTML file with linked CSS and SVG assets, deployable as a static site on GitHub Pages
+- **FR-001**: The landing page MUST be built with Astro using the AstroWind template, producing static HTML deployable on GitHub Pages. Content is authored as Astro component props; design and layout come from AstroWind's pre-built widgets.
 - **FR-002**: The landing page MUST include a hero section with the tagline, a description, two CTAs ("Get Started" linking to docs, "View on GitHub" linking to the repository), and a code snippet
 - **FR-003**: The landing page MUST include three value pillar cards: "OpenResponses API", "Secure by Default", and "Kubernetes Native"
 - **FR-004**: The landing page MUST include a feature grid with cards for all implemented features and "Coming Soon" badges for roadmap features
@@ -192,7 +194,7 @@ When someone shares the Antwort landing page URL on social media, Slack, or othe
 
 ### Key Entities
 
-- **Landing Page**: A single-page HTML document with CSS and SVG assets that communicates the Antwort value proposition, features, comparison, quickstart, and roadmap
+- **Landing Page**: An Astro-generated static page (using AstroWind template) that communicates the Antwort value proposition, features, comparison, quickstart, and roadmap
 - **Documentation Site**: An Antora-generated multi-page documentation site built from AsciiDoc sources, providing reference documentation for Antwort users
 - **Logo Mark**: An SVG graphic ("A!" in a circle) used as the project identity across the landing page, documentation, favicon, and social sharing
 - **Feature Card**: A reusable content unit on the landing page consisting of a title, description, and optional "Coming Soon" badge
