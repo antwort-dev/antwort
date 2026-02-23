@@ -6,46 +6,43 @@
 
 ## Overview
 
-This specification adds a built-in `file_search` tool with a Vector Store management API to antwort. Users upload documents, which are parsed, chunked, embedded (via an external embedding service), and stored in an external vector database. When the model calls `file_search`, antwort queries the vector DB and returns relevant document chunks for retrieval-augmented generation (RAG).
+This specification adds a built-in `file_search` tool with a Vector Store management API to antwort. The Vector Store API manages metadata (store names, file references, configuration). An external ingestion pipeline handles document processing (parsing, chunking, embedding, vector insertion). When the model calls `file_search`, antwort queries the external vector DB and returns relevant document chunks for retrieval-augmented generation (RAG).
 
-All compute (embedding, vector search) happens outside the antwort process. Antwort orchestrates the pipeline but delegates heavy work to external services, consistent with the constitution's principle that antwort never executes compute-intensive code itself.
-
-The provider implements the FunctionProvider interface (Spec 016) and exposes OpenAI-compatible management endpoints via the registry's route system.
+Antwort is the query layer and metadata manager, not the ingestion engine. Document ingestion (parsing, chunking, embedding) runs as a separate process, keeping antwort focused on its gateway role.
 
 ## Clarifications
 
 ### Session 2026-02-23
 
-- Q: Where does embedding happen? -> A: External service. Any OpenAI-compatible `/v1/embeddings` endpoint (TEI, LiteLLM, dedicated model). No in-process embedding.
-- Q: Where are vectors stored? -> A: External vector database via a pluggable VectorStoreBackend interface. Qdrant adapter for P1. Milvus, pgvector adapters for P2.
-- Q: Where are files stored? -> A: File metadata in antwort's existing storage. File content chunked and embedded, original content stored as metadata alongside vectors in the vector DB.
-- Q: Sync or async indexing? -> A: Synchronous for P1. Upload blocks until indexing completes. Async with status tracking for P2.
-- Q: Tenant scoping? -> A: Yes. Each tenant has their own vector stores, scoped via auth context.
+- Q: Where does embedding happen? -> A: External ingestion pipeline. Not in antwort.
+- Q: Where are vectors stored? -> A: External vector database via a pluggable VectorStoreBackend interface. Qdrant adapter for P1.
+- Q: Who does document ingestion? -> A: An external process (separate microservice, Job, or CLI tool). Antwort provides the Vector Store API for metadata management and the file_search tool for querying. The ingestion pipeline reads from the same vector DB.
+- Q: What does antwort's file upload endpoint do? -> A: Stores file metadata and makes the file available for the external ingestion pipeline to process. Antwort does NOT parse, chunk, or embed files itself.
+- Q: Tenant scoping? -> A: Yes. Vector stores are tenant-scoped. The external ingestion pipeline must respect tenant boundaries (via collection naming or metadata filtering).
 
 ## User Scenarios & Testing
 
-### User Story 1 - Upload and Search Documents (Priority: P1)
+### User Story 1 - Search Indexed Documents (Priority: P1)
 
-A user creates a vector store, uploads a document, and asks the model a question about it. The model calls `file_search`, antwort retrieves relevant chunks from the vector DB, and the model answers with information from the document.
+A user has documents indexed in a vector store (by the external ingestion pipeline). The model calls `file_search`, antwort queries the vector DB, and returns relevant chunks for the model to synthesize an answer.
 
 **Acceptance Scenarios**:
 
-1. **Given** a vector store with an uploaded document, **When** the model calls `file_search(query="...")`, **Then** antwort returns relevant chunks with source metadata
-2. **Given** an uploaded PDF, **When** it is indexed, **Then** the text is extracted, chunked, embedded via the external service, and stored in the vector DB
-3. **Given** search results, **When** the model produces an answer, **Then** it can cite the source document and chunk position
+1. **Given** a vector store with indexed documents, **When** the model calls `file_search(query="...")`, **Then** antwort queries the vector DB and returns relevant chunks with source metadata
+2. **Given** search results, **When** the model produces an answer, **Then** it can cite the source document and chunk position
+3. **Given** an empty vector store, **When** file_search is called, **Then** the tool returns an empty result (not an error)
 
 ---
 
 ### User Story 2 - Vector Store Management API (Priority: P1)
 
-An operator manages vector stores and files via REST API. Create stores, upload files, list contents, delete stores and files.
+An operator manages vector store metadata via REST API. Create stores (which create collections in the vector DB), list stores, delete stores.
 
 **Acceptance Scenarios**:
 
-1. **Given** the management API, **When** a vector store is created, **Then** it returns an ID and can be listed
-2. **Given** a vector store, **When** a file is uploaded, **Then** it is parsed, chunked, and indexed
-3. **Given** a vector store with files, **When** a file is deleted, **Then** its vectors are removed from the DB
-4. **Given** auth is enabled, **When** a user accesses the API, **Then** only their tenant's stores are visible
+1. **Given** the management API, **When** a vector store is created, **Then** a corresponding collection is created in the vector DB and the store is listed
+2. **Given** a vector store, **When** it is deleted, **Then** the collection is removed from the vector DB
+3. **Given** auth is enabled, **When** a user accesses the API, **Then** only their tenant's stores are visible
 
 ---
 
@@ -55,18 +52,17 @@ An operator configures the vector database backend. The system supports multiple
 
 **Acceptance Scenarios**:
 
-1. **Given** Qdrant is configured, **When** documents are indexed, **Then** vectors are stored in Qdrant collections
-2. **Given** a different backend is configured, **When** the same operations run, **Then** they work identically (interface compliance)
+1. **Given** Qdrant is configured, **When** a vector store is created, **Then** a Qdrant collection is created
+2. **Given** a search query, **When** file_search executes, **Then** it queries the Qdrant collection and returns results
 
 ---
 
 ### Edge Cases
 
-- What happens when the embedding service is unreachable? File upload fails with a clear error. Existing searches continue to work against already-indexed content.
-- What happens when the vector DB is unreachable? file_search returns an error result to the model. The model can inform the user.
-- What happens when a file format is unsupported? Upload returns an error listing supported formats.
-- What happens when a file exceeds the size limit? Upload is rejected before processing.
-- What happens when a vector store is deleted while a search is in progress? The search completes with whatever results are available. Subsequent searches return empty.
+- What happens when the vector DB is unreachable? file_search returns an error result to the model.
+- What happens when the embedding service (used by the external pipeline) is down? Ingestion fails, but existing searches continue to work.
+- What happens when a vector store is deleted while a search is in progress? The search completes with whatever results are available.
+- What happens when no vector_store_ids are specified in file_search? Search across all of the user's stores (tenant-scoped).
 
 ## Requirements
 
@@ -78,71 +74,79 @@ An operator configures the vector database backend. The system supports multiple
 - **FR-002**: The provider MUST register a `file_search` tool with a `query` parameter and optional `vector_store_ids` parameter
 - **FR-003**: The provider MUST return search results formatted as structured text with source document name, chunk content, and relevance score
 
+**Embedding Client (for query-time embedding)**
+
+- **FR-004**: The system MUST define an EmbeddingClient interface with methods for embedding text and reporting vector dimensions
+- **FR-005**: The system MUST provide an HTTP client that calls any OpenAI-compatible `/v1/embeddings` endpoint
+- **FR-006**: The embedding service URL MUST be configurable
+- **FR-007**: The embedding client is used only at query time (to embed the search query). Document embedding is handled by the external ingestion pipeline.
+
 **Vector Store Management API**
 
-- **FR-004**: The provider MUST expose OpenAI-compatible management endpoints via the FunctionProvider Routes() method: POST/GET/DELETE for vector stores and files (7 endpoints total)
-- **FR-005**: Management endpoints MUST be protected by auth and tenant-scoped (automatically via the registry middleware)
+- **FR-008**: The provider MUST expose management endpoints via Routes():
+  - POST `/v1/vector_stores` (create store + vector DB collection)
+  - GET `/v1/vector_stores` (list stores)
+  - GET `/v1/vector_stores/{id}` (get store details)
+  - DELETE `/v1/vector_stores/{id}` (delete store + vector DB collection)
+- **FR-009**: Management endpoints MUST be protected by auth and tenant-scoped (via registry middleware)
 
 **VectorStoreBackend Interface**
 
-- **FR-006**: The system MUST define a VectorStoreBackend interface with methods for: creating/deleting collections, upserting/deleting documents, and searching by vector
-- **FR-007**: The system MUST provide a Qdrant adapter implementing VectorStoreBackend
-- **FR-008**: The backend MUST be configurable via the providers config map
-
-**Embedding Client Interface**
-
-- **FR-009**: The system MUST define an EmbeddingClient interface with methods for embedding text and reporting vector dimensions
-- **FR-010**: The system MUST provide an HTTP client that calls any OpenAI-compatible `/v1/embeddings` endpoint
-- **FR-011**: The embedding service URL MUST be configurable
-
-**Document Processing**
-
-- **FR-012**: The system MUST support parsing plain text files (.txt, .md)
-- **FR-013**: The system MUST support parsing PDF files
-- **FR-014**: Parsed text MUST be split into chunks with configurable size and overlap
-- **FR-015**: Each chunk MUST be embedded via the external embedding service and stored in the vector DB with source metadata
+- **FR-010**: The system MUST define a VectorStoreBackend interface with methods for: creating/deleting collections and searching by vector
+- **FR-011**: The system MUST provide a Qdrant adapter implementing VectorStoreBackend
+- **FR-012**: The backend MUST be configurable via the providers config map
 
 **Configuration**
 
-- **FR-016**: The provider MUST be configurable via the `providers` map in config.yaml
+- **FR-013**: The provider MUST be configurable via the `providers` map:
+```yaml
+providers:
+  file_search:
+    enabled: true
+    settings:
+      embedding_url: http://embedding-service:8080/v1/embeddings
+      vector_backend: qdrant
+      max_results: 10
+      qdrant:
+        url: http://qdrant:6333
+```
 
 **Metrics**
 
-- **FR-017**: The provider MUST register custom Prometheus metrics: document count, chunk count, search latency, embedding latency
+- **FR-014**: The provider MUST register custom Prometheus metrics: search latency, query embedding latency, results returned count
 
 **Tenant Scoping**
 
-- **FR-018**: Vector stores MUST be scoped to the authenticated tenant
-- **FR-019**: Cross-tenant access to vector stores MUST be prevented
+- **FR-015**: Vector stores MUST be scoped to the authenticated tenant
+- **FR-016**: Cross-tenant access to vector stores MUST be prevented
 
 ### Key Entities
 
-- **FileSearchProvider**: FunctionProvider implementation for document search.
-- **VectorStoreBackend**: Interface for pluggable vector databases (Qdrant, Milvus, pgvector).
-- **EmbeddingClient**: Interface for external embedding services.
-- **VectorStore**: A named collection of indexed documents, tenant-scoped.
-- **VectorStoreFile**: A document uploaded to a vector store, parsed and indexed.
+- **FileSearchProvider**: FunctionProvider implementation for document search (query layer only).
+- **VectorStoreBackend**: Interface for pluggable vector databases (query + collection management).
+- **EmbeddingClient**: Interface for query-time embedding (external service).
+- **VectorStore**: Metadata for a named collection, tenant-scoped. Maps to a vector DB collection.
 
 ## Success Criteria
 
-- **SC-001**: A document uploaded via the management API is searchable via the file_search tool
-- **SC-002**: The model uses file_search results to answer questions about uploaded documents with source citations
-- **SC-003**: The Vector Store API is compatible with OpenAI's endpoint structure
+- **SC-001**: Documents indexed by the external pipeline are searchable via the file_search tool
+- **SC-002**: The model uses file_search results to answer questions about documents with source citations
+- **SC-003**: The Vector Store API creates and deletes collections in the external vector DB
 - **SC-004**: Tenant isolation prevents cross-tenant document access
-- **SC-005**: The Qdrant adapter stores and retrieves vectors correctly
+- **SC-005**: The Qdrant adapter queries vectors correctly
 
 ## Assumptions
 
-- An external embedding service is available at a configurable URL.
-- An external vector database (Qdrant) is available at a configurable URL.
-- No compute-intensive operations (embedding, vector math) run in the antwort process.
-- File metadata (store name, file name, status) is stored in antwort's existing storage system.
-- PDF parsing uses a library, not an external service.
+- An external embedding service is available for query-time embedding.
+- An external vector database (Qdrant) is available and pre-populated by the ingestion pipeline.
+- Document ingestion (parsing, chunking, embedding, vector insertion) is handled by a separate process, not antwort.
+- Antwort only embeds the search query at query time (one embedding call per search, not per document).
+- Vector store metadata (name, tenant, creation time) is stored in antwort's existing storage system.
 
 ## Dependencies
 
 - **Spec 016 (Function Registry)**: FunctionProvider interface and registry.
-- **Spec 005 (Storage)**: Metadata storage for vector stores and files.
+- **Spec 005 (Storage)**: Metadata storage for vector store records.
 - **Spec 007 (Auth)**: Tenant scoping for management API.
 - **Spec 013 (Observability)**: Custom Prometheus metrics.
 
@@ -151,21 +155,19 @@ An operator configures the vector database backend. The system supports multiple
 ### In Scope
 
 - FileSearchProvider implementing FunctionProvider
-- VectorStoreBackend interface + Qdrant adapter
-- EmbeddingClient interface + OpenAI-compatible HTTP client
-- Vector Store management API (7 endpoints)
-- Text and PDF file parsing
-- Chunking with configurable size/overlap
-- file_search tool execution
+- VectorStoreBackend interface + Qdrant adapter (query + collection management)
+- EmbeddingClient interface + HTTP client (query-time embedding only)
+- Vector Store management API (4 endpoints: create, list, get, delete)
+- file_search tool execution (embed query, search vector DB, return chunks)
 - Tenant-scoped vector stores
 - Custom Prometheus metrics
 - Configuration via providers map
 
 ### Out of Scope
 
+- Document ingestion pipeline (parsing, chunking, embedding, insertion). This is a separate service/tool.
+- File upload endpoints (files are ingested by the external pipeline, not uploaded to antwort)
 - Milvus adapter (P2)
 - pgvector adapter (P2)
-- DOCX, HTML, CSV parsing (P2)
-- Async indexing with status tracking (P2)
+- Async indexing
 - File content caching
-- Search result ranking customization
