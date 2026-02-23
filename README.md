@@ -1,94 +1,113 @@
 # Antwort
 
-A standalone, production-grade [OpenResponses](https://www.openresponses.org/) gateway written in Go.
+**The server-side agentic framework.**
 
-Antwort translates between the OpenResponses API and any `/v1/chat/completions` backend (vLLM, Ollama, LiteLLM, TGI, or any OpenAI-compatible server). It is not a framework, not an inference engine, not a proxy filter. It is a dedicated process whose primary job is the Responses API.
+A production-grade [OpenResponses](https://www.openresponses.org/) API implementation written in Go. Antwort runs AI agents server-side on Kubernetes with sandboxed code execution, multi-tenant isolation, and full API compatibility with any OpenAI SDK.
 
-## Why
+**Website:** [antwort-dev.github.io](https://antwort-dev.github.io) | **Docs:** [antwort-dev.github.io/docs](https://antwort-dev.github.io/docs/)
 
-The OpenResponses specification is gaining traction. Llama Stack, vLLM, Semantic Router, and multiple independent projects all implement some version of it. But each one embeds the API inside a larger system: a Python framework, an inference engine, or an Envoy filter. Teams that already run inference infrastructure shouldn't need to adopt an entire framework to get a production Responses API.
+## What It Does
 
-Antwort explores what happens when the Responses API is the primary concern.
+Antwort is the most complete open-source server-side implementation of the OpenResponses standard. It translates between the Responses API and any `/v1/chat/completions` backend (vLLM, Ollama, LiteLLM, or any OpenAI-compatible server), adding agentic capabilities, tool execution, multi-user isolation, and production operations on top.
+
+Any existing OpenAI SDK (Python, Node, Go, Rust) works without modification. Point your client at Antwort, and the Responses API works as expected.
 
 ## Status
 
-**Early development.** The first three specs are implemented. Non-streaming requests flow end-to-end from HTTP to a Chat Completions backend. Streaming is next.
+Antwort started as a proof-of-concept for [Specification-Driven Development (SDD)](https://github.com/rhuss/cc-sdd-plugin), exploring how an AI-assisted, spec-first methodology works for building a non-trivial system from scratch. The project has since grown beyond that original scope into a full agentic AI platform targeting production Kubernetes environments.
 
 | Spec | Status | Description |
 |------|--------|-------------|
 | 001 Core Protocol & Data Model | Implemented | Items, content types, state machines, validation, errors, extensions |
 | 002 Transport Layer | Implemented | HTTP/SSE adapter, middleware chain, graceful shutdown, in-flight registry |
-| 003 Core Engine & Provider | In Progress | Protocol-agnostic Provider interface, core engine, vLLM adapter (non-streaming complete, streaming pending) |
-| 004 Tool System | Planned | Function calling, MCP, internal tools, agentic loop |
-| 005 State Management & Storage | Planned | Storage interface + PostgreSQL adapter |
-| 006 Authentication & Authorization | Planned | Auth interface + pluggable adapters (API key, JWT, mTLS) |
-| 007 Deployment & Operations | Planned | Container images, Kubernetes/Helm, observability |
-| 008 Provider: LiteLLM | Planned | LiteLLM adapter |
-| 009 Configuration | Planned | Unified config model, env vars, validation, hot reload |
+| 003 Core Engine & Provider | Implemented | Protocol-agnostic Provider interface, vLLM adapter, streaming, conversation chaining |
+| 004 Agentic Loop | Implemented | Multi-turn reasoning, concurrent tool execution, tool call routing |
+| 005 Storage | Implemented | Storage interface, PostgreSQL adapter, in-memory store |
+| 006 Conformance | Implemented | Compliance test suite for the OpenResponses API |
+| 007 Authentication | Implemented | JWT/OIDC, API key auth, multi-user isolation |
+| 008 Provider: LiteLLM | Implemented | LiteLLM adapter for multi-provider access |
+| 009 MCP Tools | Implemented | Model Context Protocol integration with OAuth token exchange |
+| 010 Web Search | Implemented | SearXNG integration as built-in function provider |
+| 011 Observability | Implemented | Prometheus metrics, OpenTelemetry GenAI conventions |
+| 012-017 Various | Implemented | Configuration, deployment overlays, file search provider |
+| 018 Landing Page | Implemented | [antwort-dev.github.io](https://antwort-dev.github.io), Antora documentation |
 
-Specs 001 and 002 are fully implemented. Spec 003 has the non-streaming MVP complete (provider interface, engine orchestration, vLLM Chat Completions adapter) with streaming, tool call translation, conversation chaining, and multimodal support in progress. Each spec is developed through the SDD methodology described below.
+### Platform Vision (Next Phases)
+
+Antwort is evolving into a server-native agent platform that brings the best ideas from client-side agent frameworks (like OpenClaw) to the server, with Kubernetes-native security as a first principle. See the [platform vision document](specs/vision-agent-platform.md) and the [blog post](blog-server-native-agent-platform.md) for the full story.
+
+| Phase | Capability | Status |
+|-------|-----------|--------|
+| 1 | Kubernetes Sandbox Executor (code_interpreter via agent-sandbox CRDs) | Planned |
+| 2 | Agent Profiles (server-side SOUL.md, `/v1/agents` API) | Planned |
+| 3 | Memory & Knowledge (pluggable vector stores, file_search) | Planned |
+| 4 | Ambient Agents (webhooks, cron triggers, completion hooks) | Planned |
+| 5 | Delivery Channels (Slack, Teams, email, webhooks) | Planned |
+| 6 | Tool Registry (curated, audited, per-tenant permissions) | Planned |
+| 7 | Kubernetes Operator (declarative CRDs for lifecycle management) | Planned |
 
 ## Architecture
 
-Antwort is designed interface-first. Every major subsystem (transport, providers, storage, auth, tools) is defined as a Go interface with pluggable implementations.
+Antwort is designed interface-first. Every major subsystem is defined as a Go interface with pluggable implementations. The core depends only on the Go standard library.
 
 ```
-┌──────────────────────────────────────────────────┐
-│                  antwort/pkg                     │
-│                                                  │
-│  ┌────────────┐  ┌───────────┐  ┌─────────────┐ │
-│  │ Transport  │  │ Provider  │  │   Storage   │ │
-│  │ Interface  │  │ Interface │  │  Interface  │ │
-│  └─────┬──────┘  └─────┬─────┘  └──────┬──────┘ │
-│        │               │               │        │
-│  ┌─────┴──────┐  ┌─────┴─────┐  ┌──────┴──────┐ │
-│  │ HTTP/SSE   │  │  vLLM     │  │ PostgreSQL  │ │
-│  │ gRPC       │  │  LiteLLM  │  │ In-memory   │ │
-│  └────────────┘  └───────────┘  └─────────────┘ │
-│                                                  │
-│  ┌────────────┐  ┌───────────┐                   │
-│  │    Auth    │  │   Tools   │                   │
-│  │ Interface  │  │ Interface │                   │
-│  └────────────┘  └───────────┘                   │
-│                                                  │
-│          ┌───────────────────┐                    │
-│          │   Core Engine     │                    │
-│          │ (orchestration,   │                    │
-│          │  state machine,   │                    │
-│          │  agentic loop)    │                    │
-│          └───────────────────┘                    │
-└──────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────┐
+│                    Antwort Gateway                    │
+│                                                      │
+│  ┌──────────┐  ┌──────────┐  ┌────────────────────┐ │
+│  │Transport │  │  Auth    │  │   Observability    │ │
+│  │HTTP/SSE  │  │JWT/OIDC  │  │Prometheus/OTel     │ │
+│  └────┬─────┘  │API Key   │  └────────────────────┘ │
+│       │        └──────────┘                          │
+│  ┌────▼──────────────────────────────────┐           │
+│  │  Engine (Agentic Loop)                │           │
+│  │  Multi-turn reasoning, tool routing   │           │
+│  └────┬──────────────┬───────────────────┘           │
+│       │              │                               │
+│  ┌────▼─────┐  ┌─────▼──────────────────────┐       │
+│  │ Provider │  │    Tool Executors           │       │
+│  │ vLLM     │  │  ┌─────┐ ┌─────┐ ┌──────┐  │       │
+│  │ LiteLLM  │  │  │ MCP │ │Web  │ │Sand- │  │       │
+│  │ Ollama   │  │  │     │ │Srch │ │box   │  │       │
+│  └──────────┘  │  └─────┘ └─────┘ └──────┘  │       │
+│                └─────────────────────────────┘       │
+│  ┌──────────────────────────┐                        │
+│  │  Storage                 │                        │
+│  │  PostgreSQL / In-memory  │                        │
+│  └──────────────────────────┘                        │
+└──────────────────────────────────────────────────────┘
 ```
 
-### Two API tiers
+### Key Design Decisions
 
-**Stateless** (`store: false`): Single-shot inference, streaming or non-streaming. No persistence required.
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Language | Go 1.22+ | High concurrency, single binary, interface-first |
+| Core dependencies | Zero (stdlib only) | Maximum portability, minimal attack surface |
+| Provider protocol | Protocol-agnostic | Any backend via adapter pattern |
+| API modes | Stateless + stateful per-request | `store: false` for fire-and-forget, `store: true` for conversation chaining |
+| Storage | Pluggable (PostgreSQL default) | Clean interface for custom backends |
+| Deployment | Kubernetes-exclusive | No standalone mode. HPA, Prometheus, Kustomize overlays |
 
-**Stateful** (`store: true`, default): Full CRUD on responses, `previous_response_id` chaining, conversation state. Requires PostgreSQL.
+## Methodology: Specification-Driven Development
 
-### Backend protocol
+Antwort is built entirely with [Specification-Driven Development (SDD)](https://github.com/rhuss/cc-sdd-plugin), a methodology where every feature starts as a formal specification before any code is written. The project was originally created as a proof-of-concept for this approach, demonstrating how AI-assisted, spec-first development works for building a non-trivial production system from scratch.
 
-The Provider interface is protocol-agnostic. Each adapter handles its own backend protocol internally. The vLLM adapter translates to `/v1/chat/completions`, the widely supported standard. A future Responses API proxy adapter could forward to `/v1/responses` backends directly. This means Antwort works with any backend without requiring it to implement the Responses API itself.
+The SDD workflow for each feature:
 
-## Methodology
+1. **Brainstorm** - Explore the problem space, identify design decisions
+2. **Specify** - Formal spec with functional requirements, success criteria, user stories
+3. **Plan** - Phased implementation plan with dependency graphs
+4. **Tasks** - Dependency-ordered, file-level task breakdown
+5. **Review** - Coverage matrix, red flag scanning, quality validation
+6. **Implement** - Execute tasks in order with spec verification
+7. **Verify** - Tests, spec compliance, functional requirement coverage
 
-Antwort is built with Specification-Driven Development (SDD). Each feature starts as a formal specification with data models, OpenAPI contracts, and dependency-ordered task plans before any code is written.
-
-The workflow for each spec:
-
-1. **Brainstorm** - Explore the problem space, identify design decisions, document rationale
-2. **Specify** - Write a formal spec with functional requirements, success criteria, user stories, and edge cases
-3. **Plan** - Create a phased implementation plan with dependency graphs
-4. **Tasks** - Break the plan into dependency-ordered, file-level tasks
-5. **Review** - Validate the plan against the spec (coverage matrix, red flags, task quality)
-6. **Implement** - Execute tasks in dependency order with verification against the spec
-7. **Verify** - Run tests, check spec compliance, confirm all functional requirements are covered
-
-Each spec produces a complete set of artifacts in `specs/<number>-<name>/`:
+Each spec produces a complete set of artifacts:
 
 ```
 specs/001-core-protocol/
-├── spec.md              # Functional requirements, success criteria, user stories
+├── spec.md              # Functional requirements, success criteria
 ├── plan.md              # Phased implementation plan
 ├── tasks.md             # Dependency-ordered task breakdown
 ├── data-model.md        # Type definitions and relationships
@@ -97,98 +116,61 @@ specs/001-core-protocol/
 └── quickstart.md        # Getting started guide
 ```
 
-This approach trades speed for rigor. Spec 001 produced 40 functional requirements and 45+ tests for just the data model layer. The trade-off matters when other services start depending on the system.
+The SDD plugin for Claude Code is available at [github.com/rhuss/cc-sdd-plugin](https://github.com/rhuss/cc-sdd-plugin).
 
-## Project Structure
+## Quick Start
 
-```
-antwort/
-├── cmd/demo/              # Demo executable
-├── pkg/
-│   ├── api/               # Spec 001: Core Protocol & Data Model
-│   │   ├── types.go       # Item, Message, Request, Response types
-│   │   ├── validation.go  # Request/response validation
-│   │   ├── state.go       # State machine transitions
-│   │   ├── events.go      # Streaming event types
-│   │   ├── errors.go      # Structured API errors
-│   │   └── id.go          # Prefixed ID generation
-│   ├── transport/         # Spec 002: Transport Layer
-│   │   ├── handler.go     # ResponseCreator, ResponseStore interfaces
-│   │   ├── middleware.go   # Middleware composition
-│   │   ├── inflight.go    # In-flight registry for cancellation
-│   │   └── http/          # HTTP/SSE adapter
-│   │       ├── adapter.go # Request routing
-│   │       ├── sse.go     # Server-Sent Events writer
-│   │       └── server.go  # Server lifecycle, graceful shutdown
-│   ├── engine/            # Spec 003: Core Engine
-│   │   ├── engine.go      # Orchestration, implements ResponseCreator
-│   │   ├── translate.go   # Request translation (Items -> ProviderMessages)
-│   │   └── config.go      # Engine configuration
-│   └── provider/          # Spec 003: Provider Abstraction
-│       ├── provider.go    # Protocol-agnostic Provider interface
-│       ├── types.go       # ProviderRequest, ProviderResponse, ProviderEvent
-│       ├── capabilities.go # Capability validation
-│       └── vllm/          # Chat Completions adapter
-│           ├── vllm.go    # VLLMProvider (Complete, Stream, ListModels)
-│           ├── translate.go # ProviderRequest -> Chat Completions
-│           ├── response.go # Chat Completions -> ProviderResponse
-│           ├── stream.go  # SSE chunk parsing (in progress)
-│           └── errors.go  # HTTP error mapping
-├── specs/                 # Specification documents
-│   ├── constitution.md    # Project principles and constraints
-│   ├── 001-core-protocol/
-│   ├── 002-transport-layer/
-│   └── 003-core-engine/
-├── brainstorm/            # Early design exploration
-└── go.mod
+### Prerequisites
+
+- Kubernetes cluster
+- An LLM backend (vLLM, LiteLLM, Ollama, or any OpenAI-compatible endpoint)
+
+### Deploy
+
+```bash
+# Configure your LLM provider
+export ANTWORT_PROVIDER_URL=http://your-llm-backend:8000
+
+# Deploy to Kubernetes
+kubectl apply -k deploy/overlays/dev
 ```
 
-## Design Decisions
+### Send a Request
 
-| Decision | Choice | Rationale |
-|----------|--------|-----------|
-| Language | Go | High concurrency, low memory per connection, single binary deployment, natural fit for interface-first design |
-| Dependencies | Zero (stdlib only) | Maximum portability, minimal attack surface |
-| Backend protocol | Protocol-agnostic | Provider interface supports any backend protocol; vLLM adapter uses Chat Completions |
-| Storage | PostgreSQL (planned) | Durable, shared across replicas, production standard |
-| Deployment | Kubernetes/OpenShift | Health probes, Helm charts, CRDs for declarative configuration |
-
-## Spec Dependency Graph
-
-Specs are numbered in dependency order. Each builds on the ones before it.
-
-```
-001 Core Protocol
-  └─> 002 Transport
-  └─> 003 Provider (vLLM)
-        └─> 005 Storage
-        └─> 004 Tools
-              └─> 006 Auth
-                    └─> 007 Deployment
-                    └─> 008 Provider (LiteLLM)
+```bash
+curl -X POST http://antwort:8080/v1/responses \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "your-model",
+    "tools": [{"type": "web_search"}],
+    "input": [{
+      "role": "user",
+      "content": "What are the latest AI news?"
+    }]
+  }'
 ```
 
-## What a Production Gateway Needs
+Any OpenAI SDK works too:
 
-Regardless of which project or combination moves forward, a production OpenResponses gateway needs capabilities that no single project provides today:
+```python
+from openai import OpenAI
 
-- **Chat Completions translation** so it works with any backend
-- **Durable storage** shared across replicas
-- **Multi-user isolation** at the data layer, with per-user scoping
-- **Authentication** with pluggable backends
-- **Agentic tool loop** with MCP support for server-side tool execution
-- **Observability** (Prometheus metrics, OpenTelemetry tracing, structured logging)
-- **Kubernetes deployment** with real health probes, Helm charts, and optionally CRDs
-
-Antwort's roadmap addresses all of these through the spec sequence above.
+client = OpenAI(base_url="http://antwort:8080/v1", api_key="your-key")
+response = client.responses.create(
+    model="your-model",
+    input="What are the latest AI news?",
+    tools=[{"type": "web_search"}],
+)
+print(response.output_text)
+```
 
 ## Related Work
 
-- [openresponses-gw](https://github.com/leseb/openresponses-gw) - A Go gateway that sits in front of Responses API backends, adding statefulness, MCP tools, and file search
-- [Llama Stack](https://github.com/meta-llama/llama-stack) - Meta's LLM framework with the most complete Responses API implementation
-- [vLLM](https://github.com/vllm-project/vllm) - Inference engine with an experimental `/v1/responses` endpoint
+- [openresponses-gw](https://github.com/leseb/openresponses-gw) - A Go gateway adding statefulness, MCP tools, and file search to Responses API backends
+- [Llama Stack](https://github.com/llamastack/llama-stack) - LLM framework with Responses API support and safety features (Llama Guard)
+- [vLLM](https://github.com/vllm-project/vllm) - Inference engine with experimental `/v1/responses` endpoint
 - [Semantic Router](https://github.com/vllm-project/semantic-router) - Envoy filter providing Responses API translation
 
 ## License
 
-TBD
+Apache 2.0
