@@ -5,38 +5,27 @@
 
 ## Summary
 
-Create a GitHub Pages website at `antwort.github.io` consisting of a marketing landing page (single HTML/CSS/SVG) and an Antora-generated documentation site. The landing page communicates Antwort's value proposition as "the server-side agentic framework" with OpenResponses compliance as the lead differentiator. Documentation is authored in AsciiDoc in the main repo, aggregated by Antora in the website repo, and deployed via GitHub Actions.
+Create a GitHub Pages website at `antwort.github.io` using Astro with the AstroWind template for the landing page and Antora for AsciiDoc documentation. The Astro build produces the landing page at `/`, the Antora build produces docs at `/docs/`, and both are merged in CI for deployment. Documentation sources live in the main `antwort` repo under `docs/`.
 
 ## Technical Context
 
-**Language/Version**: HTML5, CSS3, minimal vanilla JavaScript (progressive enhancement). AsciiDoc for documentation.
-**Primary Dependencies**: Antora (documentation generator), @antora/lunr-extension (search), Google Fonts CDN (Inter, Inter Tight, JetBrains Mono)
-**Storage**: N/A (static site, no server-side storage)
-**Testing**: Lighthouse CLI for performance/accessibility audits, HTML validation, manual browser testing across viewports
-**Target Platform**: GitHub Pages (static hosting), modern browsers (Chrome, Firefox, Safari, Edge)
-**Project Type**: Web (static site with separate website repo + doc sources in main repo)
-**Performance Goals**: Page load under 3 seconds, Lighthouse score 90+
-**Constraints**: No build tools for landing page (plain HTML/CSS), Antora for docs only, no JavaScript frameworks
-**Scale/Scope**: Single landing page + initial documentation scaffold (~10 AsciiDoc pages)
+**Language/Version**: Astro 5.x, TypeScript/JavaScript, AsciiDoc
+**Primary Dependencies**: Astro, AstroWind template, Tailwind CSS, Antora, @antora/lunr-extension
+**Storage**: N/A (static site)
+**Testing**: Lighthouse CLI (performance/accessibility), browser testing
+**Target Platform**: GitHub Pages (static hosting), modern browsers
+**Project Type**: Web (static site, two repos: website repo + doc sources in main repo)
+**Performance Goals**: Page load < 3 seconds, Lighthouse 90+
+**Constraints**: Astro zero-JS-by-default, dark theme, responsive 375px-1920px
+**Scale/Scope**: Single landing page + ~10 AsciiDoc doc pages
 
 ## Constitution Check
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-| Principle | Applicability | Status |
-|-----------|---------------|--------|
-| I. Interface-First Design | N/A (website, not Go code) | Pass |
-| II. Zero External Dependencies | N/A (website, not core packages) | Pass |
-| III. Nil-Safe Composition | N/A | Pass |
-| IV. Typed Error Domain | N/A | Pass |
-| V. Validate Early, Fail Fast | N/A | Pass |
-| VI. Protocol-Agnostic Provider | N/A | Pass |
-| VII. Streaming as First-Class | N/A | Pass |
-| VIII. Context Carries Cross-Cutting | N/A | Pass |
-| IX. Kubernetes-Native Execution | N/A (website hosted on GitHub Pages, not K8s) | Pass |
-| Specification-Driven Development | Applicable | Pass (this plan follows from spec) |
+This feature is a static website outside the Go codebase. Constitution principles (interface-first, zero external dependencies, nil-safe composition, etc.) apply to the Antwort server, not to supporting websites. The only applicable principle is Specification-Driven Development, which this plan follows.
 
-No constitution violations. This feature is a static website, outside the Go codebase. Constitution principles apply to the Antwort server, not to supporting assets like websites.
+All gates pass. No violations.
 
 ## Project Structure
 
@@ -44,64 +33,69 @@ No constitution violations. This feature is a static website, outside the Go cod
 
 ```text
 specs/018-landing-page/
-├── spec.md              # Feature specification
+├── spec.md
 ├── plan.md              # This file
-├── research.md          # Phase 0 output
-├── data-model.md        # Phase 1 output (content model)
-├── quickstart.md        # Phase 1 output (implementation quickstart)
+├── research.md
+├── data-model.md
+├── quickstart.md
 ├── checklists/
-│   └── requirements.md  # Quality checklist
-└── tasks.md             # Phase 2 output (task breakdown)
+│   └── requirements.md
+├── review-summary.md
+└── tasks.md
 ```
 
 ### Source Code (two repositories)
 
 ```text
-# Website repository: antwort.github.io
+# Website repository: /Users/rhuss/Development/ai/antwort.github.io/
 antwort.github.io/
-├── index.html                        # Landing page
-├── assets/
-│   ├── css/
-│   │   └── landing.css               # Landing page styles
-│   ├── img/
-│   │   ├── logo.svg                  # A! logo mark (circle)
-│   │   ├── logo-full.svg             # A! + "antwort" wordmark
-│   │   ├── architecture.svg          # Architecture diagram
-│   │   ├── favicon.svg               # Favicon (SVG)
-│   │   ├── favicon.ico               # Favicon (ICO fallback)
-│   │   ├── apple-touch-icon.png      # iOS home screen (180x180)
-│   │   └── og-image.png              # Social sharing preview (1200x630)
-│   └── js/
-│       └── landing.js                # Progressive enhancement (copy buttons, scroll effects)
+├── astro.config.ts              # Astro configuration
+├── tailwind.config.js           # Tailwind CSS configuration (dark theme colors)
+├── package.json                 # Dependencies (astro, astrowind, tailwind)
+├── tsconfig.json                # TypeScript config
+├── src/
+│   ├── assets/
+│   │   ├── images/
+│   │   │   ├── logo.svg         # A! logo mark
+│   │   │   ├── logo-full.svg    # A! + "antwort" wordmark
+│   │   │   └── og-image.png     # Social sharing preview
+│   │   └── favicons/
+│   │       ├── favicon.svg
+│   │       └── favicon.ico
+│   ├── components/
+│   │   └── Logo.astro           # Custom logo component (overrides AstroWind default)
+│   ├── pages/
+│   │   └── index.astro          # Landing page (composes AstroWind widgets)
+│   └── navigation.ts            # Navigation configuration
+├── antora-playbook.yml          # Antora doc build config
 ├── supplemental-ui/
 │   └── css/
-│       └── custom.css                # Antora dark theme overrides
-├── antora-playbook.yml               # Antora configuration
+│       └── custom.css           # Antora dark theme overrides
 ├── .github/
 │   └── workflows/
-│       └── publish.yml               # Build + deploy workflow
-├── .nojekyll                         # Disable Jekyll
+│       └── publish.yml          # CI: Astro build + Antora build + deploy
+├── .nojekyll
 └── README.md
 
-# Main repository: antwort (existing, new files added)
+# Main repository: /Users/rhuss/Development/ai/antwort/ (existing, new files added)
 antwort/
-├── antora.yml                        # Antora component descriptor
-└── docs/
-    └── modules/
-        └── ROOT/
-            ├── nav.adoc              # Navigation structure
-            └── pages/
-                ├── index.adoc        # Documentation home
-                ├── getting-started.adoc
-                ├── architecture.adoc
-                ├── configuration.adoc
-                ├── providers.adoc
-                ├── tools.adoc
-                ├── auth.adoc
-                ├── storage.adoc
-                ├── observability.adoc
-                ├── deployment.adoc
-                └── api-reference.adoc
+├── docs/
+│   ├── antora.yml               # Antora component descriptor
+│   └── modules/
+│       └── ROOT/
+│           ├── nav.adoc         # Navigation structure
+│           └── pages/
+│               ├── index.adoc
+│               ├── getting-started.adoc
+│               ├── architecture.adoc
+│               ├── configuration.adoc
+│               ├── providers.adoc
+│               ├── tools.adoc
+│               ├── auth.adoc
+│               ├── storage.adoc
+│               ├── observability.adoc
+│               ├── deployment.adoc
+│               └── api-reference.adoc
 ```
 
-**Structure Decision**: Two-repository approach. The website repo (`antwort.github.io`) contains the landing page and Antora playbook. Documentation sources live in the main `antwort` repo under `docs/`, keeping docs close to code. Antora aggregates from the main repo at build time.
+**Structure Decision**: Two-repository approach. The website repo contains the Astro project (landing page), Antora playbook, and CI workflow. Documentation sources live in the main repo under `docs/`. Both build independently; outputs are merged at deploy time.

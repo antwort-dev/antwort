@@ -3,97 +3,86 @@
 **Feature**: 018-landing-page
 **Date**: 2026-02-23
 
-## R1: Antora Setup for Multi-Repo Documentation
+## R1: Astro + AstroWind as Landing Page Framework
 
-**Decision**: Use Antora with a playbook in the website repo that pulls AsciiDoc sources from the main `antwort` repo.
+**Decision**: Use Astro 5.x with the AstroWind template (onwidget/astrowind) for the landing page.
 
-**Rationale**: Antora is the standard documentation toolchain for AsciiDoc projects. It supports multi-repository aggregation, versioning, and search (via Lunr extension). The playbook-based approach keeps doc sources close to code while building the final site in a separate repo.
-
-**Alternatives considered**:
-- **Hugo with AsciiDoc**: Hugo supports AsciiDoc via asciidoctor, but AsciiDoc support is a secondary concern for Hugo. Cross-referencing, includes, and multi-module navigation are weaker than Antora.
-- **MkDocs**: Markdown-only. Not compatible with AsciiDoc project standard.
-- **Docusaurus**: React-based, Markdown-focused. Overkill for a documentation site and incompatible with AsciiDoc.
-
-**Key findings**:
-- Antora requires Node.js 18+ for the build. GitHub Actions provides this.
-- The `@antora/lunr-extension` provides client-side search without a backend.
-- Antora's default UI is light-themed. Dark theme requires supplemental CSS overrides (not a full custom UI bundle).
-- The playbook can reference the main repo by HTTPS URL. No SSH keys needed if the repo is public.
-- Antora component descriptor (`antora.yml`) goes in the root of the content source path.
-
-## R2: GitHub Pages Deployment with Antora
-
-**Decision**: Use `peaceiris/actions-gh-pages` GitHub Action to deploy the combined site (landing page + Antora output).
-
-**Rationale**: This action handles the `gh-pages` branch deployment, CNAME preservation, and `.nojekyll` injection. It's the most widely used GitHub Pages deployment action.
+**Rationale**: AstroWind is the most-starred Astro template (5.1K stars, MIT licensed) with production-ready components: Hero, Features, Steps, Content, FAQs, Stats, CallToAction, Brands, Comparison. It ships with Tailwind CSS, dark mode, responsive design, and zero JavaScript by default. Content is authored as Astro component props, not raw HTML, which means polished design without custom CSS work.
 
 **Alternatives considered**:
-- **Official `actions/deploy-pages`**: Newer, uses GitHub Pages artifacts. More complex setup but officially supported. Could switch later.
-- **Manual `gh-pages` branch push**: Works but requires manual Git operations in the workflow.
+- **Hand-crafted HTML/CSS**: Tried first, produced unsatisfactory results. No design system means inconsistent spacing, typography, and layout.
+- **Hugo**: Go-based SSG. Weaker landing page template ecosystem. Most themes look dated compared to Astro templates.
+- **Pico CSS**: Zero build step, clean defaults. But limited to basic typography and forms. No pre-built hero, feature grid, or comparison components.
+- **Docusaurus**: Cannot do AsciiDoc. Not an option.
 
 **Key findings**:
-- GitHub Pages serves from the `gh-pages` branch or the `/docs` folder on `main`. The `gh-pages` branch approach is cleaner for generated sites.
-- The workflow builds Antora output to `build/site/docs/`, copies landing page to `build/site/`, then deploys `build/site/` as the root.
-- Cross-repo triggering (rebuilding when main repo docs change) can use `repository_dispatch` events or a scheduled rebuild.
+- AstroWind uses `degit` for scaffolding: `npx degit onwidget/astrowind`
+- The template includes all needed widget types for the Antwort landing page
+- Dark mode is built in, controlled via `data-theme` attribute and `prefers-color-scheme`
+- Tailwind config can be customized for the cyan-teal accent palette
+- Astro outputs zero JS by default (static HTML), meeting performance goals
+- Node.js is already required for Antora, so no new build dependency
 
-## R3: Dark Theme for Antora
+## R2: AstroWind Widget Mapping
 
-**Decision**: Override the default Antora UI with supplemental CSS that applies the landing page's dark color scheme.
+**Decision**: Map each landing page section to an AstroWind widget component.
 
-**Rationale**: Building a full custom Antora UI bundle is significant work (clone the UI repo, modify Handlebars templates, rebuild). Supplemental CSS overrides achieve the dark theme with minimal effort while preserving the default UI's structure and functionality.
+| Landing Page Section | AstroWind Widget | Notes |
+|---------------------|-----------------|-------|
+| Hero | `Hero.astro` | Title, subtitle, CTA buttons, image/code area |
+| Value Pillars | `Features.astro` | 3-item grid with icons and descriptions |
+| Feature Grid | `Features2.astro` or `Features.astro` | 15 cards, supports badge/tag |
+| Comparison Table | Custom or `Content.astro` | May need custom component for table |
+| Quickstart | `Steps.astro` | Numbered steps with code blocks |
+| Architecture | `Content.astro` | Image/diagram with description |
+| Roadmap | `Timeline.astro` or `Steps.astro` | Phased timeline |
+| Provider Logos | `Brands.astro` | Logo bar with grayscale images |
+| CTA | `CallToAction.astro` | Bottom CTA section |
 
-**Alternatives considered**:
-- **Custom UI bundle**: Full control but high maintenance cost. Every Antora UI update requires manual merging.
-- **Third-party dark UI**: Some community forks exist but none are actively maintained or well-tested.
-- **Accept default light theme**: Would create a jarring visual disconnect between landing page and docs.
+**Key finding**: AstroWind does not have a built-in comparison table widget. Options:
+1. Use the `Content.astro` widget with a custom HTML table inside
+2. Create a minimal custom Astro component for the comparison table
+3. Use Tailwind's table utilities directly in `index.astro`
 
-**Key findings**:
-- Antora's supplemental UI mechanism allows adding or overriding CSS, JavaScript, and partials without forking the UI bundle.
-- The supplemental CSS needs to override background colors, text colors, sidebar styles, code block styles, and link colors.
-- The Antora UI uses CSS custom properties in some areas, making overrides easier.
-- The search results overlay and navigation sidebar need special attention for dark theme readability.
+Option 3 is simplest. The comparison table HTML with Tailwind classes can be inlined directly in the page.
 
-## R4: SVG Logo Generation
+## R3: Antora Coexistence with Astro
 
-**Decision**: Create the "A!" logo as hand-crafted SVG markup. No external design tool required.
+**Decision**: Build Astro and Antora independently in the same CI workflow. Astro output goes to `dist/`, Antora output goes to `dist/docs/`.
 
-**Rationale**: The logo is simple enough (text + circle) to define directly in SVG. This keeps the asset version-controlled, editable by developers, and resolution-independent.
+**Rationale**: Astro and Antora are completely independent build systems. They don't need to know about each other. The CI workflow runs both sequentially and merges the output.
 
-**Alternatives considered**:
-- **Figma/Sketch export**: Requires a design tool license and creates a dependency on the designer.
-- **Icon font**: Unnecessarily complex for a single logo mark.
-
-**Key findings**:
-- SVG `<text>` elements need a `font-family` attribute. Since the SVG may be rendered without the web font loaded, use a fallback stack: `"Inter Tight", "Arial", sans-serif`.
-- For the favicon, SVG favicons are supported in all modern browsers. An ICO fallback is needed for older browsers.
-- The `apple-touch-icon` (180x180 PNG) can be generated from the SVG using a build step or created manually.
-- The OG image (1200x630 PNG) should include the logo, tagline, and dark background. This can be a manually created PNG or generated from the SVG.
-
-## R5: Landing Page Performance
-
-**Decision**: Keep the landing page dependency-free. No JavaScript frameworks, no CSS frameworks, no bundlers. Plain HTML + CSS + minimal vanilla JS.
-
-**Rationale**: A static landing page with no framework dependencies loads faster, has fewer failure modes, and is easier to maintain. The Lighthouse 90+ target is achievable with hand-written HTML/CSS and proper asset optimization.
-
-**Alternatives considered**:
-- **Tailwind CSS**: Popular but adds a build step and increases CSS size unless purged.
-- **Bootstrap**: Adds unnecessary weight for a single-page design.
-- **Astro/11ty**: Static site generators add build complexity without proportional benefit for a single page.
+**Build flow**:
+```
+1. npm run build          # Astro -> dist/
+2. npx antora playbook    # Antora -> dist/docs/
+3. Deploy dist/           # GitHub Pages
+```
 
 **Key findings**:
-- Google Fonts can be loaded asynchronously with `font-display: swap` to avoid blocking render.
-- CSS custom properties enable theming without a preprocessor.
-- The `prefers-reduced-motion` media query should disable animations for accessibility.
-- Inline critical CSS in the `<head>` for above-the-fold content, defer the rest.
-- Images (SVGs) are lightweight. The only potentially heavy asset is the OG image (PNG), which is not loaded by the page itself.
+- Antora's `output.dir` in the playbook can be set to `./dist/docs` to write directly into Astro's output directory
+- The `.nojekyll` file must be in the Astro `public/` directory (copied to `dist/` at build time)
+- Astro's `public/` directory is for static files that bypass processing. Antora output should NOT go in `public/` because it's generated at build time.
 
-## R6: Comparison Table Accuracy
+## R4: Dark Theme Customization
 
-**Decision**: The comparison table reflects the state of projects as of February 2026 and includes a "last updated" date. The brainstorm document (21-landing-page.md) contains the researched data.
+**Decision**: Customize AstroWind's Tailwind config to use the Antwort color palette.
 
-**Rationale**: Competitor capabilities change. An outdated comparison damages credibility more than no comparison at all. Dating the table sets expectations.
+**Approach**: Override the `tailwind.config.js` with custom colors:
+- Primary accent: `#00e5c0` (cyan-teal)
+- Secondary accent: `#22d3a0` (green-teal)
+- Dark background: via AstroWind's built-in dark mode classes
 
-**Key findings (February 2026)**:
-- **LlamaStack v0.5.1**: Implements Responses API (partial, active development), Chat Completions, MCP support, 15+ providers, Kubernetes operator. No multi-tenancy, no code sandbox. Deprecated proprietary Agent APIs in v0.5.0.
-- **OpenClaw**: Client-side (WebSocket), Pi Agent framework, Docker sandbox (off by default), 200K GitHub stars. CVE-2026-25253 (CVSS 8.8). Creator joined OpenAI.
-- **LangGraph Platform**: Successor to LangServe (deprecated Nov 2024). Own API (not OpenAI-compatible). LangGraph library is MIT; platform requires commercial license for self-hosting.
+AstroWind already uses Tailwind's `dark:` variant classes throughout all components. Setting the default theme to dark via the site config is sufficient.
+
+## R5: Logo Integration
+
+**Decision**: Use the existing A! SVG logos, integrated as an Astro component.
+
+**Approach**: Override AstroWind's `Logo.astro` component with a custom version that renders the A! wordmark SVG. The SVG source is inlined in the component for optimal loading (no external request).
+
+## R6: Antora Dark Theme
+
+**Decision**: Use supplemental CSS overrides to apply the dark theme to the default Antora UI bundle. Same approach as the previous implementation.
+
+**Rationale**: Building a custom Antora UI bundle is high maintenance. Supplemental CSS overrides are sufficient for color changes and are forward-compatible with Antora UI updates.

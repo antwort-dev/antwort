@@ -5,92 +5,55 @@
 
 ## Prerequisites
 
-- GitHub account with permission to create the `antwort.github.io` repository
-- Node.js 18+ (for Antora build, local preview only)
-- A modern browser for testing
+- Node.js 22+ (for Astro and Antora builds)
+- npm or pnpm
 
-## Step 1: Create Website Repository
+## Step 1: Scaffold AstroWind Project
 
 ```bash
-mkdir -p /Users/rhuss/Development/ai/antwort.github.io
 cd /Users/rhuss/Development/ai/antwort.github.io
-git init
+# Remove previous hand-crafted files
+rm -rf assets index.html supplemental-ui package.json package-lock.json node_modules build .nojekyll
+
+# Scaffold AstroWind (keep .git, .github, README, antora-playbook.yml)
+npx degit onwidget/astrowind --force .
 ```
 
-## Step 2: Create Landing Page
-
-Create `index.html` with the full landing page content. Link to `assets/css/landing.css` for styles and `assets/js/landing.js` for progressive enhancement (copy buttons, scroll effects).
-
-Key sections in order: Nav, Hero, Value Pillars, Feature Grid, Architecture, Comparison, Quickstart, Roadmap, Footer.
-
-## Step 3: Create Logo SVG
-
-Create `assets/img/logo.svg` with the "A!" mark inside a circle. Use SVG `<text>` and `<circle>` elements. Create `logo-full.svg` with the wordmark variant.
-
-## Step 4: Set Up Antora in Main Repo
-
-In the main `antwort` repo, create:
+## Step 2: Install Dependencies
 
 ```bash
-# Component descriptor at repo root
-cat > antora.yml << 'EOF'
-name: antwort
-title: Antwort
-version: '0.1'
-start_page: ROOT:index.adoc
-nav:
-  - modules/ROOT/nav.adoc
-EOF
-
-# Documentation directory structure
-mkdir -p docs/modules/ROOT/pages
+npm install
 ```
 
-Create initial AsciiDoc pages under `docs/modules/ROOT/pages/`.
+## Step 3: Customize Content
 
-## Step 5: Configure Antora Playbook
+Edit `src/pages/index.astro` to compose AstroWind widgets with Antwort content (hero, features, comparison, quickstart, roadmap).
 
-In the website repo, create `antora-playbook.yml` pointing to the main repo's docs.
+## Step 4: Customize Theme
 
-## Step 6: Add Dark Theme Overrides
+Edit `tailwind.config.js` to set the cyan-teal accent palette. Configure dark mode as default in AstroWind's site config.
 
-Create `supplemental-ui/css/custom.css` overriding Antora default styles with the dark color scheme.
+## Step 5: Add Logo
 
-## Step 7: Set Up GitHub Actions
+Replace `src/components/Logo.astro` with the A! wordmark SVG. Copy `logo.svg` and `favicon.svg` to `src/assets/`.
 
-Create `.github/workflows/publish.yml` that:
-1. Checks out the website repo
-2. Installs Antora + Lunr extension
-3. Runs `npx antora antora-playbook.yml`
-4. Copies landing page assets to build output
-5. Deploys to GitHub Pages
+## Step 6: Add Antora Integration
 
-## Step 8: Enable GitHub Pages
+Keep `antora-playbook.yml` and `supplemental-ui/` from previous implementation. Update the GitHub Actions workflow to run both Astro build and Antora build.
 
-In the repository settings, configure GitHub Pages to deploy from the `gh-pages` branch.
+## Step 7: Preview Locally
 
-## Step 9: Verify
-
-- Landing page renders at `https://antwort.github.io`
-- Docs render at `https://antwort.github.io/docs/`
-- All navigation links work
-- Mobile responsive layout verified
-- Lighthouse audit scores 90+
-
-## Key Files Checklist
-
+```bash
+npm run dev     # Astro dev server at http://localhost:4321
 ```
-antwort.github.io/
-├── index.html                    ← Landing page
-├── assets/css/landing.css        ← Styles
-├── assets/js/landing.js          ← Progressive enhancement
-├── assets/img/logo.svg           ← Logo mark
-├── assets/img/logo-full.svg      ← Wordmark
-├── assets/img/favicon.svg        ← Favicon
-├── assets/img/og-image.png       ← Social preview
-├── supplemental-ui/css/custom.css ← Antora dark theme
-├── antora-playbook.yml           ← Doc build config
-├── .github/workflows/publish.yml ← CI/CD
-├── .nojekyll                     ← Disable Jekyll
-└── README.md                     ← Repo documentation
+
+## Step 8: Build and Verify
+
+```bash
+npm run build   # Produces dist/
+npx antora antora-playbook.yml  # Produces dist/docs/ (configure output.dir)
 ```
+
+## Step 9: Deploy
+
+Push to GitHub. The GitHub Actions workflow handles build + deploy.

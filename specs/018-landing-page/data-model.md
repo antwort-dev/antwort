@@ -3,127 +3,138 @@
 **Feature**: 018-landing-page
 **Date**: 2026-02-23
 
-This feature has no database entities. The "data model" is a content model describing the structured content on the landing page.
+No database entities. The content model describes how landing page content maps to AstroWind widget props.
 
-## Landing Page Content Structure
+## Landing Page Widget Composition
 
-### Hero Section
+The `index.astro` page composes AstroWind widgets in this order:
 
-| Field | Type | Content |
-|-------|------|---------|
-| Label | Text | "OpenResponses-compliant. Kubernetes-native." |
-| Headline | Text | "The server-side agentic framework." |
-| Description | Text | Value proposition paragraph |
-| Primary CTA | Link | "Get Started" pointing to quickstart docs |
-| Secondary CTA | Link | "View on GitHub" pointing to repository |
-| Code Snippet | Code block | curl example showing a Responses API request |
-| Provider Logos | Image list | vLLM, LiteLLM, OpenAI, Anthropic (grayscale) |
+### 1. Hero Widget
 
-### Value Pillars
+```typescript
+Hero({
+  actions: [
+    { variant: 'primary', text: 'Get Started', href: '/docs/...' },
+    { text: 'View on GitHub', href: 'https://github.com/rhuss/antwort', target: '_blank' }
+  ],
+  title: 'The server-side agentic framework.',
+  subtitle: 'The open-source OpenResponses API implementation for production...',
+  tagline: 'OpenResponses-compliant. Kubernetes-native.',
+  // Code snippet or image in content slot
+})
+```
 
-Three cards, each with:
+### 2. Brands Widget (Provider Logos)
 
-| Field | Type | Content |
-|-------|------|---------|
-| Title | Text | "OpenResponses API" / "Secure by Default" / "Kubernetes Native" |
-| Description | Text | 2-3 sentences describing the value |
+```typescript
+Brands({
+  title: 'Works with',
+  images: [
+    { src: 'vllm-logo', alt: 'vLLM' },
+    { src: 'litellm-logo', alt: 'LiteLLM' },
+    // ...
+  ]
+})
+```
 
-### Feature Cards
+### 3. Features Widget (Value Pillars)
 
-Each card in the feature grid:
+```typescript
+Features({
+  id: 'pillars',
+  tagline: 'Why Antwort',
+  title: 'Built for production AI agents',
+  items: [
+    { title: 'OpenResponses API', description: '...', icon: 'tabler:api' },
+    { title: 'Secure by Default', description: '...', icon: 'tabler:shield-lock' },
+    { title: 'Kubernetes Native', description: '...', icon: 'tabler:brand-kubernetes' },
+  ]
+})
+```
 
-| Field | Type | Content |
-|-------|------|---------|
-| Icon | SVG or emoji | Visual indicator for the feature category |
-| Title | Text | Feature name (e.g., "Agentic Loop") |
-| Subtitle | Text | Tagline (e.g., "Agents that act, not just answer") |
-| Description | Text | 2-3 sentence explanation |
-| Status | Enum | "implemented" or "coming_soon" |
+### 4. Features Widget (Feature Grid)
 
-**Implemented features** (9): Agentic Loop, Multi-Provider, MCP Tools, Multi-Tenant Auth, Conversation Memory, SSE Streaming, Web Search, Observability, Production Deployment
+```typescript
+Features({
+  id: 'features',
+  tagline: 'Features',
+  title: 'Everything you need for agentic AI',
+  items: [
+    // 9 implemented features
+    { title: 'Agentic Loop', description: '...', icon: 'tabler:refresh' },
+    // ...
+    // 6 coming-soon features with callToAction or tag
+    { title: 'Sandbox Execution', description: '...', icon: 'tabler:box', callToAction: { text: 'Coming Soon' } },
+  ]
+})
+```
 
-**Coming Soon features** (6): Sandbox Execution, Agent Profiles, RAG & Knowledge, Proactive Scheduling, Delivery Channels, Tool Registry
+### 5. Content Widget (Architecture)
 
-### Comparison Table
+```typescript
+Content({
+  tagline: 'Architecture',
+  title: 'How it works',
+  // Architecture diagram as image
+  image: { src: architectureSvg, alt: 'Antwort Architecture' },
+  items: [
+    { title: 'Gateway', description: 'Auth, routing, rate limiting' },
+    { title: 'Engine', description: 'Agentic loop with concurrent tool execution' },
+    { title: 'Providers', description: 'vLLM, LiteLLM, Ollama, cloud APIs' },
+    { title: 'Sandbox', description: 'Kubernetes pods with gVisor isolation' },
+  ]
+})
+```
 
-Matrix structure:
+### 6. Comparison Table (Custom HTML)
 
-| Dimension | Type | Values |
-|-----------|------|--------|
-| Row header | Text | Capability name (e.g., "Responses API", "Multi-tenant") |
-| Row group | Text | "API & Protocol" / "Agentic Capabilities" / "Security & Operations" |
-| Cell value | Enum | full_support / partial_support / no_support / coming_soon / diy |
-| Footnote | Text | Clarification text (e.g., LangGraph licensing note) |
+Inline HTML with Tailwind classes in `index.astro`. Five columns, three row groups, visual indicators. Not a widget since AstroWind has no comparison table component.
 
-Columns: Antwort, LlamaStack, OpenClaw, LangGraph Platform, Manual K8s
+### 7. Steps Widget (Quickstart)
 
-### Quickstart Section
+```typescript
+Steps({
+  tagline: 'Get Started',
+  title: 'Deploy in minutes',
+  items: [
+    { title: 'Deploy', description: 'kubectl apply -k ...', icon: 'tabler:rocket' },
+    { title: 'Send a request', description: 'curl -X POST ...', icon: 'tabler:send' },
+    { title: 'Go agentic', description: 'Add tools and let the agent work', icon: 'tabler:robot' },
+  ]
+})
+```
 
-| Field | Type | Content |
-|-------|------|---------|
-| Step N title | Text | Step description |
-| Step N code | Code block | Shell command(s) with copy button |
-| Step N note | Text | Optional clarification |
+### 8. Steps or Timeline (Roadmap)
 
-### Roadmap Section
+```typescript
+Steps({
+  tagline: 'Roadmap',
+  title: 'What we are building',
+  items: [
+    { title: 'Sandbox Executor', description: '...', icon: 'tabler:box' },
+    { title: 'Agent Profiles', description: '...', icon: 'tabler:user-cog' },
+    // ...6 phases
+  ]
+})
+```
 
-| Field | Type | Content |
-|-------|------|---------|
-| Phase N | Text | Phase name (e.g., "Sandbox Executor") |
-| Phase N status | Enum | "in_development" / "planned" |
+### 9. CallToAction Widget
 
-### Navigation
-
-| Field | Type | Content |
-|-------|------|---------|
-| Logo | SVG | A! mark + "antwort" wordmark |
-| Nav items | Link list | Features (anchor), Docs, GitHub |
-| CTA | Link | "Get Started" |
-
-### Footer
-
-| Field | Type | Content |
-|-------|------|---------|
-| Logo | SVG | A! mark |
-| Tagline | Text | "The server-side agentic framework." |
-| Links | Link list | Docs, GitHub, Quickstarts, Blog, License |
-| Byline | Text | "Built with Go. Runs on Kubernetes." |
-
-### Open Graph Metadata
-
-| Field | Type | Content |
-|-------|------|---------|
-| og:title | Text | "Antwort" |
-| og:description | Text | "The server-side agentic framework." |
-| og:image | URL | Path to og-image.png (1200x630) |
-| og:url | URL | https://antwort.github.io |
-| og:type | Text | "website" |
+```typescript
+CallToAction({
+  title: 'Ready to deploy agentic AI?',
+  subtitle: 'Open source. Apache 2.0.',
+  actions: [
+    { variant: 'primary', text: 'Get Started', href: '/docs/...' },
+    { text: 'View on GitHub', href: 'https://github.com/rhuss/antwort' },
+  ]
+})
+```
 
 ## Documentation Structure (Antora)
 
-### Component: antwort
-
-| Page | Description | Priority |
-|------|-------------|----------|
-| index.adoc | Documentation home, overview | P1 |
-| getting-started.adoc | Quickstart guide | P1 |
-| architecture.adoc | System architecture overview | P2 |
-| configuration.adoc | Configuration reference | P2 |
-| providers.adoc | Provider setup (vLLM, LiteLLM) | P2 |
-| tools.adoc | Tool execution (MCP, built-in, sandbox) | P2 |
-| auth.adoc | Authentication setup (JWT, API key) | P2 |
-| storage.adoc | Storage configuration (PostgreSQL, memory) | P2 |
-| observability.adoc | Metrics and monitoring | P2 |
-| deployment.adoc | Kubernetes deployment guide | P2 |
-| api-reference.adoc | Responses API reference | P2 |
+Same as previous plan. 11 AsciiDoc pages under `docs/modules/ROOT/pages/` in the main repo. Already created and verified.
 
 ## Logo Assets
 
-| Asset | Format | Size | Purpose |
-|-------|--------|------|---------|
-| logo.svg | SVG | Scalable | Primary logo mark (A! in circle) |
-| logo-full.svg | SVG | Scalable | Wordmark (A! mark + "antwort") |
-| favicon.svg | SVG | Scalable | Browser tab icon |
-| favicon.ico | ICO | 16x16, 32x32 | Legacy browser fallback |
-| apple-touch-icon.png | PNG | 180x180 | iOS home screen |
-| og-image.png | PNG | 1200x630 | Social sharing preview |
+Same as previous plan. SVG logo mark (A! in circle), wordmark, and favicon. Already created. Will be moved into the Astro `src/assets/images/` directory.
