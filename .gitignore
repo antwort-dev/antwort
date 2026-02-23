@@ -47,3 +47,6 @@ dist/
 
 # MCP config (local)
 .mcp.json
+
+# Downloaded upstream OpenAPI spec (fetched during validation)
+api/openresponses-ref.json

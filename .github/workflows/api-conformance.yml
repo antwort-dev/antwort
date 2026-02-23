@@ -1,0 +1,29 @@
+name: API Conformance
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  api-conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - name: Install oasdiff
+        run: go install github.com/oasdiff/oasdiff@latest
+
+      - name: Run oasdiff validation
+        run: ./api/validate-oasdiff.sh
+
+      - name: Run integration tests
+        run: go test ./test/integration/ -timeout 120s -v -count=1
+
+      - name: Run unit tests
+        run: go test ./pkg/... -timeout 60s

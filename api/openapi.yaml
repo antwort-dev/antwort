@@ -1,0 +1,1048 @@
+openapi: 3.1.0
+info:
+  title: Antwort API
+  description: >
+    OpenResponses-compatible agentic AI gateway. Implements the OpenResponses
+    Responses API plus side-APIs for vector stores, health, and metrics.
+  version: 0.1.0
+  license:
+    name: Apache-2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+
+paths:
+  /v1/responses:
+    post:
+      operationId: createResponse
+      summary: Create a response
+      description: >
+        Create a new model response. Can return a complete response object
+        or stream Server-Sent Events when stream=true.
+      tags:
+        - Responses
+      security:
+        - BearerAuth: []
+        - {}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateResponseRequest"
+      responses:
+        "200":
+          description: Non-streaming response
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/X-Request-ID"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Response"
+            text/event-stream:
+              schema:
+                description: >
+                  SSE stream of StreamEvent objects, terminated by
+                  a `data: [DONE]` sentinel.
+                type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /v1/responses/{response_id}:
+    get:
+      operationId: getResponse
+      summary: Retrieve a response
+      description: Retrieve a previously created response by its ID.
+      tags:
+        - Responses
+      security:
+        - BearerAuth: []
+        - {}
+      parameters:
+        - $ref: "#/components/parameters/ResponseID"
+      responses:
+        "200":
+          description: Response found
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/X-Request-ID"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Response"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "501":
+          description: Storage not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    delete:
+      operationId: deleteResponse
+      summary: Delete or cancel a response
+      description: >
+        Delete a persisted response or cancel an in-flight streaming response.
+      tags:
+        - Responses
+      security:
+        - BearerAuth: []
+        - {}
+      parameters:
+        - $ref: "#/components/parameters/ResponseID"
+      responses:
+        "204":
+          description: Response deleted or cancelled
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/X-Request-ID"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "501":
+          description: Storage not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /builtin/file_search/vector_stores:
+    post:
+      operationId: createVectorStore
+      summary: Create a vector store
+      tags:
+        - Vector Stores
+      security:
+        - BearerAuth: []
+        - {}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateVectorStoreRequest"
+      responses:
+        "201":
+          description: Vector store created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VectorStore"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    get:
+      operationId: listVectorStores
+      summary: List vector stores
+      tags:
+        - Vector Stores
+      security:
+        - BearerAuth: []
+        - {}
+      responses:
+        "200":
+          description: List of vector stores
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VectorStoreList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /builtin/file_search/vector_stores/{store_id}:
+    get:
+      operationId: getVectorStore
+      summary: Get a vector store
+      tags:
+        - Vector Stores
+      security:
+        - BearerAuth: []
+        - {}
+      parameters:
+        - $ref: "#/components/parameters/StoreID"
+      responses:
+        "200":
+          description: Vector store found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VectorStore"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    delete:
+      operationId: deleteVectorStore
+      summary: Delete a vector store
+      tags:
+        - Vector Stores
+      security:
+        - BearerAuth: []
+        - {}
+      parameters:
+        - $ref: "#/components/parameters/StoreID"
+      responses:
+        "200":
+          description: Vector store deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VectorStoreDeleted"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /healthz:
+    get:
+      operationId: healthCheck
+      summary: Health check
+      description: Returns "ok" when the service is healthy.
+      tags:
+        - Infrastructure
+      security: []
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "ok\n"
+
+  /readyz:
+    get:
+      operationId: readinessCheck
+      summary: Readiness check
+      tags:
+        - Infrastructure
+      security: []
+      responses:
+        "200":
+          description: Service is ready
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "ok\n"
+
+  /metrics:
+    get:
+      operationId: getMetrics
+      summary: Prometheus metrics
+      description: >
+        Returns Prometheus-format metrics. Only available when
+        observability.metrics.enabled is true.
+      tags:
+        - Infrastructure
+      security: []
+      responses:
+        "200":
+          description: Prometheus metrics in text exposition format
+          content:
+            text/plain:
+              schema:
+                type: string
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: >
+        API key or JWT bearer token. Supports API key authentication
+        and JWT/OIDC with JWKS validation.
+
+  headers:
+    X-Request-ID:
+      description: Unique request identifier (echoed from request or generated)
+      schema:
+        type: string
+
+  parameters:
+    ResponseID:
+      name: response_id
+      in: path
+      required: true
+      description: "Response ID (format: resp_ followed by 24 alphanumeric characters)"
+      schema:
+        type: string
+        pattern: "^resp_[a-zA-Z0-9]{24}$"
+
+    StoreID:
+      name: store_id
+      in: path
+      required: true
+      description: Vector store ID
+      schema:
+        type: string
+
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+    PayloadTooLarge:
+      description: Request body exceeds size limit
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+    UnsupportedMediaType:
+      description: Content-Type must be application/json
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+    TooManyRequests:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+  schemas:
+    # -----------------------------------------------------------------------
+    # Request schemas
+    # -----------------------------------------------------------------------
+
+    CreateResponseRequest:
+      type: object
+      required:
+        - model
+        - input
+      properties:
+        model:
+          type: string
+          description: Model identifier to use for inference.
+        input:
+          type: array
+          items:
+            $ref: "#/components/schemas/InputItem"
+          description: Conversation input items.
+        instructions:
+          type: string
+          description: System-level instructions for the model.
+        tools:
+          type: array
+          items:
+            $ref: "#/components/schemas/ToolDefinition"
+          description: Tools available to the model.
+        tool_choice:
+          $ref: "#/components/schemas/ToolChoice"
+        allowed_tools:
+          type: array
+          items:
+            type: string
+          description: Filter for allowed tool names.
+        store:
+          type: boolean
+          description: Whether to persist the response for later retrieval.
+        stream:
+          type: boolean
+          description: Whether to stream the response as SSE events.
+          default: false
+        previous_response_id:
+          type: string
+          description: ID of a previous response for conversation chaining.
+        truncation:
+          type: string
+          description: Truncation strategy.
+        service_tier:
+          type: string
+          description: Service tier hint.
+        max_output_tokens:
+          type: integer
+          description: Maximum number of output tokens.
+        temperature:
+          type: number
+          description: Sampling temperature (0.0 to 2.0).
+        top_p:
+          type: number
+          description: Nucleus sampling probability.
+        extensions:
+          type: object
+          additionalProperties: true
+          description: Provider-specific extension data.
+
+    # -----------------------------------------------------------------------
+    # Input item (request-side, supports flat wire format)
+    # -----------------------------------------------------------------------
+
+    InputItem:
+      type: object
+      required:
+        - type
+      properties:
+        id:
+          type: string
+        type:
+          $ref: "#/components/schemas/ItemType"
+        status:
+          $ref: "#/components/schemas/ItemStatus"
+        # Message fields (flat wire format)
+        role:
+          $ref: "#/components/schemas/MessageRole"
+        content:
+          type: array
+          items:
+            oneOf:
+              - $ref: "#/components/schemas/ContentPart"
+              - $ref: "#/components/schemas/OutputContentPart"
+        # Function call fields (flat wire format)
+        call_id:
+          type: string
+        name:
+          type: string
+        arguments:
+          type: string
+        # Function call output fields (flat wire format)
+        output:
+          type: string
+      description: >
+        An input conversation item. Uses the flat wire format where type-specific
+        fields appear at the top level. The `type` field determines which fields
+        are present.
+
+    # -----------------------------------------------------------------------
+    # Response schemas
+    # -----------------------------------------------------------------------
+
+    Response:
+      type: object
+      required:
+        - id
+        - object
+        - created_at
+        - status
+        - model
+        - output
+        - tools
+        - tool_choice
+        - truncation
+        - parallel_tool_calls
+        - temperature
+        - top_p
+        - top_logprobs
+        - presence_penalty
+        - frequency_penalty
+        - store
+        - background
+        - service_tier
+        - metadata
+      properties:
+        id:
+          type: string
+          description: Unique response identifier (resp_ prefix).
+          pattern: "^resp_[a-zA-Z0-9]{24}$"
+        object:
+          type: string
+          enum:
+            - response
+        created_at:
+          type: integer
+          description: Unix timestamp of creation.
+        completed_at:
+          type:
+            - integer
+            - "null"
+          description: Unix timestamp of completion (null if not completed).
+        status:
+          $ref: "#/components/schemas/ResponseStatus"
+        incomplete_details:
+          oneOf:
+            - $ref: "#/components/schemas/IncompleteDetails"
+            - type: "null"
+        model:
+          type: string
+        previous_response_id:
+          type:
+            - string
+            - "null"
+        instructions:
+          type:
+            - string
+            - "null"
+        input:
+          type: array
+          items:
+            $ref: "#/components/schemas/OutputItem"
+        output:
+          type: array
+          items:
+            $ref: "#/components/schemas/OutputItem"
+        error:
+          oneOf:
+            - $ref: "#/components/schemas/APIError"
+            - type: "null"
+        tools:
+          type: array
+          items:
+            $ref: "#/components/schemas/ToolDefinition"
+        tool_choice:
+          $ref: "#/components/schemas/ToolChoice"
+        truncation:
+          type: string
+        parallel_tool_calls:
+          type: boolean
+        text:
+          oneOf:
+            - $ref: "#/components/schemas/TextConfig"
+            - type: "null"
+        top_p:
+          type: number
+        presence_penalty:
+          type: number
+        frequency_penalty:
+          type: number
+        top_logprobs:
+          type: integer
+        temperature:
+          type: number
+        reasoning:
+          oneOf:
+            - $ref: "#/components/schemas/ReasoningConfig"
+            - type: "null"
+        usage:
+          oneOf:
+            - $ref: "#/components/schemas/Usage"
+            - type: "null"
+        max_output_tokens:
+          type:
+            - integer
+            - "null"
+        max_tool_calls:
+          type:
+            - integer
+            - "null"
+        store:
+          type: boolean
+        background:
+          type: boolean
+        service_tier:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+        safety_identifier:
+          type:
+            - string
+            - "null"
+        prompt_cache_key:
+          type:
+            - string
+            - "null"
+        extensions:
+          type: object
+          additionalProperties: true
+
+    # -----------------------------------------------------------------------
+    # Output item (response-side, flat wire format)
+    # -----------------------------------------------------------------------
+
+    OutputItem:
+      type: object
+      required:
+        - id
+        - type
+        - status
+      properties:
+        id:
+          type: string
+          pattern: "^item_[a-zA-Z0-9]{24}$"
+        type:
+          $ref: "#/components/schemas/ItemType"
+        status:
+          $ref: "#/components/schemas/ItemStatus"
+        # Message fields (flat)
+        role:
+          $ref: "#/components/schemas/MessageRole"
+        content:
+          type: array
+          items:
+            oneOf:
+              - $ref: "#/components/schemas/ContentPart"
+              - $ref: "#/components/schemas/OutputContentPart"
+        # Function call fields (flat)
+        call_id:
+          type: string
+        name:
+          type: string
+        arguments:
+          type: string
+        # Function call output (flat)
+        output:
+          type: string
+        # Reasoning fields (flat)
+        encrypted_content:
+          type: string
+        summary:
+          type: string
+        # Extension data
+        extension:
+          type: object
+          additionalProperties: true
+      description: >
+        A conversation output item in flat wire format. The `type` field
+        determines which top-level fields are present (message, function_call,
+        function_call_output, or reasoning).
+
+    # -----------------------------------------------------------------------
+    # Streaming event schemas
+    # -----------------------------------------------------------------------
+
+    StreamEvent:
+      type: object
+      required:
+        - type
+        - sequence_number
+      properties:
+        type:
+          $ref: "#/components/schemas/StreamEventType"
+        sequence_number:
+          type: integer
+          description: Monotonically increasing event counter.
+        response:
+          $ref: "#/components/schemas/Response"
+        item:
+          $ref: "#/components/schemas/OutputItem"
+        part:
+          $ref: "#/components/schemas/OutputContentPart"
+        delta:
+          type: string
+          description: Incremental text or argument content.
+        text:
+          type: string
+          description: Complete text (for done events).
+        arguments:
+          type: string
+          description: Complete function arguments (for done events).
+        item_id:
+          type: string
+        output_index:
+          type: integer
+        content_index:
+          type: integer
+        logprobs:
+          type: array
+          items:
+            $ref: "#/components/schemas/TokenLogprob"
+      description: >
+        A single server-sent event in a streaming response. Fields present
+        depend on the event type.
+
+    StreamEventType:
+      type: string
+      enum:
+        - response.created
+        - response.queued
+        - response.in_progress
+        - response.completed
+        - response.failed
+        - response.cancelled
+        - response.requires_action
+        - response.output_item.added
+        - response.output_item.done
+        - response.content_part.added
+        - response.content_part.done
+        - response.output_text.delta
+        - response.output_text.done
+        - response.function_call_arguments.delta
+        - response.function_call_arguments.done
+
+    # -----------------------------------------------------------------------
+    # Shared types
+    # -----------------------------------------------------------------------
+
+    ItemType:
+      type: string
+      enum:
+        - message
+        - function_call
+        - function_call_output
+        - reasoning
+      description: >
+        Type of conversation item. Provider extension types use a
+        colon-separated format (e.g., provider:type).
+
+    ItemStatus:
+      type: string
+      enum:
+        - in_progress
+        - incomplete
+        - completed
+        - failed
+
+    MessageRole:
+      type: string
+      enum:
+        - user
+        - assistant
+        - system
+
+    ResponseStatus:
+      type: string
+      enum:
+        - queued
+        - in_progress
+        - completed
+        - incomplete
+        - failed
+        - cancelled
+        - requires_action
+
+    ContentPart:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          enum:
+            - input_text
+            - input_image
+            - input_audio
+            - input_video
+        text:
+          type: string
+        url:
+          type: string
+          format: uri
+        data:
+          type: string
+          description: Base64-encoded media data.
+        media_type:
+          type: string
+          description: MIME type for media content.
+
+    OutputContentPart:
+      type: object
+      required:
+        - type
+        - text
+        - annotations
+        - logprobs
+      properties:
+        type:
+          type: string
+          enum:
+            - output_text
+            - summary_text
+        text:
+          type: string
+        annotations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Annotation"
+        logprobs:
+          type: array
+          items:
+            $ref: "#/components/schemas/TokenLogprob"
+
+    Annotation:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          type: string
+        text:
+          type: string
+        start_index:
+          type: integer
+        end_index:
+          type: integer
+
+    TokenLogprob:
+      type: object
+      required:
+        - token
+        - logprob
+      properties:
+        token:
+          type: string
+        logprob:
+          type: number
+        top_logprobs:
+          type: array
+          items:
+            $ref: "#/components/schemas/TopLogprob"
+
+    TopLogprob:
+      type: object
+      required:
+        - token
+        - logprob
+      properties:
+        token:
+          type: string
+        logprob:
+          type: number
+
+    ToolDefinition:
+      type: object
+      required:
+        - type
+        - name
+      properties:
+        type:
+          type: string
+          enum:
+            - function
+        name:
+          type: string
+        description:
+          type: string
+        parameters:
+          type: object
+          additionalProperties: true
+          description: JSON Schema for the function parameters.
+        strict:
+          type: boolean
+          default: false
+
+    ToolChoice:
+      oneOf:
+        - type: string
+          enum:
+            - auto
+            - required
+            - none
+        - type: object
+          required:
+            - type
+            - name
+          properties:
+            type:
+              type: string
+              enum:
+                - function
+            name:
+              type: string
+      description: >
+        Tool selection strategy. Either a string ("auto", "required", "none")
+        or an object specifying a function to call.
+
+    TextConfig:
+      type: object
+      properties:
+        format:
+          $ref: "#/components/schemas/TextFormat"
+
+    TextFormat:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          type: string
+
+    ReasoningConfig:
+      type: object
+      properties:
+        effort:
+          type:
+            - string
+            - "null"
+        summary:
+          type:
+            - string
+            - "null"
+
+    IncompleteDetails:
+      type: object
+      properties:
+        reason:
+          type: string
+
+    Usage:
+      type: object
+      required:
+        - input_tokens
+        - output_tokens
+        - total_tokens
+        - input_tokens_details
+        - output_tokens_details
+      properties:
+        input_tokens:
+          type: integer
+        output_tokens:
+          type: integer
+        total_tokens:
+          type: integer
+        input_tokens_details:
+          $ref: "#/components/schemas/InputTokensDetails"
+        output_tokens_details:
+          $ref: "#/components/schemas/OutputTokensDetails"
+
+    InputTokensDetails:
+      type: object
+      required:
+        - cached_tokens
+      properties:
+        cached_tokens:
+          type: integer
+
+    OutputTokensDetails:
+      type: object
+      required:
+        - reasoning_tokens
+      properties:
+        reasoning_tokens:
+          type: integer
+
+    APIError:
+      type: object
+      required:
+        - type
+        - message
+      properties:
+        type:
+          type: string
+          enum:
+            - invalid_request
+            - not_found
+            - server_error
+            - model_error
+            - too_many_requests
+        code:
+          type: string
+        param:
+          type: string
+        message:
+          type: string
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          $ref: "#/components/schemas/APIError"
+
+    # -----------------------------------------------------------------------
+    # Vector store schemas
+    # -----------------------------------------------------------------------
+
+    CreateVectorStoreRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+
+    VectorStore:
+      type: object
+      required:
+        - id
+        - object
+        - name
+        - created_at
+      properties:
+        id:
+          type: string
+        object:
+          type: string
+          enum:
+            - vector_store
+        name:
+          type: string
+        created_at:
+          type: integer
+          description: Unix timestamp.
+
+    VectorStoreList:
+      type: object
+      required:
+        - object
+        - data
+      properties:
+        object:
+          type: string
+          enum:
+            - list
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/VectorStore"
+
+    VectorStoreDeleted:
+      type: object
+      required:
+        - id
+        - object
+        - deleted
+      properties:
+        id:
+          type: string
+        object:
+          type: string
+          enum:
+            - vector_store.deleted
+        deleted:
+          type: boolean
+          enum:
+            - true

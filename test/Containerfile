@@ -1,0 +1,37 @@
+# Test runner container for the antwort API conformance pipeline.
+#
+# Builds antwort server and mock backend, installs oasdiff, and runs
+# the full validation pipeline (oasdiff + Go integration tests + Zod suite).
+#
+# Build: podman build -t antwort-api-test -f test/Containerfile .
+# Run:   podman run --rm antwort-api-test
+
+FROM docker.io/library/golang:1.25
+
+WORKDIR /src
+
+# Install oasdiff.
+RUN go install github.com/oasdiff/oasdiff@latest
+
+# Install curl for health checks and jq for JSON parsing.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl jq \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy Go module files and download dependencies.
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code.
+COPY . .
+
+# Build binaries.
+RUN go build -o /usr/local/bin/antwort ./cmd/server && \
+    go build -o /usr/local/bin/mock-backend ./cmd/mock-backend
+
+# Copy test scripts.
+COPY test/run.sh /usr/local/bin/run-api-tests
+COPY api/validate-oasdiff.sh /usr/local/bin/validate-oasdiff
+RUN chmod +x /usr/local/bin/run-api-tests /usr/local/bin/validate-oasdiff
+
+ENTRYPOINT ["run-api-tests"]

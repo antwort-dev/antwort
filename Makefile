@@ -8,7 +8,7 @@ IMAGE_TAG  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
 
 KUBE_NAMESPACE ?= antwort
 
-.PHONY: build test vet conformance clean image-build image-push image-latest deploy deploy-openshift
+.PHONY: build test vet conformance api-test clean image-build image-push image-latest deploy deploy-openshift
 
 # Build server and mock-backend binaries.
 build:
@@ -22,6 +22,10 @@ test:
 # Run go vet.
 vet:
 	go vet ./pkg/... ./cmd/...
+
+# Run API conformance pipeline (oasdiff + integration tests).
+api-test:
+	./test/run.sh
 
 # Run OpenResponses conformance tests.
 # Usage: make conformance PROFILE=core
