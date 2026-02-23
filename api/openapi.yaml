@@ -27,7 +27,6 @@ paths:
         - BearerAuth: []
         - {}
       requestBody:
-        required: true
         content:
           application/json:
             schema:
@@ -370,28 +369,35 @@ components:
 
     CreateResponseRequest:
       type: object
-      required:
-        - model
-        - input
       properties:
         model:
-          type: string
+          anyOf:
+            - type: string
+            - type: "null"
           description: Model identifier to use for inference.
         input:
-          type: array
-          items:
-            $ref: "#/components/schemas/InputItem"
-          description: Conversation input items.
+          anyOf:
+            - type: string
+            - type: array
+              items:
+                $ref: "#/components/schemas/InputItem"
+          description: Conversation input (string or array of items).
         instructions:
-          type: string
+          anyOf:
+            - type: string
+            - type: "null"
           description: System-level instructions for the model.
         tools:
-          type: array
-          items:
-            $ref: "#/components/schemas/ToolDefinition"
+          anyOf:
+            - type: array
+              items:
+                $ref: "#/components/schemas/ToolDefinition"
+            - type: "null"
           description: Tools available to the model.
         tool_choice:
-          $ref: "#/components/schemas/ToolChoice"
+          anyOf:
+            - $ref: "#/components/schemas/ToolChoice"
+            - type: "null"
         allowed_tools:
           type: array
           items:
@@ -405,57 +411,102 @@ components:
           description: Whether to stream the response as SSE events.
           default: false
         previous_response_id:
-          type: string
+          anyOf:
+            - type: string
+            - type: "null"
           description: ID of a previous response for conversation chaining.
         truncation:
           type: string
+          enum:
+            - auto
+            - disabled
           description: Truncation strategy.
         service_tier:
           type: string
+          enum:
+            - auto
+            - default
+            - flex
+            - priority
           description: Service tier hint.
         max_output_tokens:
-          type: integer
+          anyOf:
+            - type: integer
+            - type: "null"
           description: Maximum number of output tokens.
         temperature:
-          type: number
+          anyOf:
+            - type: number
+            - type: "null"
           description: Sampling temperature (0.0 to 2.0).
         top_p:
-          type: number
+          anyOf:
+            - type: number
+            - type: "null"
           description: Nucleus sampling probability.
         frequency_penalty:
-          type: number
+          anyOf:
+            - type: number
+            - type: "null"
           description: Penalize tokens based on frequency of appearance.
         presence_penalty:
-          type: number
+          anyOf:
+            - type: number
+            - type: "null"
           description: Penalize tokens based on whether they appear in the text.
         top_logprobs:
-          type: integer
+          anyOf:
+            - type: integer
+            - type: "null"
           description: Number of most likely tokens to return with probabilities.
         parallel_tool_calls:
-          type: boolean
+          anyOf:
+            - type: boolean
+            - type: "null"
           description: Whether to execute tool calls concurrently (default true).
           default: true
         max_tool_calls:
-          type: integer
+          anyOf:
+            - type: integer
+            - type: "null"
           description: Maximum number of tool call rounds in the agentic loop.
         metadata:
-          type: object
-          additionalProperties: true
+          anyOf:
+            - type: object
+              additionalProperties: true
+            - type: "null"
           description: Arbitrary key-value metadata echoed in the response.
         user:
-          type: string
+          anyOf:
+            - type: string
+            - type: "null"
           description: Unique identifier for the end user.
         reasoning:
-          $ref: "#/components/schemas/ReasoningConfig"
+          anyOf:
+            - $ref: "#/components/schemas/ReasoningConfig"
+            - type: "null"
         text:
-          $ref: "#/components/schemas/TextConfig"
+          anyOf:
+            - $ref: "#/components/schemas/TextConfig"
+            - type: "null"
         include:
           type: array
           items:
             type: string
+            enum:
+              - "file_search_call.results"
+              - "message.input_image.image_url"
+              - "computer_call_output.output.image_url"
+              - "reasoning.encrypted_content"
+              - "code_interpreter_call.outputs"
+              - "message.output_text.logprobs"
+              - "web_search_call.results"
+              - "web_search_call.action.sources"
           description: Controls which optional response sections are returned.
         stream_options:
-          $ref: "#/components/schemas/RequestStreamOptions"
+          anyOf:
+            - $ref: "#/components/schemas/RequestStreamOptions"
+            - type: "null"
         extensions:
           type: object
           additionalProperties: true
@@ -510,11 +561,17 @@ components:
         - id
         - object
         - created_at
+        - completed_at
         - status
+        - incomplete_details
         - model
+        - previous_response_id
+        - instructions
         - output
+        - error
         - tools
         - tool_choice
+        - text
         - truncation
         - parallel_tool_calls
         - temperature
@@ -522,10 +579,17 @@ components:
         - top_logprobs
         - presence_penalty
         - frequency_penalty
+        - reasoning
+        - usage
+        - max_output_tokens
+        - max_tool_calls
         - store
         - background
         - service_tier
         - metadata
+        - user
+        - safety_identifier
+        - prompt_cache_key
       properties:
         id:
           type: string
@@ -546,9 +610,12 @@ components:
         status:
           $ref: "#/components/schemas/ResponseStatus"
         incomplete_details:
-          oneOf:
-            - $ref: "#/components/schemas/IncompleteDetails"
-            - type: "null"
+          type:
+            - object
+            - "null"
+          properties:
+            reason:
+              type: string
         model:
           type: string
         previous_response_id:
@@ -568,23 +635,39 @@ components:
           items:
             $ref: "#/components/schemas/OutputItem"
         error:
-          oneOf:
-            - $ref: "#/components/schemas/APIError"
-            - type: "null"
+          type:
+            - object
+            - "null"
+          properties:
+            type:
+              type: string
+            code:
+              type: string
+            param:
+              type: string
+            message:
+              type: string
         tools:
           type: array
           items:
             $ref: "#/components/schemas/ToolDefinition"
         tool_choice:
-          $ref: "#/components/schemas/ToolChoice"
+          anyOf:
+            - $ref: "#/components/schemas/ToolChoice"
+            - type: "null"
         truncation:
           type: string
         parallel_tool_calls:
           type: boolean
         text:
-          oneOf:
-            - $ref: "#/components/schemas/TextConfig"
-            - type: "null"
+          type:
+            - object
+            - "null"
+          required:
+            - format
+          properties:
+            format:
+              $ref: "#/components/schemas/TextFormat"
         top_p:
           type: number
         presence_penalty:
@@ -596,13 +679,33 @@ components:
         temperature:
           type: number
         reasoning:
-          oneOf:
-            - $ref: "#/components/schemas/ReasoningConfig"
-            - type: "null"
+          type:
+            - object
+            - "null"
+          properties:
+            effort:
+              type:
+                - string
+                - "null"
+            summary:
+              type:
+                - string
+                - "null"
         usage:
-          oneOf:
-            - $ref: "#/components/schemas/Usage"
-            - type: "null"
+          type:
+            - object
+            - "null"
+          properties:
+            input_tokens:
+              type: integer
+            output_tokens:
+              type: integer
+            total_tokens:
+              type: integer
+            input_tokens_details:
+              $ref: "#/components/schemas/InputTokensDetails"
+            output_tokens_details:
+              $ref: "#/components/schemas/OutputTokensDetails"
         max_output_tokens:
           type:
             - integer
@@ -621,7 +724,9 @@ components:
           type: object
           additionalProperties: true
         user:
-          type: string
+          type:
+            - string
+            - "null"
         safety_identifier:
           type:
             - string
