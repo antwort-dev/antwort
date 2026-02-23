@@ -1,0 +1,10 @@
+= API Reference
+
+This page provides the complete API reference for Antwort's OpenResponses endpoints.
+You will find request and response schemas, endpoint descriptions, error codes, and compatibility notes for the OpenAI SDK.
+
+[NOTE]
+====
+This page is under construction.
+Content is coming soon.
+====

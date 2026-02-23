@@ -1,0 +1,10 @@
+= Authentication
+
+This page describes Antwort's authentication and authorization model, including API key validation, JWT/OIDC token verification, and multi-tenant isolation.
+You will learn how to configure authentication providers, map tokens to tenants, and secure your deployment.
+
+[NOTE]
+====
+This page is under construction.
+Content is coming soon.
+====

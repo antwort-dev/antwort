@@ -1,0 +1,10 @@
+= Architecture Overview
+
+This page describes the internal architecture of Antwort, including the request lifecycle, component interactions, and data flow.
+You will learn how a client request enters the transport layer, passes through the engine's agentic loop, interacts with LLM providers and tool executors, and returns a response.
+
+[NOTE]
+====
+This page is under construction.
+Content is coming soon.
+====

@@ -1,0 +1,22 @@
+= Antwort Documentation
+
+Antwort is the open-source OpenResponses API implementation for production.
+It runs AI agents server-side on Kubernetes with sandboxed code execution, multi-tenant isolation, and full API compatibility with any OpenAI SDK.
+
+== Getting Started
+
+Start with the xref:getting-started.adoc[Quickstart Guide] to deploy Antwort on your Kubernetes cluster.
+
+== Key Features
+
+* **OpenResponses API**: Full compliance with the OpenResponses specification. Any OpenAI SDK works.
+* **Agentic Loop**: Multi-turn reasoning with concurrent tool execution.
+* **Multi-Provider**: vLLM, LiteLLM, Ollama, or any OpenAI-compatible endpoint.
+* **MCP Tools**: Model Context Protocol integration for external tool servers.
+* **Multi-Tenant Auth**: JWT/OIDC and API key authentication with tenant isolation.
+* **Conversation Memory**: PostgreSQL-backed persistence with response chaining.
+* **Observability**: Prometheus metrics with OpenTelemetry GenAI conventions.
+
+== Architecture
+
+See the xref:architecture.adoc[Architecture Overview] for how requests flow through the system.

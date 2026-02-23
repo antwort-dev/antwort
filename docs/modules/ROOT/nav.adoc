@@ -1,0 +1,16 @@
+* xref:index.adoc[Overview]
+* Getting Started
+** xref:getting-started.adoc[Quickstart]
+* Architecture
+** xref:architecture.adoc[Overview]
+** xref:providers.adoc[Providers]
+* Features
+** xref:tools.adoc[Tool Execution]
+** xref:auth.adoc[Authentication]
+** xref:storage.adoc[Storage]
+** xref:observability.adoc[Observability]
+* Deployment
+** xref:deployment.adoc[Kubernetes]
+* Reference
+** xref:configuration.adoc[Configuration]
+** xref:api-reference.adoc[API Reference]

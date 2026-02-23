@@ -1,0 +1,82 @@
+= Getting Started
+
+This guide walks you through deploying Antwort on Kubernetes and sending your first AI agent request.
+By the end, you will have a running instance that can handle multi-turn conversations with tool execution.
+
+== Prerequisites
+
+* A Kubernetes cluster (v1.28 or later)
+* `kubectl` installed and configured to access your cluster
+* An LLM provider endpoint (vLLM, LiteLLM, Ollama, or any OpenAI-compatible API)
+
+== Step 1: Deploy Antwort
+
+Apply the Kustomize overlay to deploy Antwort with the default configuration.
+
+[source,bash]
+----
+kubectl apply -k https://github.com/rhuss/antwort/deploy/base
+----
+
+Wait for the Pod to become ready.
+
+[source,bash]
+----
+kubectl wait --for=condition=ready pod -l app=antwort --timeout=120s
+----
+
+Forward the service port to your local machine.
+
+[source,bash]
+----
+kubectl port-forward svc/antwort 8080:8080
+----
+
+== Step 2: Send Your First Request
+
+Create a simple response with a `web_search` tool.
+This demonstrates that Antwort accepts standard OpenAI SDK requests.
+
+[source,bash]
+----
+curl -s http://localhost:8080/v1/responses \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-4o",
+    "tools": [{"type": "web_search"}],
+    "input": "What is the current weather in Berlin?"
+  }' | jq .
+----
+
+The response follows the OpenResponses specification.
+It contains the model output along with any tool calls and their results.
+
+== Step 3: Try the Agentic Loop
+
+Send a more complex request that triggers multiple tool calls in a reasoning loop.
+
+[source,bash]
+----
+curl -s http://localhost:8080/v1/responses \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-4o",
+    "tools": [
+      {"type": "web_search"},
+      {"type": "code_interpreter"}
+    ],
+    "input": "Find the population of the 5 largest European cities and create a comparison chart."
+  }' | jq .
+----
+
+Antwort will execute the agentic loop, calling tools as needed until the model produces a final answer.
+Each tool call runs in a sandboxed environment.
+
+== Next Steps
+
+* xref:architecture.adoc[Architecture Overview]: Understand how requests flow through the system.
+* xref:configuration.adoc[Configuration]: Customize Antwort for your environment.
+* xref:providers.adoc[Providers]: Connect to different LLM backends.
+* xref:tools.adoc[Tool Execution]: Learn about built-in and MCP tools.
+* xref:auth.adoc[Authentication]: Set up multi-tenant authentication.
+* xref:deployment.adoc[Deployment]: Production deployment patterns on Kubernetes.
