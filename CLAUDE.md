@@ -14,6 +14,8 @@ Auto-generated from all feature plans. Last updated: 2026-02-16
 - Go 1.22+ for server and mock binaries. TypeScript/bun for the official compliance suite (run via container). + Existing antwort packages (api, transport, engine, provider, storage, tools). No new Go dependencies. (006-conformance)
 - Go 1.22+ (consistent with Specs 001-006) + Go stdlib for core + API key. `golang.org/x/crypto` for constant-time comparison (optional). JWT validation needs a JWKS library (adapter package only). (007-auth)
 - Go 1.22+ (consistent with Specs 001-007) + None new. Shared base uses existing types from pkg/api and pkg/provider. (008-provider-litellm)
+- HTML5, CSS3, minimal vanilla JavaScript (progressive enhancement). AsciiDoc for documentation. + Antora (documentation generator), @antora/lunr-extension (search), Google Fonts CDN (Inter, Inter Tight, JetBrains Mono) (018-landing-page)
+- N/A (static site, no server-side storage) (018-landing-page)
 
 - Go 1.22+ + None (Go standard library only: `encoding/json`, `crypto/rand`, `errors`, `fmt`, `strings`, `regexp`) (001-core-protocol)
 
@@ -33,9 +35,9 @@ tests/
 Go 1.22+: Follow standard conventions
 
 ## Recent Changes
+- 018-landing-page: Added HTML5, CSS3, minimal vanilla JavaScript (progressive enhancement). AsciiDoc for documentation. + Antora (documentation generator), @antora/lunr-extension (search), Google Fonts CDN (Inter, Inter Tight, JetBrains Mono)
 - 008-provider-litellm: Added Go 1.22+ (consistent with Specs 001-007) + None new. Shared base uses existing types from pkg/api and pkg/provider.
 - 007-auth: Added Go 1.22+ (consistent with Specs 001-006) + Go stdlib for core + API key. `golang.org/x/crypto` for constant-time comparison (optional). JWT validation needs a JWKS library (adapter package only).
-- 006-conformance: Added Go 1.22+ for server and mock binaries. TypeScript/bun for the official compliance suite (run via container). + Existing antwort packages (api, transport, engine, provider, storage, tools). No new Go dependencies.
 
 
 <!-- MANUAL ADDITIONS START -->
