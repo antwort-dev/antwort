@@ -15,18 +15,29 @@ These upstream request properties are accepted but not actively used by antwort:
 
 | Property | Reason |
 |---|---|
-| `background` | Background execution not implemented |
-| `conversation` | Not implemented |
-| `include` | Not implemented |
-| `parallel_tool_calls` | Always enabled |
-| `prompt_cache_key` | Not implemented |
-| `prompt_cache_retention` | Not implemented |
-| `reasoning` | Passed through to provider |
-| `safety_identifier` | Not implemented |
-| `stream_options` | Not implemented |
-| `text` | Passed through to provider |
-| `top_logprobs` | Passed through to provider |
-| `user` | Not tracked |
+| `background` | Background execution not implemented (future spec) |
+| `conversation` | Not implemented (future spec) |
+| `prompt_cache_key` | Passed through but not enforced |
+| `prompt_cache_retention` | Passed through but not enforced |
+| `safety_identifier` | Passed through but not enforced |
+
+## Supported Request Properties (Spec 020)
+
+These fields were added in Spec 020 and are fully supported:
+
+| Property | Behavior |
+|---|---|
+| `metadata` | Accepted and echoed in response |
+| `user` | Accepted and echoed in response |
+| `frequency_penalty` | Forwarded to inference provider |
+| `presence_penalty` | Forwarded to inference provider |
+| `top_logprobs` | Forwarded to inference provider |
+| `reasoning` | Forwarded to inference provider |
+| `text` | Forwarded to inference provider |
+| `parallel_tool_calls` | Controls concurrent vs sequential tool dispatch |
+| `max_tool_calls` | Limits agentic loop iterations |
+| `include` | Controls response verbosity (type added, filtering P2) |
+| `stream_options` | Controls streaming behavior (type added, usage P2) |
 
 ## Response Properties Not Returned
 
@@ -36,10 +47,9 @@ These upstream response properties are not emitted by antwort:
 |---|---|
 | `billing` | Not applicable |
 | `context_edits` | Not implemented |
-| `conversation` | Not implemented |
+| `conversation` | Not implemented (future spec) |
 | `cost_token` | Not applicable |
 | `next_response_ids` | Not implemented |
-| `user` | Not tracked |
 
 ## Nullable Handling
 

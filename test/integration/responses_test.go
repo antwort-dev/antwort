@@ -247,3 +247,111 @@ func TestResponseOutputFormat(t *testing.T) {
 		t.Error("output item has nested 'message' wrapper (should be flat wire format)")
 	}
 }
+
+func TestPassthroughFieldsRoundTrip(t *testing.T) {
+	reqBody := map[string]any{
+		"model": "mock-model",
+		"input": []map[string]any{
+			{
+				"type": "message",
+				"role": "user",
+				"content": []map[string]any{
+					{"type": "input_text", "text": "Hello"},
+				},
+			},
+		},
+		"metadata":            map[string]any{"env": "test", "version": "1.0"},
+		"user":                "test-user-123",
+		"frequency_penalty":   0.5,
+		"presence_penalty":    0.3,
+		"top_logprobs":        3,
+		"parallel_tool_calls": false,
+		"max_tool_calls":      5,
+	}
+
+	resp := postJSON(t, testEnv.BaseURL()+"/v1/responses", reqBody)
+	if resp.StatusCode != http.StatusOK {
+		body := readBody(t, resp)
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, body)
+	}
+
+	var raw map[string]json.RawMessage
+	decodeJSON(t, resp, &raw)
+
+	// Verify metadata round-trip.
+	if _, ok := raw["metadata"]; !ok {
+		t.Error("metadata missing from response")
+	} else {
+		var meta map[string]any
+		json.Unmarshal(raw["metadata"], &meta)
+		if meta["env"] != "test" {
+			t.Errorf("metadata.env = %v, want 'test'", meta["env"])
+		}
+	}
+
+	// Verify user round-trip.
+	if _, ok := raw["user"]; !ok {
+		t.Error("user missing from response")
+	} else {
+		var user string
+		json.Unmarshal(raw["user"], &user)
+		if user != "test-user-123" {
+			t.Errorf("user = %q, want 'test-user-123'", user)
+		}
+	}
+
+	// Verify frequency_penalty.
+	if _, ok := raw["frequency_penalty"]; !ok {
+		t.Error("frequency_penalty missing from response")
+	} else {
+		var fp float64
+		json.Unmarshal(raw["frequency_penalty"], &fp)
+		if fp != 0.5 {
+			t.Errorf("frequency_penalty = %v, want 0.5", fp)
+		}
+	}
+
+	// Verify presence_penalty.
+	if _, ok := raw["presence_penalty"]; !ok {
+		t.Error("presence_penalty missing from response")
+	} else {
+		var pp float64
+		json.Unmarshal(raw["presence_penalty"], &pp)
+		if pp != 0.3 {
+			t.Errorf("presence_penalty = %v, want 0.3", pp)
+		}
+	}
+
+	// Verify top_logprobs.
+	if _, ok := raw["top_logprobs"]; !ok {
+		t.Error("top_logprobs missing from response")
+	} else {
+		var tl float64
+		json.Unmarshal(raw["top_logprobs"], &tl)
+		if tl != 3 {
+			t.Errorf("top_logprobs = %v, want 3", tl)
+		}
+	}
+
+	// Verify parallel_tool_calls echoed as false.
+	if _, ok := raw["parallel_tool_calls"]; !ok {
+		t.Error("parallel_tool_calls missing from response")
+	} else {
+		var ptc bool
+		json.Unmarshal(raw["parallel_tool_calls"], &ptc)
+		if ptc != false {
+			t.Errorf("parallel_tool_calls = %v, want false", ptc)
+		}
+	}
+
+	// Verify max_tool_calls.
+	if _, ok := raw["max_tool_calls"]; !ok {
+		t.Error("max_tool_calls missing from response")
+	} else {
+		var mtc float64
+		json.Unmarshal(raw["max_tool_calls"], &mtc)
+		if mtc != 5 {
+			t.Errorf("max_tool_calls = %v, want 5", mtc)
+		}
+	}
+}

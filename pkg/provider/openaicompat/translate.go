@@ -8,13 +8,17 @@ import (
 // suitable for the /v1/chat/completions endpoint.
 func TranslateToChat(req *provider.ProviderRequest) ChatCompletionRequest {
 	cr := ChatCompletionRequest{
-		Model:       req.Model,
-		Temperature: req.Temperature,
-		TopP:        req.TopP,
-		MaxTokens:   req.MaxTokens,
-		Stop:        req.Stop,
-		N:           1,
-		Stream:      req.Stream,
+		Model:            req.Model,
+		Temperature:      req.Temperature,
+		TopP:             req.TopP,
+		MaxTokens:        req.MaxTokens,
+		Stop:             req.Stop,
+		N:                1,
+		Stream:           req.Stream,
+		FrequencyPenalty: req.FrequencyPenalty,
+		PresencePenalty:  req.PresencePenalty,
+		TopLogprobs:      req.TopLogprobs,
+		User:             req.User,
 	}
 
 	// When streaming, enable usage reporting in the stream.

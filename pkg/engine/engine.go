@@ -124,26 +124,10 @@ func (e *Engine) handleNonStreaming(ctx context.Context, req *api.CreateResponse
 	}
 
 	// Build the API response.
-	resp := &api.Response{
-		ID:                 api.NewResponseID(),
-		Object:             "response",
-		Status:             provResp.Status,
-		Output:             provResp.Items,
-		Model:              provResp.Model,
-		Usage:              &provResp.Usage,
-		PreviousResponseID: stringPtr(req.PreviousResponseID),
-		CreatedAt:          time.Now().Unix(),
-		Tools:              ensureTools(req.Tools),
-		ToolChoice:         toolChoiceValue(req.ToolChoice),
-		Truncation:         getTruncation(req),
-		Store:              isStateful(req),
-		Text:               &api.TextConfig{Format: &api.TextFormat{Type: "text"}},
-		ServiceTier:        getServiceTier(req),
-		Metadata:           make(map[string]any),
-		Temperature:        derefFloat64(req.Temperature),
-		TopP:               derefFloat64(req.TopP),
-		MaxOutputTokens:    req.MaxOutputTokens,
-	}
+	resp := buildResponseFromRequest(req, provResp.Status)
+	resp.Output = provResp.Items
+	resp.Model = provResp.Model
+	resp.Usage = &provResp.Usage
 
 	// Write the response to the client first.
 	if err := w.WriteResponse(ctx, resp); err != nil {
@@ -174,25 +158,7 @@ func (e *Engine) handleStreaming(ctx context.Context, req *api.CreateResponseReq
 	var firstTokenTime *time.Duration
 
 	// Build the initial response skeleton.
-	resp := &api.Response{
-		ID:                 api.NewResponseID(),
-		Object:             "response",
-		Status:             api.ResponseStatusInProgress,
-		Output:             []api.Item{},
-		Model:              req.Model,
-		PreviousResponseID: stringPtr(req.PreviousResponseID),
-		CreatedAt:          time.Now().Unix(),
-		Tools:              ensureTools(req.Tools),
-		ToolChoice:         toolChoiceValue(req.ToolChoice),
-		Truncation:         getTruncation(req),
-		Store:              isStateful(req),
-		Text:               &api.TextConfig{Format: &api.TextFormat{Type: "text"}},
-		ServiceTier:        getServiceTier(req),
-		Metadata:           make(map[string]any),
-		Temperature:        derefFloat64(req.Temperature),
-		TopP:               derefFloat64(req.TopP),
-		MaxOutputTokens:    req.MaxOutputTokens,
-	}
+	resp := buildResponseFromRequest(req, api.ResponseStatusInProgress)
 
 	// Initialize the stream state for event mapping.
 	state := &streamState{}
@@ -567,6 +533,71 @@ func toolChoiceValue(tc *api.ToolChoice) any {
 		return tc.Function
 	}
 	return "auto"
+}
+
+// buildResponseFromRequest creates a Response populated with all request-echo fields.
+// This is the single place where request fields are mapped to response fields.
+func buildResponseFromRequest(req *api.CreateResponseRequest, status api.ResponseStatus) *api.Response {
+	resp := &api.Response{
+		ID:                 api.NewResponseID(),
+		Object:             "response",
+		Status:             status,
+		Output:             []api.Item{},
+		Model:              req.Model,
+		PreviousResponseID: stringPtr(req.PreviousResponseID),
+		CreatedAt:          time.Now().Unix(),
+		Tools:              ensureTools(req.Tools),
+		ToolChoice:         toolChoiceValue(req.ToolChoice),
+		Truncation:         getTruncation(req),
+		ParallelToolCalls:  getParallelToolCalls(req),
+		Store:              isStateful(req),
+		Text:               getTextConfig(req),
+		ServiceTier:        getServiceTier(req),
+		Metadata:           getMetadata(req),
+		Temperature:        derefFloat64(req.Temperature),
+		TopP:               derefFloat64(req.TopP),
+		FrequencyPenalty:   derefFloat64(req.FrequencyPenalty),
+		PresencePenalty:    derefFloat64(req.PresencePenalty),
+		TopLogprobs:        derefInt(req.TopLogprobs),
+		MaxOutputTokens:    req.MaxOutputTokens,
+		MaxToolCalls:       req.MaxToolCalls,
+		Reasoning:          req.Reasoning,
+		User:               req.User,
+	}
+	return resp
+}
+
+// getParallelToolCalls returns the parallel_tool_calls setting,
+// defaulting to true when omitted.
+func getParallelToolCalls(req *api.CreateResponseRequest) bool {
+	if req.ParallelToolCalls == nil {
+		return true
+	}
+	return *req.ParallelToolCalls
+}
+
+// getTextConfig returns the text config from the request, or a default.
+func getTextConfig(req *api.CreateResponseRequest) *api.TextConfig {
+	if req.Text != nil {
+		return req.Text
+	}
+	return &api.TextConfig{Format: &api.TextFormat{Type: "text"}}
+}
+
+// getMetadata returns the metadata from the request, defaulting to an empty map.
+func getMetadata(req *api.CreateResponseRequest) map[string]any {
+	if req.Metadata != nil {
+		return req.Metadata
+	}
+	return make(map[string]any)
+}
+
+// derefInt returns the value of a *int, or 0 if nil.
+func derefInt(p *int) int {
+	if p == nil {
+		return 0
+	}
+	return *p
 }
 
 // ensureTools returns the tools slice, defaulting to an empty slice (not nil)

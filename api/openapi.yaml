@@ -422,6 +422,40 @@ components:
         top_p:
           type: number
           description: Nucleus sampling probability.
+        frequency_penalty:
+          type: number
+          description: Penalize tokens based on frequency of appearance.
+        presence_penalty:
+          type: number
+          description: Penalize tokens based on whether they appear in the text.
+        top_logprobs:
+          type: integer
+          description: Number of most likely tokens to return with probabilities.
+        parallel_tool_calls:
+          type: boolean
+          description: Whether to execute tool calls concurrently (default true).
+          default: true
+        max_tool_calls:
+          type: integer
+          description: Maximum number of tool call rounds in the agentic loop.
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Arbitrary key-value metadata echoed in the response.
+        user:
+          type: string
+          description: Unique identifier for the end user.
+        reasoning:
+          $ref: "#/components/schemas/ReasoningConfig"
+        text:
+          $ref: "#/components/schemas/TextConfig"
+        include:
+          type: array
+          items:
+            type: string
+          description: Controls which optional response sections are returned.
+        stream_options:
+          $ref: "#/components/schemas/RequestStreamOptions"
         extensions:
           type: object
           additionalProperties: true
@@ -586,6 +620,8 @@ components:
         metadata:
           type: object
           additionalProperties: true
+        user:
+          type: string
         safety_identifier:
           type:
             - string
@@ -910,6 +946,13 @@ components:
           type:
             - string
             - "null"
+
+    RequestStreamOptions:
+      type: object
+      properties:
+        include_usage:
+          type: boolean
+          description: Whether to include usage data in the streaming response.
 
     IncompleteDetails:
       type: object

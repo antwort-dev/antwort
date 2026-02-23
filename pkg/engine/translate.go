@@ -11,11 +11,15 @@ import (
 // a provider-level ProviderRequest suitable for backend invocation.
 func translateRequest(req *api.CreateResponseRequest) *provider.ProviderRequest {
 	pr := &provider.ProviderRequest{
-		Model:       req.Model,
-		Temperature: req.Temperature,
-		TopP:        req.TopP,
-		MaxTokens:   req.MaxOutputTokens,
-		Stream:      req.Stream,
+		Model:            req.Model,
+		Temperature:      req.Temperature,
+		TopP:             req.TopP,
+		MaxTokens:        req.MaxOutputTokens,
+		Stream:           req.Stream,
+		FrequencyPenalty: req.FrequencyPenalty,
+		PresencePenalty:  req.PresencePenalty,
+		TopLogprobs:      req.TopLogprobs,
+		User:             req.User,
 	}
 
 	// Map tool choice directly if set.

@@ -45,8 +45,12 @@ type ProviderRequest struct {
 	Temperature *float64          `json:"temperature,omitempty"`
 	TopP        *float64          `json:"top_p,omitempty"`
 	MaxTokens   *int              `json:"max_tokens,omitempty"`
-	Stop        []string          `json:"stop,omitempty"`
-	Stream      bool              `json:"stream,omitempty"`
+	Stop             []string          `json:"stop,omitempty"`
+	Stream           bool              `json:"stream,omitempty"`
+	FrequencyPenalty *float64          `json:"frequency_penalty,omitempty"`
+	PresencePenalty  *float64          `json:"presence_penalty,omitempty"`
+	TopLogprobs      *int              `json:"top_logprobs,omitempty"`
+	User             string            `json:"user,omitempty"`
 
 	// Extra holds provider-specific parameters that don't map to standard fields.
 	Extra map[string]any `json:"-"`

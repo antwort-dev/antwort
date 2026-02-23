@@ -19,6 +19,12 @@ import (
 // is produced or a termination condition is met.
 func (e *Engine) runAgenticLoop(ctx context.Context, req *api.CreateResponseRequest, provReq *provider.ProviderRequest, w transport.ResponseWriter) error {
 	maxTurns := e.cfg.maxTurns()
+	// Apply request-level max_tool_calls if set and lower than server max.
+	if req.MaxToolCalls != nil && *req.MaxToolCalls > 0 && *req.MaxToolCalls < maxTurns {
+		maxTurns = *req.MaxToolCalls
+	}
+	parallel := getParallelToolCalls(req)
+
 	var allOutputItems []api.Item
 	var cumulativeUsage api.Usage
 
@@ -85,8 +91,8 @@ func (e *Engine) runAgenticLoop(ctx context.Context, req *api.CreateResponseRequ
 		// Filter by allowed_tools.
 		filterResult := tools.FilterAllowedTools(toolCalls, req.AllowedTools)
 
-		// Execute allowed tool calls concurrently.
-		results := e.executeToolsConcurrently(ctx, filterResult.Allowed)
+		// Execute allowed tool calls (concurrent or sequential based on request).
+		results := e.executeTools(ctx, filterResult.Allowed, parallel)
 
 		// Combine with rejected results.
 		allResults := append(results, filterResult.Rejected...)
@@ -128,29 +134,16 @@ func (e *Engine) runAgenticLoop(ctx context.Context, req *api.CreateResponseRequ
 // requests. It manages event emission across turns with a single lifecycle.
 func (e *Engine) runAgenticLoopStreaming(ctx context.Context, req *api.CreateResponseRequest, provReq *provider.ProviderRequest, w transport.ResponseWriter) error {
 	maxTurns := e.cfg.maxTurns()
+	if req.MaxToolCalls != nil && *req.MaxToolCalls > 0 && *req.MaxToolCalls < maxTurns {
+		maxTurns = *req.MaxToolCalls
+	}
+	parallel := getParallelToolCalls(req)
+
 	var cumulativeUsage api.Usage
 	var allOutputItems []api.Item
 
 	// Build initial response skeleton.
-	resp := &api.Response{
-		ID:                 api.NewResponseID(),
-		Object:             "response",
-		Status:             api.ResponseStatusInProgress,
-		Output:             []api.Item{},
-		Model:              req.Model,
-		PreviousResponseID: stringPtr(req.PreviousResponseID),
-		CreatedAt:          time.Now().Unix(),
-		Tools:              ensureTools(req.Tools),
-		ToolChoice:         toolChoiceValue(req.ToolChoice),
-		Truncation:         getTruncation(req),
-		Store:              isStateful(req),
-		Text:               &api.TextConfig{Format: &api.TextFormat{Type: "text"}},
-		ServiceTier:        getServiceTier(req),
-		Metadata:           make(map[string]any),
-		Temperature:        derefFloat64(req.Temperature),
-		TopP:               derefFloat64(req.TopP),
-		MaxOutputTokens:    req.MaxOutputTokens,
-	}
+	resp := buildResponseFromRequest(req, api.ResponseStatusInProgress)
 
 	state := &streamState{}
 
@@ -259,7 +252,7 @@ func (e *Engine) runAgenticLoopStreaming(ctx context.Context, req *api.CreateRes
 
 		// Filter and execute tools.
 		filterResult := tools.FilterAllowedTools(toolCalls, req.AllowedTools)
-		results := e.executeToolsConcurrently(ctx, filterResult.Allowed)
+		results := e.executeTools(ctx, filterResult.Allowed, parallel)
 		allResults := append(results, filterResult.Rejected...)
 
 		// Append the assistant's tool call message before results.
@@ -503,6 +496,70 @@ func (e *Engine) executeToolsConcurrently(ctx context.Context, calls []tools.Too
 	return results
 }
 
+// executeToolsSequentially dispatches tool calls one at a time.
+// Used when parallel_tool_calls is false.
+func (e *Engine) executeToolsSequentially(ctx context.Context, calls []tools.ToolCall) []tools.ToolResult {
+	if len(calls) == 0 {
+		return nil
+	}
+
+	results := make([]tools.ToolResult, len(calls))
+	for i, tc := range calls {
+		if ctx.Err() != nil {
+			results[i] = tools.ToolResult{
+				CallID:  tc.ID,
+				Output:  "context cancelled",
+				IsError: true,
+			}
+			continue
+		}
+
+		exec := e.findExecutor(tc.Name)
+		if exec == nil {
+			results[i] = tools.ToolResult{
+				CallID:  tc.ID,
+				Output:  "no executor found for tool " + tc.Name,
+				IsError: true,
+			}
+			observability.ToolExecutionsTotal.WithLabelValues(tc.Name, "error").Inc()
+			continue
+		}
+
+		result, err := exec.Execute(ctx, tc)
+		if err != nil {
+			slog.Warn("tool execution error",
+				"tool", tc.Name,
+				"call_id", tc.ID,
+				"error", err.Error(),
+			)
+			results[i] = tools.ToolResult{
+				CallID:  tc.ID,
+				Output:  err.Error(),
+				IsError: true,
+			}
+			observability.ToolExecutionsTotal.WithLabelValues(tc.Name, "error").Inc()
+			continue
+		}
+
+		status := "success"
+		if result.IsError {
+			status = "error"
+		}
+		observability.ToolExecutionsTotal.WithLabelValues(tc.Name, status).Inc()
+		results[i] = *result
+	}
+	return results
+}
+
+// executeTools dispatches tool calls using concurrent or sequential execution
+// based on the request's parallel_tool_calls setting.
+func (e *Engine) executeTools(ctx context.Context, calls []tools.ToolCall, parallel bool) []tools.ToolResult {
+	if parallel {
+		return e.executeToolsConcurrently(ctx, calls)
+	}
+	return e.executeToolsSequentially(ctx, calls)
+}
+
 // buildAssistantToolCallMessage creates an assistant message with tool_calls
 // for the conversation history. Per Chat Completions convention, the assistant
 // message containing tool_calls must precede the tool role result messages.
@@ -526,26 +583,9 @@ func buildAssistantToolCallMessage(calls []tools.ToolCall) provider.ProviderMess
 
 // buildAndWriteResponse creates the final response and writes it.
 func (e *Engine) buildAndWriteResponse(ctx context.Context, req *api.CreateResponseRequest, items []api.Item, usage *api.Usage, status api.ResponseStatus, respErr *api.APIError, w transport.ResponseWriter) error {
-	resp := &api.Response{
-		ID:                 api.NewResponseID(),
-		Object:             "response",
-		Status:             status,
-		Output:             items,
-		Model:              req.Model,
-		Usage:              usage,
-		Error:              respErr,
-		PreviousResponseID: stringPtr(req.PreviousResponseID),
-		CreatedAt:          time.Now().Unix(),
-		Tools:              ensureTools(req.Tools),
-		ToolChoice:         toolChoiceValue(req.ToolChoice),
-		Truncation:         getTruncation(req),
-		Store:              isStateful(req),
-		Text:               &api.TextConfig{Format: &api.TextFormat{Type: "text"}},
-		ServiceTier:        getServiceTier(req),
-		Metadata:           make(map[string]any),
-		Temperature:        derefFloat64(req.Temperature),
-		TopP:               derefFloat64(req.TopP),
-		MaxOutputTokens:    req.MaxOutputTokens,
-	}
+	resp := buildResponseFromRequest(req, status)
+	resp.Output = items
+	resp.Usage = usage
+	resp.Error = respErr
 	return w.WriteResponse(ctx, resp)
 }

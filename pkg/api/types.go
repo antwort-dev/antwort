@@ -532,7 +532,23 @@ type CreateResponseRequest struct {
 	MaxOutputTokens    *int                         `json:"max_output_tokens,omitempty"`
 	Temperature        *float64                     `json:"temperature,omitempty"`
 	TopP               *float64                     `json:"top_p,omitempty"`
+	FrequencyPenalty   *float64                     `json:"frequency_penalty,omitempty"`
+	PresencePenalty    *float64                     `json:"presence_penalty,omitempty"`
+	TopLogprobs        *int                         `json:"top_logprobs,omitempty"`
+	ParallelToolCalls  *bool                        `json:"parallel_tool_calls,omitempty"`
+	MaxToolCalls       *int                         `json:"max_tool_calls,omitempty"`
+	Metadata           map[string]any               `json:"metadata,omitempty"`
+	User               string                       `json:"user,omitempty"`
+	Reasoning          *ReasoningConfig             `json:"reasoning,omitempty"`
+	Text               *TextConfig                  `json:"text,omitempty"`
+	Include            []string                     `json:"include,omitempty"`
+	StreamOptions      *StreamOptions               `json:"stream_options,omitempty"`
 	Extensions         map[string]json.RawMessage   `json:"extensions,omitempty"`
+}
+
+// StreamOptions controls streaming behavior.
+type StreamOptions struct {
+	IncludeUsage bool `json:"include_usage,omitempty"`
 }
 
 // ResponseStatus represents the overall status of a response.
@@ -581,6 +597,7 @@ type Response struct {
 	Background         bool                       `json:"background"`
 	ServiceTier        string                     `json:"service_tier"`
 	Metadata           map[string]any             `json:"metadata"`
+	User               string                     `json:"user,omitempty"`
 	SafetyIdentifier   *string                    `json:"safety_identifier"`
 	PromptCacheKey     *string                    `json:"prompt_cache_key"`
 	Extensions         map[string]json.RawMessage `json:"extensions,omitempty"`

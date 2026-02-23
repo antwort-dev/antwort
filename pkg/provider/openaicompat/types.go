@@ -15,9 +15,13 @@ type ChatCompletionRequest struct {
 	TopP          *float64           `json:"top_p,omitempty"`
 	MaxTokens     *int               `json:"max_tokens,omitempty"`
 	Stop          []string           `json:"stop,omitempty"`
-	N             int                `json:"n"`
-	Stream        bool               `json:"stream"`
-	StreamOptions *ChatStreamOptions `json:"stream_options,omitempty"`
+	N                int                `json:"n"`
+	Stream           bool               `json:"stream"`
+	StreamOptions    *ChatStreamOptions `json:"stream_options,omitempty"`
+	FrequencyPenalty *float64           `json:"frequency_penalty,omitempty"`
+	PresencePenalty  *float64           `json:"presence_penalty,omitempty"`
+	TopLogprobs      *int               `json:"top_logprobs,omitempty"`
+	User             string             `json:"user,omitempty"`
 }
 
 // ChatStreamOptions controls streaming behavior.
