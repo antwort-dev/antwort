@@ -37,8 +37,8 @@
 **Independent Test**: Send request with `include` filter, verify excluded sections are absent.
 
 - [x] T011 [US2] Add `include` field (array of strings) to `CreateResponseRequest` in `pkg/api/types.go` (FR-010)
-- [ ] T012 [US2] Implement response filtering based on `include` values in `pkg/engine/engine.go`: when `include` is set, omit sections not listed (usage, reasoning, etc.) from the response before returning (FR-010)
-- [ ] T013 [US2] Add integration test for `include` filtering in `test/integration/responses_test.go`: verify fields are omitted when not in `include`, and all fields present when `include` is absent (FR-010)
+- [x] T012 [US2] Implement response filtering based on `include` values in `pkg/engine/engine.go`: when `include` is set, omit sections not listed (usage, reasoning, etc.) from the response before returning (FR-010)
+- [x] T013 [US2] Add integration test for `include` filtering in `test/integration/responses_test.go`: verify fields are omitted when not in `include`, and all fields present when `include` is absent (FR-010)
 
 **Checkpoint**: `include` filtering works. Backward compatible when omitted.
 
@@ -51,8 +51,8 @@
 **Independent Test**: Send streaming request with `stream_options.include_usage: true`, verify usage in completion event.
 
 - [x] T014 [US3] Add `stream_options` field to `CreateResponseRequest` in `pkg/api/types.go` (FR-011)
-- [ ] T015 [US3] Pass `stream_options.include_usage` through engine to streaming handler. When true, include usage data in the `response.completed` event in `pkg/engine/loop.go` (FR-011)
-- [ ] T016 [US3] Add integration test for `stream_options` in `test/integration/streaming_test.go`: verify usage included when requested, behavior unchanged when omitted (FR-011)
+- [x] T015 [US3] Pass `stream_options.include_usage` through engine to streaming handler. When true, include usage data in the `response.completed` event in `pkg/engine/loop.go` (FR-011)
+- [x] T016 [US3] Add integration test for `stream_options` in `test/integration/streaming_test.go`: verify usage included when requested, behavior unchanged when omitted (FR-011)
 
 **Checkpoint**: Streaming usage control works.
 
@@ -63,7 +63,7 @@
 **Purpose**: Update OpenAPI spec, run oasdiff, verify compliance improvement.
 
 - [x] T017 [P] Update `api/openapi.yaml` to add all new request and response fields (metadata, user, frequency_penalty, presence_penalty, top_logprobs, reasoning, text, parallel_tool_calls, max_tool_calls, include, stream_options) (FR-012)
-- [ ] T018 [P] Update `api/DIVERGENCES.md` to reflect reduced divergence list (FR-013)
+- [x] T018 [P] Update `api/DIVERGENCES.md` to reflect reduced divergence list (FR-013)
 - [x] T019 Run `make api-test` and verify oasdiff shows fewer "request-property-removed" warnings (FR-013)
 - [x] T020 Run full test suite (`go test ./pkg/... ./test/integration/`) and verify zero regressions (SC-003)
 

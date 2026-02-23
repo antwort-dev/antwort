@@ -129,6 +129,9 @@ func (e *Engine) handleNonStreaming(ctx context.Context, req *api.CreateResponse
 	resp.Model = provResp.Model
 	resp.Usage = &provResp.Usage
 
+	// Apply include filtering before writing to client.
+	applyIncludeFilter(resp, req.Include)
+
 	// Write the response to the client first.
 	if err := w.WriteResponse(ctx, resp); err != nil {
 		return err
@@ -254,6 +257,11 @@ func (e *Engine) handleStreaming(ctx context.Context, req *api.CreateResponseReq
 				observability.RecordGenAIMetrics(provName, req.Model, duration, 0, 0, firstTokenTime)
 			}
 
+			// Strip usage from the response event if the client didn't opt in.
+			if !shouldIncludeStreamUsage(req) {
+				resp.Usage = nil
+			}
+
 			// Emit terminal lifecycle events.
 			return e.emitStreamComplete(ctx, resp, &outputItem, accumulatedText, finalStatus, itemAdded, toolCallItems, state, w)
 		}
@@ -280,6 +288,11 @@ func (e *Engine) handleStreaming(ctx context.Context, req *api.CreateResponseReq
 	// Channel closed without a done event. Check for context cancellation.
 	if ctx.Err() != nil {
 		return e.emitCancelled(ctx, resp, state, w)
+	}
+
+	// Strip usage if not opted in.
+	if !shouldIncludeStreamUsage(req) {
+		resp.Usage = nil
 	}
 
 	// Unexpected channel closure without done event.
@@ -590,6 +603,35 @@ func getMetadata(req *api.CreateResponseRequest) map[string]any {
 		return req.Metadata
 	}
 	return make(map[string]any)
+}
+
+// applyIncludeFilter removes optional response sections not listed in the
+// include whitelist. When include is nil or empty, all sections are returned
+// (backward compatible). When include is set, only the listed sections are kept.
+func applyIncludeFilter(resp *api.Response, include []string) {
+	if len(include) == 0 {
+		return // No filtering, return everything.
+	}
+
+	// Build a set of included sections.
+	included := make(map[string]bool, len(include))
+	for _, v := range include {
+		included[v] = true
+	}
+
+	// Nil-out sections not in the include list.
+	if !included["usage"] {
+		resp.Usage = nil
+	}
+	if !included["reasoning"] {
+		resp.Reasoning = nil
+	}
+}
+
+// shouldIncludeStreamUsage returns true if the request opts in to usage
+// data in streaming responses via stream_options.include_usage.
+func shouldIncludeStreamUsage(req *api.CreateResponseRequest) bool {
+	return req.StreamOptions != nil && req.StreamOptions.IncludeUsage
 }
 
 // derefInt returns the value of a *int, or 0 if nil.

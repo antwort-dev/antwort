@@ -355,3 +355,68 @@ func TestPassthroughFieldsRoundTrip(t *testing.T) {
 		}
 	}
 }
+
+func TestIncludeFilterOmitsUsage(t *testing.T) {
+	reqBody := map[string]any{
+		"model": "mock-model",
+		"input": []map[string]any{
+			{
+				"type": "message",
+				"role": "user",
+				"content": []map[string]any{
+					{"type": "input_text", "text": "Hello"},
+				},
+			},
+		},
+		// Only include reasoning, explicitly exclude usage.
+		"include": []string{"reasoning"},
+	}
+
+	resp := postJSON(t, testEnv.BaseURL()+"/v1/responses", reqBody)
+	if resp.StatusCode != http.StatusOK {
+		body := readBody(t, resp)
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, body)
+	}
+
+	var raw map[string]json.RawMessage
+	decodeJSON(t, resp, &raw)
+
+	// Usage should be nil/absent when not in include list.
+	if usageRaw, ok := raw["usage"]; ok {
+		if string(usageRaw) != "null" {
+			t.Errorf("usage should be null when not in include list, got %s", string(usageRaw))
+		}
+	}
+}
+
+func TestIncludeFilterDefaultIncludesEverything(t *testing.T) {
+	reqBody := map[string]any{
+		"model": "mock-model",
+		"input": []map[string]any{
+			{
+				"type": "message",
+				"role": "user",
+				"content": []map[string]any{
+					{"type": "input_text", "text": "Hello"},
+				},
+			},
+		},
+		// No include field: all sections should be present.
+	}
+
+	resp := postJSON(t, testEnv.BaseURL()+"/v1/responses", reqBody)
+	if resp.StatusCode != http.StatusOK {
+		body := readBody(t, resp)
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, body)
+	}
+
+	var raw map[string]json.RawMessage
+	decodeJSON(t, resp, &raw)
+
+	// Usage should be present when include is omitted.
+	if usageRaw, ok := raw["usage"]; !ok {
+		t.Error("usage missing from response when include is omitted")
+	} else if string(usageRaw) == "null" {
+		t.Error("usage should not be null when include is omitted")
+	}
+}

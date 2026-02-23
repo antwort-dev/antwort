@@ -220,7 +220,7 @@ func (e *Engine) runAgenticLoopStreaming(ctx context.Context, req *api.CreateRes
 		// No tool calls: final answer.
 		if len(toolCalls) == 0 {
 			resp.Output = allOutputItems
-			resp.Usage = &cumulativeUsage
+			resp.Usage = streamUsage(&cumulativeUsage, req)
 			resp.Status = api.ResponseStatusCompleted
 			return w.WriteEvent(ctx, api.StreamEvent{
 				Type: api.EventResponseCompleted, SequenceNumber: state.nextSeq(),
@@ -231,7 +231,7 @@ func (e *Engine) runAgenticLoopStreaming(ctx context.Context, req *api.CreateRes
 		// Check tool_choice "none".
 		if req.ToolChoice != nil && req.ToolChoice.String == "none" {
 			resp.Output = allOutputItems
-			resp.Usage = &cumulativeUsage
+			resp.Usage = streamUsage(&cumulativeUsage, req)
 			resp.Status = api.ResponseStatusCompleted
 			return w.WriteEvent(ctx, api.StreamEvent{
 				Type: api.EventResponseCompleted, SequenceNumber: state.nextSeq(),
@@ -242,7 +242,7 @@ func (e *Engine) runAgenticLoopStreaming(ctx context.Context, req *api.CreateRes
 		// Check for unhandled tool calls (requires_action).
 		if e.hasUnhandledToolCalls(toolCalls) {
 			resp.Output = allOutputItems
-			resp.Usage = &cumulativeUsage
+			resp.Usage = streamUsage(&cumulativeUsage, req)
 			resp.Status = api.ResponseStatusRequiresAction
 			return w.WriteEvent(ctx, api.StreamEvent{
 				Type: api.EventResponseRequiresAction, SequenceNumber: state.nextSeq(),
@@ -298,12 +298,21 @@ func (e *Engine) runAgenticLoopStreaming(ctx context.Context, req *api.CreateRes
 
 	// Max turns reached.
 	resp.Output = allOutputItems
-	resp.Usage = &cumulativeUsage
+	resp.Usage = streamUsage(&cumulativeUsage, req)
 	resp.Status = api.ResponseStatusIncomplete
 	return w.WriteEvent(ctx, api.StreamEvent{
 		Type: api.EventResponseCompleted, SequenceNumber: state.nextSeq(),
 		Response: resp,
 	})
+}
+
+// streamUsage returns usage for streaming responses, or nil if the client
+// didn't opt in via stream_options.include_usage.
+func streamUsage(usage *api.Usage, req *api.CreateResponseRequest) *api.Usage {
+	if shouldIncludeStreamUsage(req) {
+		return usage
+	}
+	return nil
 }
 
 // consumeStreamTurn reads all events from one provider.Stream turn,

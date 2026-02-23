@@ -192,13 +192,98 @@ func TestStreamingResponsePayload(t *testing.T) {
 		}
 	}
 
-	// The response.completed event should have a response with usage.
+	// Without stream_options.include_usage, the response.completed event
+	// should have a response but usage should be nil (stripped by default).
 	for _, e := range events {
 		if e.Type == api.EventResponseCompleted {
 			if e.Response == nil {
 				t.Error("response.completed event has nil response")
-			} else if e.Response.Usage == nil {
-				t.Error("response.completed response has nil usage")
+			} else if e.Response.Usage != nil {
+				t.Logf("response.completed has usage (stream_options not set, usage should be nil)")
+			}
+			break
+		}
+	}
+}
+
+func TestStreamOptionsIncludeUsage(t *testing.T) {
+	reqBody := map[string]any{
+		"model":  "mock-model",
+		"stream": true,
+		"stream_options": map[string]any{
+			"include_usage": true,
+		},
+		"input": []map[string]any{
+			{
+				"type": "message",
+				"role": "user",
+				"content": []map[string]any{
+					{"type": "input_text", "text": "Hello"},
+				},
+			},
+		},
+	}
+
+	resp := postJSON(t, testEnv.BaseURL()+"/v1/responses", reqBody)
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body := readBody(t, resp)
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, body)
+	}
+
+	events := parseSSEEvents(t, resp)
+
+	// With stream_options.include_usage=true, the response.completed
+	// event should include usage data.
+	for _, e := range events {
+		if e.Type == api.EventResponseCompleted {
+			if e.Response == nil {
+				t.Fatal("response.completed event has nil response")
+			}
+			if e.Response.Usage == nil {
+				t.Error("response.completed should have usage when stream_options.include_usage=true")
+			} else if e.Response.Usage.TotalTokens == 0 {
+				t.Error("usage.total_tokens is zero")
+			}
+			break
+		}
+	}
+}
+
+func TestStreamOptionsWithoutUsage(t *testing.T) {
+	reqBody := map[string]any{
+		"model":  "mock-model",
+		"stream": true,
+		"input": []map[string]any{
+			{
+				"type": "message",
+				"role": "user",
+				"content": []map[string]any{
+					{"type": "input_text", "text": "Hello"},
+				},
+			},
+		},
+		// No stream_options: usage should be nil in streaming events.
+	}
+
+	resp := postJSON(t, testEnv.BaseURL()+"/v1/responses", reqBody)
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body := readBody(t, resp)
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, body)
+	}
+
+	events := parseSSEEvents(t, resp)
+
+	for _, e := range events {
+		if e.Type == api.EventResponseCompleted {
+			if e.Response == nil {
+				t.Fatal("response.completed event has nil response")
+			}
+			if e.Response.Usage != nil {
+				t.Error("response.completed should NOT have usage when stream_options is absent")
 			}
 			break
 		}

@@ -395,9 +395,10 @@ func TestEngine_CreateResponse_StreamingBasic(t *testing.T) {
 	}
 
 	req := &api.CreateResponseRequest{
-		Model:  "m",
-		Stream: true,
-		Input:  []api.Item{},
+		Model:         "m",
+		Stream:        true,
+		Input:         []api.Item{},
+		StreamOptions: &api.StreamOptions{IncludeUsage: true},
 	}
 
 	w := &mockResponseWriter{}
@@ -422,7 +423,7 @@ func TestEngine_CreateResponse_StreamingBasic(t *testing.T) {
 		t.Errorf("last event type = %q, want %q", last.Type, api.EventResponseCompleted)
 	}
 
-	// The completed response should have usage.
+	// The completed response should have usage (stream_options.include_usage=true).
 	if last.Response == nil || last.Response.Usage == nil {
 		t.Fatal("expected response with usage in completed event")
 	}
@@ -494,8 +495,9 @@ func TestEngine_Streaming_FullEventSequence(t *testing.T) {
 	}
 
 	req := &api.CreateResponseRequest{
-		Model:  "test-model",
-		Stream: true,
+		Model:         "test-model",
+		Stream:        true,
+		StreamOptions: &api.StreamOptions{IncludeUsage: true},
 		Input: []api.Item{
 			{
 				Type: api.ItemTypeMessage,
