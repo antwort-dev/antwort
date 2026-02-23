@@ -17,13 +17,13 @@
 
 **Purpose**: Create the website repository structure and shared assets
 
-- [ ] T001 Create website repository at /Users/rhuss/Development/ai/antwort.github.io with git init and initial README.md
-- [ ] T002 Create directory structure: assets/css/, assets/img/, assets/js/, supplemental-ui/css/, .github/workflows/
-- [ ] T003 [P] Create .nojekyll file at repository root
-- [ ] T004 [P] Create SVG logo mark (A! in circle) at assets/img/logo.svg with cyan stroke (#00e5c0) and warm white text (#e0e6ed)
-- [ ] T005 [P] Create SVG wordmark (A! mark + "antwort" text) at assets/img/logo-full.svg
-- [ ] T006 [P] Create favicon.svg at assets/img/favicon.svg (simplified A! mark for small sizes)
-- [ ] T007 [P] Create CSS file at assets/css/landing.css with dark color scheme variables, typography (Inter, Inter Tight, JetBrains Mono via Google Fonts), responsive breakpoints (375px, 768px, 1024px, 1920px), and base element styles
+- [x] T001 Create website repository at /Users/rhuss/Development/ai/antwort.github.io with git init and initial README.md
+- [x] T002 Create directory structure: assets/css/, assets/img/, assets/js/, supplemental-ui/css/, .github/workflows/
+- [x] T003 [P] Create .nojekyll file at repository root
+- [x] T004 [P] Create SVG logo mark (A! in circle) at assets/img/logo.svg with cyan stroke (#00e5c0) and warm white text (#e0e6ed)
+- [x] T005 [P] Create SVG wordmark (A! mark + "antwort" text) at assets/img/logo-full.svg
+- [x] T006 [P] Create favicon.svg at assets/img/favicon.svg (simplified A! mark for small sizes)
+- [x] T007 [P] Create CSS file at assets/css/landing.css with dark color scheme variables, typography (Inter, Inter Tight, JetBrains Mono via Google Fonts), responsive breakpoints (375px, 768px, 1024px, 1920px), and base element styles
 
 ---
 
@@ -33,10 +33,10 @@
 
 **CRITICAL**: This establishes the page structure that all user story phases populate
 
-- [ ] T008 Create index.html at repository root with HTML5 doctype, meta charset, viewport meta, Google Fonts preconnect and stylesheet links, landing.css link, and empty body structure with section placeholders
-- [ ] T009 [P] Add navigation bar to index.html: sticky header with logo-full.svg, nav links (Features anchor, Docs, GitHub), and "Get Started" CTA button
-- [ ] T010 [P] Add footer section to index.html: logo mark, tagline "The server-side agentic framework", links (Docs, GitHub, Quickstarts, Blog, Apache 2.0), byline "Built with Go. Runs on Kubernetes."
-- [ ] T011 Add responsive navigation styles to assets/css/landing.css: mobile hamburger menu, sticky header with backdrop-blur on scroll, max-width container (1200px centered)
+- [x] T008 Create index.html at repository root with HTML5 doctype, meta charset, viewport meta, Google Fonts preconnect and stylesheet links, landing.css link, and empty body structure with section placeholders
+- [x] T009 [P] Add navigation bar to index.html: sticky header with logo-full.svg, nav links (Features anchor, Docs, GitHub), and "Get Started" CTA button
+- [x] T010 [P] Add footer section to index.html: logo mark, tagline "The server-side agentic framework", links (Docs, GitHub, Quickstarts, Blog, Apache 2.0), byline "Built with Go. Runs on Kubernetes."
+- [x] T011 Add responsive navigation styles to assets/css/landing.css: mobile hamburger menu, sticky header with backdrop-blur on scroll, max-width container (1200px centered)
 
 **Checkpoint**: Page shell loads with working navigation and footer. All section placeholders are empty.
 
@@ -50,11 +50,11 @@
 
 ### Implementation for User Story 1
 
-- [ ] T012 [US1] Add hero section to index.html: small label ("OpenResponses-compliant. Kubernetes-native."), headline ("The server-side agentic framework."), description paragraph, two CTA buttons ("Get Started" linking to docs/antwort/getting-started.html, "View on GitHub" linking to github.com/rhuss/antwort opening in new tab)
-- [ ] T013 [US1] Add code snippet to hero section in index.html: curl example showing POST /v1/responses with model, tools (code_interpreter), and input, styled as a dark code block with syntax highlighting via CSS classes
-- [ ] T014 [US1] Add provider logo bar below hero code snippet in index.html: grayscale logos for vLLM, LiteLLM, OpenAI, Anthropic (placeholder SVG icons or text if logos unavailable)
-- [ ] T015 [US1] Add three value pillar cards section to index.html: "OpenResponses API" (only open-source implementation, any OpenAI SDK works), "Secure by Default" (gVisor, NetworkPolicy, mTLS, audit logging), "Kubernetes Native" (kubectl apply, HPA, Prometheus, multi-tenant)
-- [ ] T016 [US1] Add hero and value pillar styles to assets/css/landing.css: hero background with subtle gradient, headline typography (Inter Tight Bold, large size), CTA button styles (primary cyan, secondary ghost), code block dark background with monospace font, pillar card grid (3-column desktop, stacked mobile), responsive behavior at 768px breakpoint
+- [x] T012 [US1] Add hero section to index.html: small label ("OpenResponses-compliant. Kubernetes-native."), headline ("The server-side agentic framework."), description paragraph, two CTA buttons ("Get Started" linking to docs/antwort/getting-started.html, "View on GitHub" linking to github.com/rhuss/antwort opening in new tab)
+- [x] T013 [US1] Add code snippet to hero section in index.html: curl example showing POST /v1/responses with model, tools (code_interpreter), and input, styled as a dark code block with syntax highlighting via CSS classes
+- [x] T014 [US1] Add provider logo bar below hero code snippet in index.html: grayscale logos for vLLM, LiteLLM, OpenAI, Anthropic (placeholder SVG icons or text if logos unavailable)
+- [x] T015 [US1] Add three value pillar cards section to index.html: "OpenResponses API" (only open-source implementation, any OpenAI SDK works), "Secure by Default" (gVisor, NetworkPolicy, mTLS, audit logging), "Kubernetes Native" (kubectl apply, HPA, Prometheus, multi-tenant)
+- [x] T016 [US1] Add hero and value pillar styles to assets/css/landing.css: hero background with subtle gradient, headline typography (Inter Tight Bold, large size), CTA button styles (primary cyan, secondary ghost), code block dark background with monospace font, pillar card grid (3-column desktop, stacked mobile), responsive behavior at 768px breakpoint
 
 **Checkpoint**: Landing page has a compelling hero section and three value pillars. A visitor can understand the product and navigate to docs or GitHub.
 
@@ -68,9 +68,9 @@
 
 ### Implementation for User Story 2
 
-- [ ] T017 [US2] Add comparison table section to index.html with section heading "How Antwort Compares", five columns (Antwort, LlamaStack, OpenClaw, LangGraph Platform, Manual K8s), three row groups (API & Protocol, Agentic Capabilities, Security & Operations), and cell values using visual indicators (checkmark, partial, cross, coming-soon, DIY)
-- [ ] T018 [US2] Add comparison table footnote to index.html: LangGraph Platform licensing note ("Library is MIT; platform requires commercial license for self-hosting"), and "Last updated: February 2026" date
-- [ ] T019 [US2] Add comparison table styles to assets/css/landing.css: responsive table layout (horizontal scroll on mobile), row group headers, cell indicator colors (green #22d3a0 for full support, amber #f0c040 for partial/coming-soon, red #e05050 for no support), sticky first column on mobile, alternating row backgrounds
+- [x] T017 [US2] Add comparison table section to index.html with section heading "How Antwort Compares", five columns (Antwort, LlamaStack, OpenClaw, LangGraph Platform, Manual K8s), three row groups (API & Protocol, Agentic Capabilities, Security & Operations), and cell values using visual indicators (checkmark, partial, cross, coming-soon, DIY)
+- [x] T018 [US2] Add comparison table footnote to index.html: LangGraph Platform licensing note ("Library is MIT; platform requires commercial license for self-hosting"), and "Last updated: February 2026" date
+- [x] T019 [US2] Add comparison table styles to assets/css/landing.css: responsive table layout (horizontal scroll on mobile), row group headers, cell indicator colors (green #22d3a0 for full support, amber #f0c040 for partial/coming-soon, red #e05050 for no support), sticky first column on mobile, alternating row backgrounds
 
 **Checkpoint**: Comparison table renders correctly and provides honest, accurate information.
 
@@ -84,9 +84,9 @@
 
 ### Implementation for User Story 3
 
-- [ ] T020 [US3] Add feature grid section to index.html with section heading "Features", responsive grid of feature cards, each card containing: title (cyan accent), tagline, 2-3 sentence description. Include 9 implemented features: Agentic Loop, Multi-Provider, MCP Tools, Multi-Tenant Auth, Conversation Memory, SSE Streaming, Web Search, Observability, Production Deployment
-- [ ] T021 [US3] Add 6 coming-soon feature cards to the feature grid in index.html: Sandbox Execution, Agent Profiles, RAG & Knowledge, Proactive Scheduling, Delivery Channels, Tool Registry. Each with amber "Coming Soon" badge
-- [ ] T022 [US3] Add feature grid styles to assets/css/landing.css: card grid layout (3 columns desktop, 2 columns tablet, 1 column mobile), card styling (dark surface background, subtle border, hover effect), "Coming Soon" badge styling (amber background, small text), title accent color (cyan)
+- [x] T020 [US3] Add feature grid section to index.html with section heading "Features", responsive grid of feature cards, each card containing: title (cyan accent), tagline, 2-3 sentence description. Include 9 implemented features: Agentic Loop, Multi-Provider, MCP Tools, Multi-Tenant Auth, Conversation Memory, SSE Streaming, Web Search, Observability, Production Deployment
+- [x] T021 [US3] Add 6 coming-soon feature cards to the feature grid in index.html: Sandbox Execution, Agent Profiles, RAG & Knowledge, Proactive Scheduling, Delivery Channels, Tool Registry. Each with amber "Coming Soon" badge
+- [x] T022 [US3] Add feature grid styles to assets/css/landing.css: card grid layout (3 columns desktop, 2 columns tablet, 1 column mobile), card styling (dark surface background, subtle border, hover effect), "Coming Soon" badge styling (amber background, small text), title accent color (cyan)
 
 **Checkpoint**: Feature grid shows all 15 features with clear visual distinction between implemented and upcoming.
 
@@ -100,13 +100,13 @@
 
 ### Implementation for User Story 4
 
-- [ ] T023 [US4] Create Antora component descriptor at /Users/rhuss/Development/ai/antwort/antora.yml with name "antwort", title "Antwort", version "0.1", and nav reference
-- [ ] T024 [US4] Create documentation directory structure in main repo: /Users/rhuss/Development/ai/antwort/docs/modules/ROOT/pages/ and /Users/rhuss/Development/ai/antwort/docs/modules/ROOT/nav.adoc with navigation sections (Getting Started, Architecture, Features, Deployment, Reference)
-- [ ] T025 [P] [US4] Create initial index.adoc at /Users/rhuss/Development/ai/antwort/docs/modules/ROOT/pages/index.adoc with documentation overview and links to sections
-- [ ] T026 [P] [US4] Create getting-started.adoc at /Users/rhuss/Development/ai/antwort/docs/modules/ROOT/pages/getting-started.adoc with quickstart content (deploy command, first request, next steps)
-- [ ] T027 [P] [US4] Create placeholder pages for remaining documentation sections: architecture.adoc, configuration.adoc, providers.adoc, tools.adoc, auth.adoc, storage.adoc, observability.adoc, deployment.adoc, api-reference.adoc (each with title and TODO content)
-- [ ] T028 [US4] Create Antora playbook at /Users/rhuss/Development/ai/antwort.github.io/antora-playbook.yml referencing main repo, with Lunr search extension
-- [ ] T029 [US4] Create Antora dark theme override CSS at /Users/rhuss/Development/ai/antwort.github.io/supplemental-ui/css/custom.css overriding default UI background (#0a0e14), text (#e0e6ed), sidebar, code blocks, search overlay, and link colors to match landing page
+- [x] T023 [US4] Create Antora component descriptor at /Users/rhuss/Development/ai/antwort/antora.yml with name "antwort", title "Antwort", version "0.1", and nav reference
+- [x] T024 [US4] Create documentation directory structure in main repo: /Users/rhuss/Development/ai/antwort/docs/modules/ROOT/pages/ and /Users/rhuss/Development/ai/antwort/docs/modules/ROOT/nav.adoc with navigation sections (Getting Started, Architecture, Features, Deployment, Reference)
+- [x] T025 [P] [US4] Create initial index.adoc at /Users/rhuss/Development/ai/antwort/docs/modules/ROOT/pages/index.adoc with documentation overview and links to sections
+- [x] T026 [P] [US4] Create getting-started.adoc at /Users/rhuss/Development/ai/antwort/docs/modules/ROOT/pages/getting-started.adoc with quickstart content (deploy command, first request, next steps)
+- [x] T027 [P] [US4] Create placeholder pages for remaining documentation sections: architecture.adoc, configuration.adoc, providers.adoc, tools.adoc, auth.adoc, storage.adoc, observability.adoc, deployment.adoc, api-reference.adoc (each with title and TODO content)
+- [x] T028 [US4] Create Antora playbook at /Users/rhuss/Development/ai/antwort.github.io/antora-playbook.yml referencing main repo, with Lunr search extension
+- [x] T029 [US4] Create Antora dark theme override CSS at /Users/rhuss/Development/ai/antwort.github.io/supplemental-ui/css/custom.css overriding default UI background (#0a0e14), text (#e0e6ed), sidebar, code blocks, search overlay, and link colors to match landing page
 
 **Checkpoint**: Antora builds and generates a dark-themed documentation site with navigation and search.
 
@@ -120,9 +120,9 @@
 
 ### Implementation for User Story 5
 
-- [ ] T030 [US5] Add quickstart section to index.html with section heading "Get Started in Minutes", two code blocks (kubectl deploy command and curl first-request command), and link to full quickstart documentation
-- [ ] T031 [US5] Add quickstart styles to assets/css/landing.css: code block dark background, copy button positioning (top-right corner), numbered step labels
-- [ ] T032 [US5] Create assets/js/landing.js with copy-to-clipboard functionality for code blocks (progressive enhancement: buttons appear only when JS is available), "Copied!" feedback on click
+- [x] T030 [US5] Add quickstart section to index.html with section heading "Get Started in Minutes", two code blocks (kubectl deploy command and curl first-request command), and link to full quickstart documentation
+- [x] T031 [US5] Add quickstart styles to assets/css/landing.css: code block dark background, copy button positioning (top-right corner), numbered step labels
+- [x] T032 [US5] Create assets/js/landing.js with copy-to-clipboard functionality for code blocks (progressive enhancement: buttons appear only when JS is available), "Copied!" feedback on click
 
 **Checkpoint**: Quickstart section shows concrete commands with working copy buttons.
 
@@ -136,7 +136,7 @@
 
 ### Implementation for User Story 6
 
-- [ ] T033 [US6] Create GitHub Actions workflow at /Users/rhuss/Development/ai/antwort.github.io/.github/workflows/publish.yml: trigger on push to main, setup Node.js 22, install Antora and Lunr extension, build docs, copy landing page assets to build output, deploy to GitHub Pages via peaceiris/actions-gh-pages
+- [x] T033 [US6] Create GitHub Actions workflow at /Users/rhuss/Development/ai/antwort.github.io/.github/workflows/publish.yml: trigger on push to main, setup Node.js 22, install Antora and Lunr extension, build docs, copy landing page assets to build output, deploy to GitHub Pages via peaceiris/actions-gh-pages
 - [ ] T034 [US6] Configure GitHub Pages in repository settings: enable GitHub Pages, set source to gh-pages branch
 - [ ] T035 [US6] Verify end-to-end: push to main, confirm workflow runs, verify site is live at antwort.github.io with both landing page and docs
 
@@ -153,7 +153,7 @@
 ### Implementation for User Story 7
 
 - [ ] T036 [P] [US7] Create OG image at assets/img/og-image.png (1200x630): dark background with A! logo, "Antwort" text, and tagline "The server-side agentic framework" (can be generated from SVG or created manually)
-- [ ] T037 [US7] Add Open Graph and Twitter Card meta tags to index.html head: og:title ("Antwort"), og:description ("The server-side agentic framework"), og:image (path to og-image.png), og:url, og:type ("website"), twitter:card ("summary_large_image")
+- [x] T037 [US7] Add Open Graph and Twitter Card meta tags to index.html head: og:title ("Antwort"), og:description ("The server-side agentic framework"), og:image (path to og-image.png), og:url, og:type ("website"), twitter:card ("summary_large_image")
 
 **Checkpoint**: Social sharing previews display correctly on major platforms.
 
@@ -163,14 +163,14 @@
 
 **Purpose**: Final quality, accessibility, and performance improvements
 
-- [ ] T038 Add architecture diagram section to index.html: SVG diagram showing request flow (Client, Gateway, Engine, Agentic Loop, Tool Executors, Sandbox). Create diagram as inline SVG or separate assets/img/architecture.svg
-- [ ] T039 Add roadmap section to index.html: six phases (Sandbox Executor "In Development", Agent Profiles, Memory & Knowledge, Proactive Scheduling, Delivery Channels, Tool Registry) with visual timeline or list
+- [x] T038 Add architecture diagram section to index.html: SVG diagram showing request flow (Client, Gateway, Engine, Agentic Loop, Tool Executors, Sandbox). Create diagram as inline SVG or separate assets/img/architecture.svg
+- [x] T039 Add roadmap section to index.html: six phases (Sandbox Executor "In Development", Agent Profiles, Memory & Knowledge, Proactive Scheduling, Delivery Channels, Tool Registry) with visual timeline or list
 - [ ] T040 [P] Add favicon.ico (16x16, 32x32 multi-size ICO) and apple-touch-icon.png (180x180) to assets/img/, add link tags to index.html head
-- [ ] T041 [P] Add prefers-reduced-motion media query to assets/css/landing.css disabling all animations and transitions
-- [ ] T042 [P] Add scroll-based navigation style change to assets/js/landing.js: transparent nav on top, solid background with backdrop-blur after scrolling past hero
+- [x] T041 [P] Add prefers-reduced-motion media query to assets/css/landing.css disabling all animations and transitions
+- [x] T042 [P] Add scroll-based navigation style change to assets/js/landing.js: transparent nav on top, solid background with backdrop-blur after scrolling past hero
 - [ ] T043 Validate HTML with W3C validator, fix any errors
 - [ ] T044 Run Lighthouse audit (performance, accessibility, best practices, SEO), fix issues until all scores are 90+
-- [ ] T045 Create README.md for the website repository explaining: project purpose, local development (how to preview), how to update landing page content, how to add documentation pages, how the GitHub Actions workflow works
+- [x] T045 Create README.md for the website repository explaining: project purpose, local development (how to preview), how to update landing page content, how to add documentation pages, how the GitHub Actions workflow works
 
 ---
 
