@@ -1,0 +1,7 @@
+{
+  "enabledPlugins": {
+    "copyedit@cc-rhuss-marketplace": false,
+    "invent@cc-invent-marketplace": false,
+    "jira@cc-jira-marketplace": false
+  }
+}

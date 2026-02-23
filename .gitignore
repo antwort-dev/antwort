@@ -38,6 +38,7 @@ Thumbs.db
 dist/
 /server
 /mock-backend
+/mcp-test-server
 
 # Claude Code (local-only files)
 .claude/settings.local.json
