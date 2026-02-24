@@ -18,6 +18,8 @@ const (
 	EventFunctionCallArgsDone  StreamEventType = "response.function_call_arguments.done"
 	EventContentPartDone       StreamEventType = "response.content_part.done"
 	EventOutputItemDone        StreamEventType = "response.output_item.done"
+	EventReasoningDelta        StreamEventType = "response.reasoning.delta"
+	EventReasoningDone         StreamEventType = "response.reasoning.done"
 )
 
 // State machine events track the lifecycle of a response.
@@ -121,6 +123,27 @@ func (e StreamEvent) MarshalJSON() ([]byte, error) {
 			OutputIndex    int             `json:"output_index"`
 			Arguments      string          `json:"arguments"`
 		}{e.Type, e.SequenceNumber, e.ItemID, e.OutputIndex, e.Delta})
+
+	case EventReasoningDelta:
+		// Reasoning delta: type + seq + item_id + output_index + content_index + delta.
+		return json.Marshal(struct {
+			Type           StreamEventType `json:"type"`
+			SequenceNumber int             `json:"sequence_number"`
+			ItemID         string          `json:"item_id"`
+			OutputIndex    int             `json:"output_index"`
+			ContentIndex   int             `json:"content_index"`
+			Delta          string          `json:"delta"`
+		}{e.Type, e.SequenceNumber, e.ItemID, e.OutputIndex, e.ContentIndex, e.Delta})
+
+	case EventReasoningDone:
+		// Reasoning done: type + seq + item_id + output_index + content_index.
+		return json.Marshal(struct {
+			Type           StreamEventType `json:"type"`
+			SequenceNumber int             `json:"sequence_number"`
+			ItemID         string          `json:"item_id"`
+			OutputIndex    int             `json:"output_index"`
+			ContentIndex   int             `json:"content_index"`
+		}{e.Type, e.SequenceNumber, e.ItemID, e.OutputIndex, e.ContentIndex})
 
 	default:
 		// Fallback: include all non-zero fields.

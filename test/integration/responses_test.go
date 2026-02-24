@@ -420,3 +420,88 @@ func TestIncludeFilterDefaultIncludesEverything(t *testing.T) {
 		t.Error("usage should not be null when include is omitted")
 	}
 }
+
+func TestNonStreamingReasoningItem(t *testing.T) {
+	reqBody := map[string]any{
+		"model": "mock-model",
+		"input": []map[string]any{
+			{
+				"type": "message",
+				"role": "user",
+				"content": []map[string]any{
+					{"type": "input_text", "text": "Please reason about this"},
+				},
+			},
+		},
+	}
+
+	resp := postJSON(t, testEnv.BaseURL()+"/v1/responses", reqBody)
+	if resp.StatusCode != http.StatusOK {
+		body := readBody(t, resp)
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, body)
+	}
+
+	var response api.Response
+	decodeJSON(t, resp, &response)
+
+	// Find the reasoning item in output.
+	foundReasoning := false
+	reasoningIdx := -1
+	textIdx := -1
+	for i, item := range response.Output {
+		if item.Type == api.ItemTypeReasoning {
+			foundReasoning = true
+			reasoningIdx = i
+			if item.Reasoning == nil {
+				t.Error("reasoning item has nil Reasoning data")
+			} else if item.Reasoning.Content == "" {
+				t.Error("reasoning item has empty content")
+			} else {
+				t.Logf("reasoning content: %q", item.Reasoning.Content)
+			}
+		}
+		if item.Type == api.ItemTypeMessage {
+			textIdx = i
+		}
+	}
+
+	if !foundReasoning {
+		t.Error("no reasoning item found in output")
+	}
+
+	// Reasoning should come before text (FR-006).
+	if reasoningIdx >= 0 && textIdx >= 0 && reasoningIdx >= textIdx {
+		t.Errorf("reasoning item (idx %d) should appear before text item (idx %d)",
+			reasoningIdx, textIdx)
+	}
+}
+
+func TestNonStreamingNoReasoningForNonReasoningModel(t *testing.T) {
+	reqBody := map[string]any{
+		"model": "mock-model",
+		"input": []map[string]any{
+			{
+				"type": "message",
+				"role": "user",
+				"content": []map[string]any{
+					{"type": "input_text", "text": "Hello"},
+				},
+			},
+		},
+	}
+
+	resp := postJSON(t, testEnv.BaseURL()+"/v1/responses", reqBody)
+	if resp.StatusCode != http.StatusOK {
+		body := readBody(t, resp)
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, body)
+	}
+
+	var response api.Response
+	decodeJSON(t, resp, &response)
+
+	for _, item := range response.Output {
+		if item.Type == api.ItemTypeReasoning {
+			t.Error("unexpected reasoning item in non-reasoning response")
+		}
+	}
+}

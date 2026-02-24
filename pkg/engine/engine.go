@@ -326,6 +326,18 @@ func (e *Engine) emitItemLifecycleStart(ctx context.Context, item *api.Item, sta
 func (e *Engine) emitStreamComplete(ctx context.Context, resp *api.Response, item *api.Item, accumulatedText string, finalStatus api.ResponseStatus, itemAdded bool, toolCallItems []api.Item, state *streamState, w transport.ResponseWriter) error {
 	var outputItems []api.Item
 
+	// Include reasoning item first (reasoning before text, FR-006).
+	if state.reasoningStarted && state.accumulatedReasoning != "" {
+		outputItems = append(outputItems, api.Item{
+			ID:     state.reasoningItemID,
+			Type:   api.ItemTypeReasoning,
+			Status: api.ItemStatusCompleted,
+			Reasoning: &api.ReasoningData{
+				Content: state.accumulatedReasoning,
+			},
+		})
+	}
+
 	if itemAdded {
 		// Emit content_part.done.
 		if err := w.WriteEvent(ctx, api.StreamEvent{

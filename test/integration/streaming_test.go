@@ -290,6 +290,131 @@ func TestStreamOptionsWithoutUsage(t *testing.T) {
 	}
 }
 
+func TestStreamingReasoningEvents(t *testing.T) {
+	reqBody := map[string]any{
+		"model":  "mock-model",
+		"stream": true,
+		"input": []map[string]any{
+			{
+				"type": "message",
+				"role": "user",
+				"content": []map[string]any{
+					{"type": "input_text", "text": "Please reason about this"},
+				},
+			},
+		},
+	}
+
+	resp := postJSON(t, testEnv.BaseURL()+"/v1/responses", reqBody)
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body := readBody(t, resp)
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, body)
+	}
+
+	events := parseSSEEvents(t, resp)
+
+	// Log all event types for debugging.
+	for i, e := range events {
+		t.Logf("event[%d]: %s", i, e.Type)
+	}
+
+	// Check for reasoning events.
+	typesSeen := map[api.StreamEventType]bool{}
+	for _, e := range events {
+		typesSeen[e.Type] = true
+	}
+
+	if !typesSeen[api.EventReasoningDelta] {
+		t.Error("missing reasoning.delta events")
+	}
+	if !typesSeen[api.EventReasoningDone] {
+		t.Error("missing reasoning.done event")
+	}
+
+	// Verify reasoning deltas appear before text deltas.
+	firstReasoningIdx := -1
+	firstTextIdx := -1
+	for i, e := range events {
+		if e.Type == api.EventReasoningDelta && firstReasoningIdx == -1 {
+			firstReasoningIdx = i
+		}
+		if e.Type == api.EventOutputTextDelta && firstTextIdx == -1 {
+			firstTextIdx = i
+		}
+	}
+
+	if firstReasoningIdx == -1 {
+		t.Fatal("no reasoning.delta events found")
+	}
+	if firstTextIdx == -1 {
+		t.Fatal("no text.delta events found")
+	}
+	if firstReasoningIdx >= firstTextIdx {
+		t.Errorf("reasoning.delta (idx %d) should appear before text.delta (idx %d)",
+			firstReasoningIdx, firstTextIdx)
+	}
+
+	// Collect reasoning deltas.
+	var reasoningDeltas []string
+	for _, e := range events {
+		if e.Type == api.EventReasoningDelta {
+			reasoningDeltas = append(reasoningDeltas, e.Delta)
+		}
+	}
+	reasoningText := strings.Join(reasoningDeltas, "")
+	t.Logf("accumulated reasoning: %q", reasoningText)
+	if reasoningText == "" {
+		t.Error("reasoning text is empty")
+	}
+
+	// Verify response.completed includes reasoning in output.
+	for _, e := range events {
+		if e.Type == api.EventResponseCompleted && e.Response != nil {
+			foundReasoning := false
+			for _, item := range e.Response.Output {
+				if item.Type == api.ItemTypeReasoning {
+					foundReasoning = true
+					break
+				}
+			}
+			if !foundReasoning {
+				t.Error("response.completed output missing reasoning item")
+			}
+			break
+		}
+	}
+}
+
+func TestStreamingNoReasoningForNonReasoningModel(t *testing.T) {
+	// A regular request (no "reason" trigger) should produce no reasoning events.
+	reqBody := map[string]any{
+		"model":  "mock-model",
+		"stream": true,
+		"input": []map[string]any{
+			{
+				"type": "message",
+				"role": "user",
+				"content": []map[string]any{
+					{"type": "input_text", "text": "Hello"},
+				},
+			},
+		},
+	}
+
+	resp := postJSON(t, testEnv.BaseURL()+"/v1/responses", reqBody)
+	defer resp.Body.Close()
+
+	events := parseSSEEvents(t, resp)
+
+	for _, e := range events {
+		if e.Type == api.EventReasoningDelta || e.Type == api.EventReasoningDone {
+			t.Errorf("unexpected reasoning event %q for non-reasoning request", e.Type)
+		}
+	}
+}
+
 // --- SSE parsing helpers ---
 
 // parseSSEEvents reads SSE events from an HTTP response until [DONE].

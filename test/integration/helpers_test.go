@@ -194,8 +194,22 @@ func handleMockChatCompletions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check if reasoning is requested (trigger word "reason" in last user message).
+	wantsReasoning := false
+	for _, msg := range req.Messages {
+		if msg.Role == "user" {
+			if s, ok := msg.Content.(string); ok && strings.Contains(strings.ToLower(s), "reason") {
+				wantsReasoning = true
+			}
+		}
+	}
+
 	if req.Stream {
-		handleMockStreaming(w, req.Model)
+		if wantsReasoning {
+			handleMockStreamingWithReasoning(w, req.Model)
+		} else {
+			handleMockStreaming(w, req.Model)
+		}
 		return
 	}
 
@@ -212,6 +226,12 @@ func handleMockChatCompletions(w http.ResponseWriter, r *http.Request) {
 	// Check for tool calls.
 	if len(req.Tools) > 0 {
 		handleMockToolCall(w, req.Model)
+		return
+	}
+
+	// Non-streaming reasoning response.
+	if wantsReasoning {
+		handleMockReasoningResponse(w, req.Model)
 		return
 	}
 
@@ -318,6 +338,96 @@ func handleMockStreaming(w http.ResponseWriter, model string) {
 	// Done sentinel.
 	fmt.Fprintf(w, "data: [DONE]\n\n")
 	flusher.Flush()
+}
+
+// handleMockReasoningResponse returns a non-streaming response with reasoning_content.
+func handleMockReasoningResponse(w http.ResponseWriter, model string) {
+	if model == "" {
+		model = "mock-model"
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"id": "chatcmpl-mock-reason", "object": "chat.completion", "model": model,
+		"choices": []map[string]any{
+			{
+				"index": 0,
+				"message": map[string]any{
+					"role":              "assistant",
+					"content":           "The answer is 42.",
+					"reasoning_content": "Let me think step by step about this problem.",
+				},
+				"finish_reason": "stop",
+			},
+		},
+		"usage": map[string]any{
+			"prompt_tokens": 10, "completion_tokens": 15, "total_tokens": 25,
+		},
+	})
+}
+
+// handleMockStreamingWithReasoning sends SSE chunks with reasoning_content then text content.
+func handleMockStreamingWithReasoning(w http.ResponseWriter, model string) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	if model == "" {
+		model = "mock-model"
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	// Role chunk.
+	writeChunk(w, model, "", true)
+	flusher.Flush()
+
+	// Reasoning chunks.
+	reasoningTokens := []string{"Let me", " think", " about this."}
+	for _, token := range reasoningTokens {
+		writeReasoningChunk(w, model, token)
+		flusher.Flush()
+	}
+
+	// Text content chunks (after reasoning).
+	textTokens := []string{"The answer", " is 42."}
+	for _, token := range textTokens {
+		writeChunk(w, model, token, false)
+		flusher.Flush()
+	}
+
+	// Finish chunk.
+	finishData, _ := json.Marshal(map[string]any{
+		"id": "chatcmpl-mock-reason-stream", "object": "chat.completion.chunk", "model": model,
+		"choices": []map[string]any{
+			{"index": 0, "delta": map[string]any{}, "finish_reason": "stop"},
+		},
+		"usage": map[string]any{
+			"prompt_tokens": 10, "completion_tokens": 8, "total_tokens": 18,
+		},
+	})
+	fmt.Fprintf(w, "data: %s\n\n", finishData)
+	flusher.Flush()
+
+	fmt.Fprintf(w, "data: [DONE]\n\n")
+	flusher.Flush()
+}
+
+// writeReasoningChunk writes a streaming chunk with reasoning_content.
+func writeReasoningChunk(w http.ResponseWriter, model, reasoning string) {
+	delta := map[string]any{
+		"reasoning_content": reasoning,
+	}
+	data, _ := json.Marshal(map[string]any{
+		"id": "chatcmpl-mock-reason-stream", "object": "chat.completion.chunk", "model": model,
+		"choices": []map[string]any{
+			{"index": 0, "delta": delta, "finish_reason": nil},
+		},
+	})
+	fmt.Fprintf(w, "data: %s\n\n", data)
 }
 
 func writeChunk(w http.ResponseWriter, model, content string, isRole bool) {

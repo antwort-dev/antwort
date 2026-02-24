@@ -852,6 +852,8 @@ components:
         - response.output_text.done
         - response.function_call_arguments.delta
         - response.function_call_arguments.done
+        - response.reasoning.delta
+        - response.reasoning.done
 
     # -----------------------------------------------------------------------
     # Shared types

@@ -33,6 +33,16 @@ func TranslateResponse(resp *ChatCompletionResponse) *provider.ProviderResponse 
 	// Map finish_reason to response status.
 	pr.Status = MapFinishReason(choice.FinishReason)
 
+	// Parse reasoning content first (reasoning before text, FR-006).
+	if choice.Message.ReasoningContent != nil && *choice.Message.ReasoningContent != "" {
+		pr.Items = append(pr.Items, api.Item{
+			ID:        api.NewItemID(),
+			Type:      api.ItemTypeReasoning,
+			Status:    api.ItemStatusCompleted,
+			Reasoning: &api.ReasoningData{Content: *choice.Message.ReasoningContent},
+		})
+	}
+
 	// Parse message content into an assistant message Item.
 	if contentStr := ExtractContentString(choice.Message.Content); contentStr != "" {
 		pr.Items = append(pr.Items, api.Item{
@@ -48,16 +58,6 @@ func TranslateResponse(resp *ChatCompletionResponse) *provider.ProviderResponse 
 					},
 				},
 			},
-		})
-	}
-
-	// Parse reasoning content (e.g., DeepSeek R1).
-	if choice.Message.ReasoningContent != nil && *choice.Message.ReasoningContent != "" {
-		pr.Items = append(pr.Items, api.Item{
-			ID:        api.NewItemID(),
-			Type:      api.ItemTypeReasoning,
-			Status:    api.ItemStatusCompleted,
-			Reasoning: &api.ReasoningData{Content: *choice.Message.ReasoningContent},
 		})
 	}
 

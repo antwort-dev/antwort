@@ -14,6 +14,13 @@ type streamState struct {
 	outputIndex int    // Current output index (position in response output array).
 	textStarted bool   // Whether text content has started for the current item.
 
+	// Reasoning tracking.
+	reasoningItemID      string // Reasoning item ID (separate from text item).
+	reasoningOutputIndex int    // Output index for the reasoning item.
+	reasoningStarted     bool   // Whether reasoning content has started.
+	reasoningDone        bool   // Whether reasoning.done has been emitted.
+	accumulatedReasoning string // Accumulated reasoning text for the final item.
+
 	// Tool call tracking: maps tool call index to item ID and output index.
 	toolCallItems map[int]*toolCallItemState
 }
@@ -34,6 +41,7 @@ func (s *streamState) nextSeq() int {
 
 // mapTextDelta converts a ProviderEventTextDelta to a StreamEvent.
 // An empty delta signals a new message start (role-only chunk from the backend).
+// If reasoning was in progress, emits reasoning.done first (implicit transition).
 func mapTextDelta(ev provider.ProviderEvent, state *streamState) []api.StreamEvent {
 	if ev.Delta == "" && !state.textStarted {
 		// Empty delta = role-only first chunk. Don't emit a text delta event,
@@ -47,17 +55,23 @@ func mapTextDelta(ev provider.ProviderEvent, state *streamState) []api.StreamEve
 		return nil
 	}
 
-	state.textStarted = true
-	return []api.StreamEvent{
-		{
-			Type:           api.EventOutputTextDelta,
-			SequenceNumber: state.nextSeq(),
-			Delta:          ev.Delta,
-			ItemID:         state.itemID,
-			OutputIndex:    state.outputIndex,
-			ContentIndex:   0,
-		},
+	var events []api.StreamEvent
+
+	// If reasoning was active and we're now getting text, finalize reasoning first.
+	if state.reasoningStarted && !state.reasoningDone {
+		events = append(events, mapReasoningDone(provider.ProviderEvent{}, state)...)
 	}
+
+	state.textStarted = true
+	events = append(events, api.StreamEvent{
+		Type:           api.EventOutputTextDelta,
+		SequenceNumber: state.nextSeq(),
+		Delta:          ev.Delta,
+		ItemID:         state.itemID,
+		OutputIndex:    state.outputIndex,
+		ContentIndex:   0,
+	})
+	return events
 }
 
 // mapTextDone converts a ProviderEventTextDone to StreamEvent(s).
@@ -170,11 +184,98 @@ func mapToolCallDone(ev provider.ProviderEvent, state *streamState) []api.Stream
 	return events
 }
 
+// mapReasoningDelta converts a ProviderEventReasoningDelta to StreamEvent(s).
+// On the first reasoning delta, it emits output_item.added for the reasoning item.
+func mapReasoningDelta(ev provider.ProviderEvent, state *streamState) []api.StreamEvent {
+	if ev.Delta == "" {
+		return nil
+	}
+
+	var events []api.StreamEvent
+
+	if !state.reasoningStarted {
+		// First reasoning delta: create the reasoning item.
+		state.reasoningItemID = api.NewItemID()
+		state.reasoningOutputIndex = state.outputIndex
+		state.reasoningStarted = true
+
+		// Emit output_item.added for the reasoning item.
+		events = append(events, api.StreamEvent{
+			Type:           api.EventOutputItemAdded,
+			SequenceNumber: state.nextSeq(),
+			Item: &api.Item{
+				ID:     state.reasoningItemID,
+				Type:   api.ItemTypeReasoning,
+				Status: api.ItemStatusInProgress,
+			},
+			OutputIndex: state.reasoningOutputIndex,
+		})
+	}
+
+	state.accumulatedReasoning += ev.Delta
+
+	// Emit reasoning delta.
+	events = append(events, api.StreamEvent{
+		Type:           api.EventReasoningDelta,
+		SequenceNumber: state.nextSeq(),
+		Delta:          ev.Delta,
+		ItemID:         state.reasoningItemID,
+		OutputIndex:    state.reasoningOutputIndex,
+		ContentIndex:   0,
+	})
+
+	return events
+}
+
+// mapReasoningDone converts a ProviderEventReasoningDone to StreamEvent(s).
+// Also called implicitly when text content starts after reasoning.
+func mapReasoningDone(ev provider.ProviderEvent, state *streamState) []api.StreamEvent {
+	if !state.reasoningStarted || state.reasoningDone {
+		return nil
+	}
+	state.reasoningDone = true
+
+	var events []api.StreamEvent
+
+	// Emit reasoning.done.
+	events = append(events, api.StreamEvent{
+		Type:           api.EventReasoningDone,
+		SequenceNumber: state.nextSeq(),
+		ItemID:         state.reasoningItemID,
+		OutputIndex:    state.reasoningOutputIndex,
+		ContentIndex:   0,
+	})
+
+	// Emit output_item.done for the reasoning item.
+	events = append(events, api.StreamEvent{
+		Type:           api.EventOutputItemDone,
+		SequenceNumber: state.nextSeq(),
+		Item: &api.Item{
+			ID:     state.reasoningItemID,
+			Type:   api.ItemTypeReasoning,
+			Status: api.ItemStatusCompleted,
+			Reasoning: &api.ReasoningData{
+				Content: state.accumulatedReasoning,
+			},
+		},
+		OutputIndex: state.reasoningOutputIndex,
+	})
+
+	// Advance output index for subsequent items (text message comes after reasoning).
+	state.outputIndex++
+
+	return events
+}
+
 // mapProviderEvent converts a ProviderEvent into zero or more StreamEvents.
 // Lifecycle events (response.created, item.added, etc.) are NOT generated
 // here; they are managed by the engine's streaming loop.
 func mapProviderEvent(ev provider.ProviderEvent, state *streamState) []api.StreamEvent {
 	switch ev.Type {
+	case provider.ProviderEventReasoningDelta:
+		return mapReasoningDelta(ev, state)
+	case provider.ProviderEventReasoningDone:
+		return mapReasoningDone(ev, state)
 	case provider.ProviderEventTextDelta:
 		return mapTextDelta(ev, state)
 	case provider.ProviderEventTextDone:
@@ -191,7 +292,6 @@ func mapProviderEvent(ev provider.ProviderEvent, state *streamState) []api.Strea
 		// Error events are handled by the engine to emit response.failed.
 		return nil
 	default:
-		// Reasoning events: not mapped yet.
 		return nil
 	}
 }
