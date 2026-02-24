@@ -250,9 +250,9 @@ func (e *Engine) runAgenticLoopStreaming(ctx context.Context, req *api.CreateRes
 			})
 		}
 
-		// Filter and execute tools.
+		// Filter and execute tools (with lifecycle events in streaming mode).
 		filterResult := tools.FilterAllowedTools(toolCalls, req.AllowedTools)
-		results := e.executeTools(ctx, filterResult.Allowed, parallel)
+		results := e.executeToolsWithEvents(ctx, filterResult.Allowed, parallel, w, state)
 		allResults := append(results, filterResult.Rejected...)
 
 		// Append the assistant's tool call message before results.
@@ -568,6 +568,160 @@ func (e *Engine) executeTools(ctx context.Context, calls []tools.ToolCall, paral
 		return e.executeToolsConcurrently(ctx, calls)
 	}
 	return e.executeToolsSequentially(ctx, calls)
+}
+
+// classifyToolType determines the tool lifecycle event category based on
+// the executor kind and tool name.
+func classifyToolType(toolName string, executor tools.ToolExecutor) string {
+	if executor == nil {
+		return "function"
+	}
+	switch executor.Kind() {
+	case tools.ToolKindMCP:
+		return "mcp"
+	case tools.ToolKindBuiltin:
+		if toolName == "file_search" {
+			return "file_search"
+		}
+		if toolName == "web_search" {
+			return "web_search"
+		}
+		return "function"
+	default:
+		return "function"
+	}
+}
+
+// toolLifecycleEvents returns the in_progress, searching (if applicable),
+// completed, and failed event types for a given tool classification.
+func toolLifecycleEvents(toolType string) (inProgress, searching, completed, failed api.StreamEventType) {
+	switch toolType {
+	case "mcp":
+		return api.EventMCPCallInProgress, "", api.EventMCPCallCompleted, api.EventMCPCallFailed
+	case "file_search":
+		return api.EventFileSearchCallInProgress, api.EventFileSearchCallSearching,
+			api.EventFileSearchCallCompleted, ""
+	case "web_search":
+		return api.EventWebSearchCallInProgress, api.EventWebSearchCallSearching,
+			api.EventWebSearchCallCompleted, ""
+	default:
+		return "", "", "", ""
+	}
+}
+
+// executeToolsWithEvents wraps tool execution with lifecycle SSE events.
+// Used only in streaming mode. Emits in_progress before execution,
+// searching for search tools, and completed/failed after execution.
+func (e *Engine) executeToolsWithEvents(ctx context.Context, calls []tools.ToolCall, parallel bool, w transport.ResponseWriter, state *streamState) []tools.ToolResult {
+	if len(calls) == 0 {
+		return nil
+	}
+
+	results := make([]tools.ToolResult, len(calls))
+
+	execOne := func(idx int, tc tools.ToolCall) {
+		exec := e.findExecutor(tc.Name)
+		toolType := classifyToolType(tc.Name, exec)
+		inProgress, searching, completed, failed := toolLifecycleEvents(toolType)
+
+		// Emit in_progress event.
+		if inProgress != "" {
+			_ = w.WriteEvent(ctx, api.StreamEvent{
+				Type:           inProgress,
+				SequenceNumber: state.nextSeq(),
+				ItemID:         tc.ID,
+				OutputIndex:    state.outputIndex + idx + 1,
+			})
+
+			// Emit searching for search tools.
+			if searching != "" {
+				_ = w.WriteEvent(ctx, api.StreamEvent{
+					Type:           searching,
+					SequenceNumber: state.nextSeq(),
+					ItemID:         tc.ID,
+					OutputIndex:    state.outputIndex + idx + 1,
+				})
+			}
+		}
+
+		// Execute the tool.
+		if exec == nil {
+			results[idx] = tools.ToolResult{
+				CallID:  tc.ID,
+				Output:  "no executor found for tool " + tc.Name,
+				IsError: true,
+			}
+			observability.ToolExecutionsTotal.WithLabelValues(tc.Name, "error").Inc()
+			if failed != "" {
+				_ = w.WriteEvent(ctx, api.StreamEvent{
+					Type:           failed,
+					SequenceNumber: state.nextSeq(),
+					ItemID:         tc.ID,
+					OutputIndex:    state.outputIndex + idx + 1,
+				})
+			}
+			return
+		}
+
+		result, err := exec.Execute(ctx, tc)
+		if err != nil {
+			slog.Warn("tool execution error",
+				"tool", tc.Name,
+				"call_id", tc.ID,
+				"error", err.Error(),
+			)
+			results[idx] = tools.ToolResult{
+				CallID:  tc.ID,
+				Output:  err.Error(),
+				IsError: true,
+			}
+			observability.ToolExecutionsTotal.WithLabelValues(tc.Name, "error").Inc()
+			if failed != "" {
+				_ = w.WriteEvent(ctx, api.StreamEvent{
+					Type:           failed,
+					SequenceNumber: state.nextSeq(),
+					ItemID:         tc.ID,
+					OutputIndex:    state.outputIndex + idx + 1,
+				})
+			}
+			return
+		}
+
+		status := "success"
+		if result.IsError {
+			status = "error"
+		}
+		observability.ToolExecutionsTotal.WithLabelValues(tc.Name, status).Inc()
+		results[idx] = *result
+
+		// Emit completed event.
+		if completed != "" {
+			_ = w.WriteEvent(ctx, api.StreamEvent{
+				Type:           completed,
+				SequenceNumber: state.nextSeq(),
+				ItemID:         tc.ID,
+				OutputIndex:    state.outputIndex + idx + 1,
+			})
+		}
+	}
+
+	if parallel {
+		var wg sync.WaitGroup
+		for i, call := range calls {
+			wg.Add(1)
+			go func(idx int, tc tools.ToolCall) {
+				defer wg.Done()
+				execOne(idx, tc)
+			}(i, call)
+		}
+		wg.Wait()
+	} else {
+		for i, call := range calls {
+			execOne(i, call)
+		}
+	}
+
+	return results
 }
 
 // buildAssistantToolCallMessage creates an assistant message with tool_calls

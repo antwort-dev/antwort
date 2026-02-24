@@ -15,9 +15,12 @@ import (
 	"strings"
 	"testing"
 
+	"context"
+
 	"github.com/rhuss/antwort/pkg/engine"
 	"github.com/rhuss/antwort/pkg/provider/vllm"
 	"github.com/rhuss/antwort/pkg/storage/memory"
+	"github.com/rhuss/antwort/pkg/tools"
 	transporthttp "github.com/rhuss/antwort/pkg/transport/http"
 )
 
@@ -54,10 +57,14 @@ func setupTestEnvironment() *TestEnvironment {
 	// Create in-memory store.
 	store := memory.New(100)
 
-	// Create engine.
+	// Create mock tool executor for agentic loop testing.
+	mockExecutor := &mockToolExecutor{}
+
+	// Create engine with mock executor for tool lifecycle testing.
 	eng, err := engine.New(prov, store, engine.Config{
 		DefaultModel:    "mock-model",
 		MaxAgenticTurns: 10,
+		Executors:       []tools.ToolExecutor{mockExecutor},
 	})
 	if err != nil {
 		panic(fmt.Sprintf("creating engine: %v", err))
@@ -216,6 +223,22 @@ func handleMockChatCompletions(w http.ResponseWriter, r *http.Request) {
 			handleMockStreamingTruncated(w, req.Model)
 		} else if wantsReasoning {
 			handleMockStreamingWithReasoning(w, req.Model)
+		} else if len(req.Tools) > 0 {
+			// Check if this is a tool result turn (tool role messages present).
+			hasToolResults := false
+			for _, msg := range req.Messages {
+				if msg.Role == "tool" {
+					hasToolResults = true
+					break
+				}
+			}
+			if hasToolResults {
+				// Second turn: return text after tool results.
+				handleMockStreamingToolResult(w, req.Model)
+			} else {
+				// First turn: return a tool call.
+				handleMockStreamingToolCall(w, req.Model)
+			}
 		} else {
 			handleMockStreaming(w, req.Model)
 		}
@@ -357,6 +380,130 @@ func handleMockStreaming(w http.ResponseWriter, model string) {
 
 // handleMockReasoningResponse returns a non-streaming response with reasoning_content.
 // handleMockTruncatedResponse returns a non-streaming response with finish_reason=length.
+// handleMockStreamingToolCall sends SSE chunks containing a tool call.
+func handleMockStreamingToolCall(w http.ResponseWriter, model string) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	if model == "" {
+		model = "mock-model"
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	// Role chunk.
+	writeChunk(w, model, "", true)
+	flusher.Flush()
+
+	// Tool call chunk.
+	toolCallData, _ := json.Marshal(map[string]any{
+		"id": "chatcmpl-mock-tc", "object": "chat.completion.chunk", "model": model,
+		"choices": []map[string]any{
+			{
+				"index": 0,
+				"delta": map[string]any{
+					"tool_calls": []map[string]any{
+						{
+							"index": 0,
+							"id":    "call_mock_1",
+							"type":  "function",
+							"function": map[string]any{
+								"name":      "get_weather",
+								"arguments": "",
+							},
+						},
+					},
+				},
+				"finish_reason": nil,
+			},
+		},
+	})
+	fmt.Fprintf(w, "data: %s\n\n", toolCallData)
+	flusher.Flush()
+
+	// Tool call arguments chunk.
+	argsData, _ := json.Marshal(map[string]any{
+		"id": "chatcmpl-mock-tc", "object": "chat.completion.chunk", "model": model,
+		"choices": []map[string]any{
+			{
+				"index": 0,
+				"delta": map[string]any{
+					"tool_calls": []map[string]any{
+						{
+							"index": 0,
+							"function": map[string]any{
+								"arguments": `{"location":"SF"}`,
+							},
+						},
+					},
+				},
+				"finish_reason": nil,
+			},
+		},
+	})
+	fmt.Fprintf(w, "data: %s\n\n", argsData)
+	flusher.Flush()
+
+	// Finish with tool_calls.
+	finishData, _ := json.Marshal(map[string]any{
+		"id": "chatcmpl-mock-tc", "object": "chat.completion.chunk", "model": model,
+		"choices": []map[string]any{
+			{"index": 0, "delta": map[string]any{}, "finish_reason": "tool_calls"},
+		},
+		"usage": map[string]any{
+			"prompt_tokens": 15, "completion_tokens": 10, "total_tokens": 25,
+		},
+	})
+	fmt.Fprintf(w, "data: %s\n\n", finishData)
+	flusher.Flush()
+
+	fmt.Fprintf(w, "data: [DONE]\n\n")
+	flusher.Flush()
+}
+
+// handleMockStreamingToolResult sends SSE chunks with a text answer (after tool execution).
+func handleMockStreamingToolResult(w http.ResponseWriter, model string) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	if model == "" {
+		model = "mock-model"
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	writeChunk(w, model, "", true)
+	flusher.Flush()
+
+	writeChunk(w, model, "The weather is sunny, 22°C.", false)
+	flusher.Flush()
+
+	finishData, _ := json.Marshal(map[string]any{
+		"id": "chatcmpl-mock-result", "object": "chat.completion.chunk", "model": model,
+		"choices": []map[string]any{
+			{"index": 0, "delta": map[string]any{}, "finish_reason": "stop"},
+		},
+		"usage": map[string]any{
+			"prompt_tokens": 25, "completion_tokens": 8, "total_tokens": 33,
+		},
+	})
+	fmt.Fprintf(w, "data: %s\n\n", finishData)
+	flusher.Flush()
+
+	fmt.Fprintf(w, "data: [DONE]\n\n")
+	flusher.Flush()
+}
+
 func handleMockTruncatedResponse(w http.ResponseWriter, model string) {
 	if model == "" {
 		model = "mock-model"
@@ -527,4 +674,24 @@ func writeChunk(w http.ResponseWriter, model, content string, isRole bool) {
 		},
 	})
 	fmt.Fprintf(w, "data: %s\n\n", data)
+}
+
+// --- Mock tool executor ---
+
+// mockToolExecutor handles get_weather tool calls for testing.
+type mockToolExecutor struct{}
+
+func (m *mockToolExecutor) Kind() tools.ToolKind {
+	return tools.ToolKindBuiltin
+}
+
+func (m *mockToolExecutor) CanExecute(toolName string) bool {
+	return toolName == "get_weather"
+}
+
+func (m *mockToolExecutor) Execute(_ context.Context, call tools.ToolCall) (*tools.ToolResult, error) {
+	return &tools.ToolResult{
+		CallID: call.ID,
+		Output: `{"temperature": "22°C", "condition": "sunny"}`,
+	}, nil
 }

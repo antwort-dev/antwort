@@ -24,6 +24,17 @@ const (
 	EventError                 StreamEventType = "error"
 	EventRefusalDelta          StreamEventType = "response.refusal.delta"
 	EventRefusalDone           StreamEventType = "response.refusal.done"
+
+	// Tool lifecycle events emitted during agentic loop tool execution.
+	EventMCPCallInProgress         StreamEventType = "response.mcp_call.in_progress"
+	EventMCPCallCompleted          StreamEventType = "response.mcp_call.completed"
+	EventMCPCallFailed             StreamEventType = "response.mcp_call.failed"
+	EventFileSearchCallInProgress  StreamEventType = "response.file_search_call.in_progress"
+	EventFileSearchCallSearching   StreamEventType = "response.file_search_call.searching"
+	EventFileSearchCallCompleted   StreamEventType = "response.file_search_call.completed"
+	EventWebSearchCallInProgress   StreamEventType = "response.web_search_call.in_progress"
+	EventWebSearchCallSearching    StreamEventType = "response.web_search_call.searching"
+	EventWebSearchCallCompleted    StreamEventType = "response.web_search_call.completed"
 )
 
 // State machine events track the lifecycle of a response.
@@ -177,6 +188,17 @@ func (e StreamEvent) MarshalJSON() ([]byte, error) {
 			OutputIndex    int             `json:"output_index"`
 			ContentIndex   int             `json:"content_index"`
 		}{e.Type, e.SequenceNumber, e.ItemID, e.OutputIndex, e.ContentIndex})
+
+	case EventMCPCallInProgress, EventMCPCallCompleted, EventMCPCallFailed,
+		EventFileSearchCallInProgress, EventFileSearchCallSearching, EventFileSearchCallCompleted,
+		EventWebSearchCallInProgress, EventWebSearchCallSearching, EventWebSearchCallCompleted:
+		// Tool lifecycle events: type + seq + item_id + output_index.
+		return json.Marshal(struct {
+			Type           StreamEventType `json:"type"`
+			SequenceNumber int             `json:"sequence_number"`
+			ItemID         string          `json:"item_id"`
+			OutputIndex    int             `json:"output_index"`
+		}{e.Type, e.SequenceNumber, e.ItemID, e.OutputIndex})
 
 	default:
 		// Fallback: include all non-zero fields.
