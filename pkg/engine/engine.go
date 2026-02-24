@@ -129,6 +129,11 @@ func (e *Engine) handleNonStreaming(ctx context.Context, req *api.CreateResponse
 	resp.Model = provResp.Model
 	resp.Usage = &provResp.Usage
 
+	// Populate incomplete details when the provider signals truncation.
+	if provResp.Status == api.ResponseStatusIncomplete {
+		resp.IncompleteDetails = &api.IncompleteDetails{Reason: "max_output_tokens"}
+	}
+
 	// Apply include filtering before writing to client.
 	applyIncludeFilter(resp, req.Include)
 
@@ -380,10 +385,14 @@ func (e *Engine) emitStreamComplete(ctx context.Context, resp *api.Response, ite
 	// Update response status.
 	resp.Status = finalStatus
 
-	// Emit response.completed (or other terminal event).
+	// Emit the appropriate terminal event based on status.
 	eventType := api.EventResponseCompleted
-	if finalStatus == api.ResponseStatusFailed {
+	switch finalStatus {
+	case api.ResponseStatusFailed:
 		eventType = api.EventResponseFailed
+	case api.ResponseStatusIncomplete:
+		eventType = api.EventResponseIncomplete
+		resp.IncompleteDetails = &api.IncompleteDetails{Reason: "max_output_tokens"}
 	}
 
 	return w.WriteEvent(ctx, api.StreamEvent{

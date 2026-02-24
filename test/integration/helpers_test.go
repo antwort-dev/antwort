@@ -194,22 +194,37 @@ func handleMockChatCompletions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if reasoning is requested (trigger word "reason" in last user message).
+	// Check trigger words in user messages.
 	wantsReasoning := false
+	wantsTruncate := false
 	for _, msg := range req.Messages {
 		if msg.Role == "user" {
-			if s, ok := msg.Content.(string); ok && strings.Contains(strings.ToLower(s), "reason") {
-				wantsReasoning = true
+			if s, ok := msg.Content.(string); ok {
+				lower := strings.ToLower(s)
+				if strings.Contains(lower, "reason") {
+					wantsReasoning = true
+				}
+				if strings.Contains(lower, "truncate") {
+					wantsTruncate = true
+				}
 			}
 		}
 	}
 
 	if req.Stream {
-		if wantsReasoning {
+		if wantsTruncate {
+			handleMockStreamingTruncated(w, req.Model)
+		} else if wantsReasoning {
 			handleMockStreamingWithReasoning(w, req.Model)
 		} else {
 			handleMockStreaming(w, req.Model)
 		}
+		return
+	}
+
+	// Non-streaming truncation.
+	if wantsTruncate {
+		handleMockTruncatedResponse(w, req.Model)
 		return
 	}
 
@@ -341,6 +356,72 @@ func handleMockStreaming(w http.ResponseWriter, model string) {
 }
 
 // handleMockReasoningResponse returns a non-streaming response with reasoning_content.
+// handleMockTruncatedResponse returns a non-streaming response with finish_reason=length.
+func handleMockTruncatedResponse(w http.ResponseWriter, model string) {
+	if model == "" {
+		model = "mock-model"
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"id": "chatcmpl-mock-truncated", "object": "chat.completion", "model": model,
+		"choices": []map[string]any{
+			{
+				"index": 0,
+				"message": map[string]any{
+					"role":    "assistant",
+					"content": "This is a truncated resp",
+				},
+				"finish_reason": "length",
+			},
+		},
+		"usage": map[string]any{
+			"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15,
+		},
+	})
+}
+
+// handleMockStreamingTruncated sends SSE chunks with finish_reason=length.
+func handleMockStreamingTruncated(w http.ResponseWriter, model string) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	if model == "" {
+		model = "mock-model"
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	writeChunk(w, model, "", true)
+	flusher.Flush()
+
+	tokens := []string{"This is", " truncated"}
+	for _, token := range tokens {
+		writeChunk(w, model, token, false)
+		flusher.Flush()
+	}
+
+	// Finish with length (truncated).
+	finishData, _ := json.Marshal(map[string]any{
+		"id": "chatcmpl-mock-truncated", "object": "chat.completion.chunk", "model": model,
+		"choices": []map[string]any{
+			{"index": 0, "delta": map[string]any{}, "finish_reason": "length"},
+		},
+		"usage": map[string]any{
+			"prompt_tokens": 10, "completion_tokens": 2, "total_tokens": 12,
+		},
+	})
+	fmt.Fprintf(w, "data: %s\n\n", finishData)
+	flusher.Flush()
+
+	fmt.Fprintf(w, "data: [DONE]\n\n")
+	flusher.Flush()
+}
+
 func handleMockReasoningResponse(w http.ResponseWriter, model string) {
 	if model == "" {
 		model = "mock-model"

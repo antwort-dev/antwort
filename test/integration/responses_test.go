@@ -505,3 +505,42 @@ func TestNonStreamingNoReasoningForNonReasoningModel(t *testing.T) {
 		}
 	}
 }
+
+func TestNonStreamingIncompleteStatus(t *testing.T) {
+	reqBody := map[string]any{
+		"model": "mock-model",
+		"input": []map[string]any{
+			{
+				"type": "message",
+				"role": "user",
+				"content": []map[string]any{
+					{"type": "input_text", "text": "Please truncate this response"},
+				},
+			},
+		},
+	}
+
+	resp := postJSON(t, testEnv.BaseURL()+"/v1/responses", reqBody)
+	if resp.StatusCode != http.StatusOK {
+		body := readBody(t, resp)
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, body)
+	}
+
+	var response api.Response
+	decodeJSON(t, resp, &response)
+
+	if response.Status != api.ResponseStatusIncomplete {
+		t.Errorf("status = %q, want %q", response.Status, api.ResponseStatusIncomplete)
+	}
+
+	if response.IncompleteDetails == nil {
+		t.Error("incomplete_details is nil")
+	} else if response.IncompleteDetails.Reason != "max_output_tokens" {
+		t.Errorf("incomplete reason = %q, want 'max_output_tokens'", response.IncompleteDetails.Reason)
+	}
+
+	// Should still have output.
+	if len(response.Output) == 0 {
+		t.Error("output is empty for incomplete response")
+	}
+}

@@ -415,6 +415,51 @@ func TestStreamingNoReasoningForNonReasoningModel(t *testing.T) {
 	}
 }
 
+func TestStreamingIncompleteEvent(t *testing.T) {
+	reqBody := map[string]any{
+		"model":  "mock-model",
+		"stream": true,
+		"input": []map[string]any{
+			{
+				"type": "message",
+				"role": "user",
+				"content": []map[string]any{
+					{"type": "input_text", "text": "Please truncate this response"},
+				},
+			},
+		},
+	}
+
+	resp := postJSON(t, testEnv.BaseURL()+"/v1/responses", reqBody)
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body := readBody(t, resp)
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, body)
+	}
+
+	events := parseSSEEvents(t, resp)
+
+	// The terminal event should be response.incomplete, not response.completed.
+	lastEvent := events[len(events)-1]
+	if lastEvent.Type != api.EventResponseIncomplete {
+		t.Errorf("terminal event = %q, want %q", lastEvent.Type, api.EventResponseIncomplete)
+	}
+
+	// The response should have incomplete status and details.
+	if lastEvent.Response == nil {
+		t.Fatal("terminal event has nil response")
+	}
+	if lastEvent.Response.Status != api.ResponseStatusIncomplete {
+		t.Errorf("response status = %q, want %q", lastEvent.Response.Status, api.ResponseStatusIncomplete)
+	}
+	if lastEvent.Response.IncompleteDetails == nil {
+		t.Error("incomplete_details is nil")
+	} else if lastEvent.Response.IncompleteDetails.Reason != "max_output_tokens" {
+		t.Errorf("incomplete reason = %q, want 'max_output_tokens'", lastEvent.Response.IncompleteDetails.Reason)
+	}
+}
+
 // --- SSE parsing helpers ---
 
 // parseSSEEvents reads SSE events from an HTTP response until [DONE].

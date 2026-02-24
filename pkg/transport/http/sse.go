@@ -27,6 +27,8 @@ var terminalEvents = map[api.StreamEventType]bool{
 	api.EventResponseFailed:         true,
 	api.EventResponseCancelled:      true,
 	api.EventResponseRequiresAction: true,
+	api.EventResponseIncomplete:     true,
+	api.EventError:                  true,
 }
 
 // sseResponseWriter implements transport.ResponseWriter for HTTP/SSE responses.

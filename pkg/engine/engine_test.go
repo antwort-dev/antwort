@@ -682,13 +682,18 @@ func TestEngine_Streaming_FinishReasonLength(t *testing.T) {
 		t.Fatalf("CreateResponse failed: %v", err)
 	}
 
-	// Last event should be response.completed with incomplete status.
+	// Last event should be response.incomplete (distinct from response.completed).
 	last := w.events[len(w.events)-1]
-	if last.Type != api.EventResponseCompleted {
-		t.Errorf("last event type = %q, want %q", last.Type, api.EventResponseCompleted)
+	if last.Type != api.EventResponseIncomplete {
+		t.Errorf("last event type = %q, want %q", last.Type, api.EventResponseIncomplete)
 	}
 	if last.Response.Status != api.ResponseStatusIncomplete {
 		t.Errorf("response status = %q, want %q", last.Response.Status, api.ResponseStatusIncomplete)
+	}
+	if last.Response.IncompleteDetails == nil {
+		t.Error("incomplete_details is nil")
+	} else if last.Response.IncompleteDetails.Reason != "max_output_tokens" {
+		t.Errorf("incomplete reason = %q, want 'max_output_tokens'", last.Response.IncompleteDetails.Reason)
 	}
 
 	// Find the output_item.done event and verify item status is incomplete.

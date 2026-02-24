@@ -300,8 +300,9 @@ func (e *Engine) runAgenticLoopStreaming(ctx context.Context, req *api.CreateRes
 	resp.Output = allOutputItems
 	resp.Usage = streamUsage(&cumulativeUsage, req)
 	resp.Status = api.ResponseStatusIncomplete
+	resp.IncompleteDetails = &api.IncompleteDetails{Reason: "max_output_tokens"}
 	return w.WriteEvent(ctx, api.StreamEvent{
-		Type: api.EventResponseCompleted, SequenceNumber: state.nextSeq(),
+		Type: api.EventResponseIncomplete, SequenceNumber: state.nextSeq(),
 		Response: resp,
 	})
 }
@@ -596,5 +597,8 @@ func (e *Engine) buildAndWriteResponse(ctx context.Context, req *api.CreateRespo
 	resp.Output = items
 	resp.Usage = usage
 	resp.Error = respErr
+	if status == api.ResponseStatusIncomplete {
+		resp.IncompleteDetails = &api.IncompleteDetails{Reason: "max_output_tokens"}
+	}
 	return w.WriteResponse(ctx, resp)
 }

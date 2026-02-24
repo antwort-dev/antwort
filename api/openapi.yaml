@@ -854,6 +854,10 @@ components:
         - response.function_call_arguments.done
         - response.reasoning.delta
         - response.reasoning.done
+        - response.incomplete
+        - error
+        - response.refusal.delta
+        - response.refusal.done
 
     # -----------------------------------------------------------------------
     # Shared types

@@ -20,6 +20,10 @@ const (
 	EventOutputItemDone        StreamEventType = "response.output_item.done"
 	EventReasoningDelta        StreamEventType = "response.reasoning.delta"
 	EventReasoningDone         StreamEventType = "response.reasoning.done"
+	EventResponseIncomplete    StreamEventType = "response.incomplete"
+	EventError                 StreamEventType = "error"
+	EventRefusalDelta          StreamEventType = "response.refusal.delta"
+	EventRefusalDone           StreamEventType = "response.refusal.done"
 )
 
 // State machine events track the lifecycle of a response.
@@ -52,7 +56,7 @@ func (e StreamEvent) MarshalJSON() ([]byte, error) {
 	switch e.Type {
 	case EventResponseCreated, EventResponseQueued, EventResponseInProgress,
 		EventResponseCompleted, EventResponseFailed, EventResponseCancelled,
-		EventResponseRequiresAction:
+		EventResponseRequiresAction, EventResponseIncomplete:
 		// Lifecycle events: type + sequence_number + response.
 		return json.Marshal(struct {
 			Type           StreamEventType `json:"type"`
@@ -145,6 +149,35 @@ func (e StreamEvent) MarshalJSON() ([]byte, error) {
 			ContentIndex   int             `json:"content_index"`
 		}{e.Type, e.SequenceNumber, e.ItemID, e.OutputIndex, e.ContentIndex})
 
+	case EventError:
+		// Error event: type + error fields (no response wrapper).
+		return json.Marshal(struct {
+			Type           StreamEventType `json:"type"`
+			SequenceNumber int             `json:"sequence_number"`
+			Error          *APIError       `json:"error,omitempty"`
+		}{e.Type, e.SequenceNumber, extractError(e.Response)})
+
+	case EventRefusalDelta:
+		// Refusal delta: type + seq + item_id + output_index + content_index + delta.
+		return json.Marshal(struct {
+			Type           StreamEventType `json:"type"`
+			SequenceNumber int             `json:"sequence_number"`
+			ItemID         string          `json:"item_id"`
+			OutputIndex    int             `json:"output_index"`
+			ContentIndex   int             `json:"content_index"`
+			Delta          string          `json:"delta"`
+		}{e.Type, e.SequenceNumber, e.ItemID, e.OutputIndex, e.ContentIndex, e.Delta})
+
+	case EventRefusalDone:
+		// Refusal done: type + seq + item_id + output_index + content_index.
+		return json.Marshal(struct {
+			Type           StreamEventType `json:"type"`
+			SequenceNumber int             `json:"sequence_number"`
+			ItemID         string          `json:"item_id"`
+			OutputIndex    int             `json:"output_index"`
+			ContentIndex   int             `json:"content_index"`
+		}{e.Type, e.SequenceNumber, e.ItemID, e.OutputIndex, e.ContentIndex})
+
 	default:
 		// Fallback: include all non-zero fields.
 		return json.Marshal(struct {
@@ -198,6 +231,14 @@ func (e *StreamEvent) UnmarshalJSON(data []byte) error {
 		e.Delta = raw.Arguments
 	}
 
+	return nil
+}
+
+// extractError pulls the APIError from a Response, or returns nil.
+func extractError(r *Response) *APIError {
+	if r != nil {
+		return r.Error
+	}
 	return nil
 }
 
