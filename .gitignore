@@ -50,3 +50,7 @@ dist/
 
 # Downloaded upstream OpenAPI spec (fetched during validation)
 api/openresponses-ref.json
+/sandbox-server
+
+# Beads ephemeral database
+.beads/ephemeral.sqlite3

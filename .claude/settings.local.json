@@ -2,6 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(git init:*)",
+      "Bash(go test:*)",
+      "Bash(go build:*)",
       "Bash(*/scripts/sdd-init.sh*)",
       "Bash(*/scripts/sdd-traits.sh*)",
       "Bash(*/scripts/sdd-beads-sync.py*)",
@@ -11,13 +13,7 @@
       "Read",
       "Edit",
       "Write",
-      "mcp__*",
-      "Bash(bd show:*)",
-      "Bash(go test:*)",
-      "Bash(bd sync:*)",
-      "Bash(\"/Users/rhuss/.claude/plugins/cache/sdd-plugin-development/sdd/1.0.0/scripts/sdd-beads-sync.py\" \"/Users/rhuss/Development/ai/antwort/specs/005-storage/tasks.md\")",
-      "Bash(go build:*)",
-      "Bash(bd close:*)"
+      "mcp__*"
     ]
   }
 }

@@ -69,10 +69,11 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Validation rules from requirements
    - State transitions if applicable
 
-2. **Generate API contracts** from functional requirements:
-   - For each user action → endpoint
-   - Use standard REST/GraphQL patterns
-   - Output OpenAPI/GraphQL schema to `/contracts/`
+2. **Define interface contracts** (if project has external interfaces) → `/contracts/`:
+   - Identify what interfaces the project exposes to users or other systems
+   - Document the contract format appropriate for the project type
+   - Examples: public APIs for libraries, command schemas for CLI tools, endpoints for web services, grammars for parsers, UI contracts for applications
+   - Skip if project is purely internal (build scripts, one-off tools, etc.)
 
 3. **Agent context update**:
    - Run `.specify/scripts/bash/update-agent-context.sh claude`
@@ -109,11 +110,16 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 
 <!-- SDD-TRAIT:beads -->
-## Beads Task Sync
+## Beads Task Sync (MANDATORY)
 
-After tasks.md is generated, sync tasks to beads for dependency-aware scheduling:
+After tasks.md is generated, you MUST sync tasks to beads immediately.
+Do not move on to review or PR creation until this step completes.
 
-Run `"$PLUGIN_ROOT/sdd/scripts/sdd-beads-sync.py" "$SPEC_DIR/tasks.md"` to create bd issues from tasks.
+```bash
+"<sdd-beads-sync-command>" "$SPEC_DIR/tasks.md"
+```
 
-This prepares beads for implementation before `/speckit.implement` is invoked.
-If `bd` is not available, skip silently (beads sync is not blocking for planning).
+Report the sync results: number of bd issues created, dependencies mapped, errors encountered.
+
+If `bd` is not installed, report the error clearly. Do not skip silently.
+If the sync script fails, report the error. Do not proceed to implementation without synced beads issues.
