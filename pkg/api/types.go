@@ -113,7 +113,8 @@ const (
 	ItemTypeMessage            ItemType = "message"
 	ItemTypeFunctionCall       ItemType = "function_call"
 	ItemTypeFunctionCallOutput ItemType = "function_call_output"
-	ItemTypeReasoning          ItemType = "reasoning"
+	ItemTypeReasoning              ItemType = "reasoning"
+	ItemTypeCodeInterpreterCall    ItemType = "code_interpreter_call"
 )
 
 // ItemStatus represents the processing status of an item.
@@ -153,21 +154,42 @@ type ReasoningData struct {
 	Summary          string `json:"summary,omitempty"`
 }
 
+// CodeInterpreterCallData holds the data specific to a code_interpreter_call item.
+type CodeInterpreterCallData struct {
+	Code    string                    `json:"code"`
+	Outputs []CodeInterpreterOutput   `json:"outputs"`
+}
+
+// CodeInterpreterOutput represents a single output from code execution.
+type CodeInterpreterOutput struct {
+	Type  string                        `json:"type"` // "logs" or "image"
+	Logs  string                        `json:"logs,omitempty"`
+	Image *CodeInterpreterOutputImage   `json:"image,omitempty"`
+}
+
+// CodeInterpreterOutputImage holds file reference for an image output.
+type CodeInterpreterOutputImage struct {
+	FileID string `json:"file_id"`
+	URL    string `json:"url,omitempty"`
+}
+
 // ---------------------------------------------------------------------------
 // Item struct (T009)
 // ---------------------------------------------------------------------------
 
 // Item represents a single item in a conversation, which can be a message,
-// function call, function call output, reasoning step, or a provider extension type.
+// function call, function call output, reasoning step, code interpreter call,
+// or a provider extension type.
 type Item struct {
 	ID     string     `json:"id"`
 	Type   ItemType   `json:"type"`
 	Status ItemStatus `json:"status"`
 
-	Message            *MessageData            `json:"message,omitempty"`
-	FunctionCall       *FunctionCallData       `json:"function_call,omitempty"`
-	FunctionCallOutput *FunctionCallOutputData `json:"function_call_output,omitempty"`
-	Reasoning          *ReasoningData          `json:"reasoning,omitempty"`
+	Message              *MessageData              `json:"message,omitempty"`
+	FunctionCall         *FunctionCallData         `json:"function_call,omitempty"`
+	FunctionCallOutput   *FunctionCallOutputData   `json:"function_call_output,omitempty"`
+	Reasoning            *ReasoningData            `json:"reasoning,omitempty"`
+	CodeInterpreterCall  *CodeInterpreterCallData  `json:"code_interpreter,omitempty"`
 
 	Extension json.RawMessage `json:"extension,omitempty"`
 }
@@ -185,6 +207,8 @@ func (item Item) MarshalJSON() ([]byte, error) {
 		return item.marshalFunctionCallOutput()
 	case ItemTypeReasoning:
 		return item.marshalReasoning()
+	case ItemTypeCodeInterpreterCall:
+		return item.marshalCodeInterpreterCall()
 	default:
 		// Extension types or unknown: include extension data.
 		type wireExtension struct {
@@ -314,6 +338,19 @@ func (item Item) marshalReasoning() ([]byte, error) {
 	return json.Marshal(w)
 }
 
+// marshalCodeInterpreterCall produces the code_interpreter_call wire format.
+func (item Item) marshalCodeInterpreterCall() ([]byte, error) {
+	type wireCodeInterpreter struct {
+		itemWireBase
+		CodeInterpreter *CodeInterpreterCallData `json:"code_interpreter,omitempty"`
+	}
+
+	return json.Marshal(wireCodeInterpreter{
+		itemWireBase:    itemWireBase{ID: item.ID, Type: item.Type, Status: item.Status},
+		CodeInterpreter: item.CodeInterpreterCall,
+	})
+}
+
 // UnmarshalJSON deserializes an Item from either the flat wire format
 // or the internal nested format, handling both for compatibility.
 func (item *Item) UnmarshalJSON(data []byte) error {
@@ -335,10 +372,11 @@ func (item *Item) UnmarshalJSON(data []byte) error {
 		Extension json.RawMessage    `json:"extension"`
 
 		// Nested format fields (internal/legacy).
-		Message            *MessageData            `json:"message"`
-		FunctionCall       *FunctionCallData       `json:"function_call"`
-		FunctionCallOutput *FunctionCallOutputData `json:"function_call_output"`
-		Reasoning          *ReasoningData          `json:"reasoning"`
+		Message              *MessageData              `json:"message"`
+		FunctionCall         *FunctionCallData         `json:"function_call"`
+		FunctionCallOutput   *FunctionCallOutputData   `json:"function_call_output"`
+		Reasoning            *ReasoningData            `json:"reasoning"`
+		CodeInterpreterCall  *CodeInterpreterCallData  `json:"code_interpreter"`
 	}
 
 	if err := json.Unmarshal(data, &base); err != nil {
@@ -418,6 +456,18 @@ func (item *Item) UnmarshalJSON(data []byte) error {
 					EncryptedContent: r.EncryptedContent,
 					Summary:          r.Summary,
 				}
+			}
+		}
+
+	case ItemTypeCodeInterpreterCall:
+		if base.CodeInterpreterCall != nil {
+			item.CodeInterpreterCall = base.CodeInterpreterCall
+		} else {
+			var ci struct {
+				CodeInterpreter *CodeInterpreterCallData `json:"code_interpreter"`
+			}
+			if err := json.Unmarshal(data, &ci); err == nil && ci.CodeInterpreter != nil {
+				item.CodeInterpreterCall = ci.CodeInterpreter
 			}
 		}
 	}

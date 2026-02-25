@@ -586,6 +586,9 @@ func classifyToolType(toolName string, executor tools.ToolExecutor) string {
 		if toolName == "web_search" {
 			return "web_search"
 		}
+		if toolName == "code_interpreter" {
+			return "code_interpreter"
+		}
 		return "function"
 	default:
 		return "function"
@@ -604,6 +607,9 @@ func toolLifecycleEvents(toolType string) (inProgress, searching, completed, fai
 	case "web_search":
 		return api.EventWebSearchCallInProgress, api.EventWebSearchCallSearching,
 			api.EventWebSearchCallCompleted, ""
+	case "code_interpreter":
+		return api.EventCodeInterpreterInProgress, api.EventCodeInterpreterInterpreting,
+			api.EventCodeInterpreterCompleted, ""
 	default:
 		return "", "", "", ""
 	}

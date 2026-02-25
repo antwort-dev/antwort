@@ -34,7 +34,10 @@ const (
 	EventFileSearchCallCompleted   StreamEventType = "response.file_search_call.completed"
 	EventWebSearchCallInProgress   StreamEventType = "response.web_search_call.in_progress"
 	EventWebSearchCallSearching    StreamEventType = "response.web_search_call.searching"
-	EventWebSearchCallCompleted    StreamEventType = "response.web_search_call.completed"
+	EventWebSearchCallCompleted        StreamEventType = "response.web_search_call.completed"
+	EventCodeInterpreterInProgress     StreamEventType = "response.code_interpreter_call.in_progress"
+	EventCodeInterpreterInterpreting   StreamEventType = "response.code_interpreter_call.interpreting"
+	EventCodeInterpreterCompleted      StreamEventType = "response.code_interpreter_call.completed"
 )
 
 // State machine events track the lifecycle of a response.
@@ -191,7 +194,8 @@ func (e StreamEvent) MarshalJSON() ([]byte, error) {
 
 	case EventMCPCallInProgress, EventMCPCallCompleted, EventMCPCallFailed,
 		EventFileSearchCallInProgress, EventFileSearchCallSearching, EventFileSearchCallCompleted,
-		EventWebSearchCallInProgress, EventWebSearchCallSearching, EventWebSearchCallCompleted:
+		EventWebSearchCallInProgress, EventWebSearchCallSearching, EventWebSearchCallCompleted,
+		EventCodeInterpreterInProgress, EventCodeInterpreterInterpreting, EventCodeInterpreterCompleted:
 		// Tool lifecycle events: type + seq + item_id + output_index.
 		return json.Marshal(struct {
 			Type           StreamEventType `json:"type"`

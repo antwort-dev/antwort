@@ -32,6 +32,7 @@ import (
 	"github.com/rhuss/antwort/pkg/provider/vllm"
 	"github.com/rhuss/antwort/pkg/storage/memory"
 	"github.com/rhuss/antwort/pkg/tools"
+	"github.com/rhuss/antwort/pkg/tools/builtins/codeinterpreter"
 	"github.com/rhuss/antwort/pkg/tools/builtins/filesearch"
 	"github.com/rhuss/antwort/pkg/tools/builtins/websearch"
 	mcptools "github.com/rhuss/antwort/pkg/tools/mcp"
@@ -198,6 +199,14 @@ func createFunctionRegistry(cfg *config.Config) *registry.FunctionRegistry {
 			provider, err := filesearch.New(provCfg.Settings)
 			if err != nil {
 				slog.Error("failed to create file_search provider", "error", err)
+				continue
+			}
+			reg.Register(provider)
+
+		case "code_interpreter":
+			provider, err := codeinterpreter.New(provCfg.Settings)
+			if err != nil {
+				slog.Error("failed to create code_interpreter provider", "error", err)
 				continue
 			}
 			reg.Register(provider)
