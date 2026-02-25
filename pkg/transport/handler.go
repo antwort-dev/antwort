@@ -23,6 +23,33 @@ func (f ResponseCreatorFunc) CreateResponse(ctx context.Context, req *api.Create
 	return f(ctx, req, w)
 }
 
+// ListOptions controls pagination, filtering, and ordering for list operations.
+type ListOptions struct {
+	After  string // Cursor: return items after this ID.
+	Before string // Cursor: return items before this ID.
+	Limit  int    // Maximum number of items to return (default 20, max 100).
+	Model  string // Filter responses by model name (list responses only).
+	Order  string // Sort order: "asc" or "desc" (default "desc").
+}
+
+// ResponseList holds a paginated list of responses.
+type ResponseList struct {
+	Object  string          `json:"object"`
+	Data    []*api.Response `json:"data"`
+	HasMore bool            `json:"has_more"`
+	FirstID string          `json:"first_id"`
+	LastID  string          `json:"last_id"`
+}
+
+// ItemList holds a paginated list of input items.
+type ItemList struct {
+	Object  string     `json:"object"`
+	Data    []api.Item `json:"data"`
+	HasMore bool       `json:"has_more"`
+	FirstID string     `json:"first_id"`
+	LastID  string     `json:"last_id"`
+}
+
 // ResponseStore handles persistence, retrieval, and deletion of stored responses.
 // It is only available in stateful deployments with persistence configured.
 type ResponseStore interface {
@@ -40,6 +67,15 @@ type ResponseStore interface {
 
 	// DeleteResponse soft-deletes a response by ID.
 	DeleteResponse(ctx context.Context, id string) error
+
+	// ListResponses returns a paginated list of stored responses.
+	// Results are filtered by tenant (when present in context) and
+	// optionally by model. Supports cursor-based pagination and ordering.
+	ListResponses(ctx context.Context, opts ListOptions) (*ResponseList, error)
+
+	// GetInputItems returns a paginated list of input items for a response.
+	// Returns storage.ErrNotFound if the response does not exist.
+	GetInputItems(ctx context.Context, responseID string, opts ListOptions) (*ItemList, error)
 
 	// HealthCheck verifies the store connection is functional.
 	HealthCheck(ctx context.Context) error

@@ -76,6 +76,12 @@ func (m *mockStore) DeleteResponse(_ context.Context, id string) error {
 	return nil
 }
 
+func (m *mockStore) ListResponses(_ context.Context, _ transport.ListOptions) (*transport.ResponseList, error) {
+	return &transport.ResponseList{Object: "list", Data: []*api.Response{}}, nil
+}
+func (m *mockStore) GetInputItems(_ context.Context, _ string, _ transport.ListOptions) (*transport.ItemList, error) {
+	return &transport.ItemList{Object: "list", Data: []api.Item{}}, nil
+}
 func (m *mockStore) HealthCheck(_ context.Context) error { return nil }
 func (m *mockStore) Close() error                        { return nil }
 

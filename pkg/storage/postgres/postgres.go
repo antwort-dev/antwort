@@ -263,6 +263,18 @@ func nullJSON(b []byte) *[]byte {
 	return &b
 }
 
+// ListResponses returns a paginated list of stored responses.
+// TODO(028): Implement SQL-based listing with cursor pagination.
+func (s *Store) ListResponses(ctx context.Context, opts transport.ListOptions) (*transport.ResponseList, error) {
+	return nil, fmt.Errorf("ListResponses not yet implemented for PostgreSQL")
+}
+
+// GetInputItems returns input items for a stored response.
+// TODO(028): Implement SQL-based input item retrieval with pagination.
+func (s *Store) GetInputItems(ctx context.Context, responseID string, opts transport.ListOptions) (*transport.ItemList, error) {
+	return nil, fmt.Errorf("GetInputItems not yet implemented for PostgreSQL")
+}
+
 // isDuplicateKey checks if the error is a PostgreSQL unique violation (23505).
 func isDuplicateKey(err error) bool {
 	return err != nil && contains(err.Error(), "23505")

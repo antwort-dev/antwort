@@ -6,6 +6,7 @@ package memory
 import (
 	"context"
 	"container/list"
+	"sort"
 	"sync"
 	"time"
 
@@ -141,6 +142,179 @@ func (s *Store) HealthCheck(_ context.Context) error {
 // Close is a no-op for the in-memory store.
 func (s *Store) Close() error {
 	return nil
+}
+
+// ListResponses returns a paginated list of stored responses filtered by
+// tenant and optionally by model, with cursor-based pagination.
+func (s *Store) ListResponses(ctx context.Context, opts transport.ListOptions) (*transport.ResponseList, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	tenantID := storage.GetTenant(ctx)
+
+	// Collect matching entries.
+	var matches []*api.Response
+	for _, e := range s.entries {
+		if e.deletedAt != nil {
+			continue
+		}
+		if tenantID != "" && e.tenantID != tenantID {
+			continue
+		}
+		if opts.Model != "" && e.resp.Model != opts.Model {
+			continue
+		}
+		matches = append(matches, e.resp)
+	}
+
+	// Sort by created_at. Default is desc (newest first).
+	asc := opts.Order == "asc"
+	sort.Slice(matches, func(i, j int) bool {
+		if asc {
+			if matches[i].CreatedAt != matches[j].CreatedAt {
+				return matches[i].CreatedAt < matches[j].CreatedAt
+			}
+			return matches[i].ID < matches[j].ID
+		}
+		if matches[i].CreatedAt != matches[j].CreatedAt {
+			return matches[i].CreatedAt > matches[j].CreatedAt
+		}
+		return matches[i].ID > matches[j].ID
+	})
+
+	// Apply cursor-based pagination.
+	if opts.After != "" {
+		idx := -1
+		for i, r := range matches {
+			if r.ID == opts.After {
+				idx = i
+				break
+			}
+		}
+		if idx >= 0 {
+			matches = matches[idx+1:]
+		} else {
+			matches = nil
+		}
+	} else if opts.Before != "" {
+		idx := -1
+		for i, r := range matches {
+			if r.ID == opts.Before {
+				idx = i
+				break
+			}
+		}
+		if idx > 0 {
+			matches = matches[:idx]
+		} else {
+			matches = nil
+		}
+	}
+
+	// Apply limit.
+	limit := opts.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	hasMore := len(matches) > limit
+	if hasMore {
+		matches = matches[:limit]
+	}
+
+	result := &transport.ResponseList{
+		Object:  "list",
+		Data:    matches,
+		HasMore: hasMore,
+	}
+	if len(matches) > 0 {
+		result.FirstID = matches[0].ID
+		result.LastID = matches[len(matches)-1].ID
+	}
+	if result.Data == nil {
+		result.Data = []*api.Response{}
+	}
+
+	return result, nil
+}
+
+// GetInputItems returns a paginated list of input items for a stored response.
+func (s *Store) GetInputItems(ctx context.Context, responseID string, opts transport.ListOptions) (*transport.ItemList, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	e, ok := s.entries[responseID]
+	if !ok || e.deletedAt != nil {
+		return nil, storage.ErrNotFound
+	}
+
+	tenantID := storage.GetTenant(ctx)
+	if tenantID != "" && e.tenantID != tenantID {
+		return nil, storage.ErrNotFound
+	}
+
+	items := e.resp.Input
+
+	// Apply cursor-based pagination using item IDs.
+	if opts.After != "" {
+		idx := -1
+		for i, item := range items {
+			if item.ID == opts.After {
+				idx = i
+				break
+			}
+		}
+		if idx >= 0 {
+			items = items[idx+1:]
+		} else {
+			items = nil
+		}
+	} else if opts.Before != "" {
+		idx := -1
+		for i, item := range items {
+			if item.ID == opts.Before {
+				idx = i
+				break
+			}
+		}
+		if idx > 0 {
+			items = items[:idx]
+		} else {
+			items = nil
+		}
+	}
+
+	// Apply limit.
+	limit := opts.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	hasMore := len(items) > limit
+	if hasMore {
+		items = items[:limit]
+	}
+
+	result := &transport.ItemList{
+		Object:  "list",
+		Data:    items,
+		HasMore: hasMore,
+	}
+	if len(items) > 0 {
+		result.FirstID = items[0].ID
+		result.LastID = items[len(items)-1].ID
+	}
+	if result.Data == nil {
+		result.Data = []api.Item{}
+	}
+
+	return result, nil
 }
 
 // evictOldest removes the least recently used entry.

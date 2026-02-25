@@ -72,5 +72,9 @@ func (m *mockStore) SaveResponse(_ context.Context, _ *api.Response) error      
 func (m *mockStore) GetResponse(_ context.Context, _ string) (*api.Response, error)         { return nil, nil }
 func (m *mockStore) GetResponseForChain(_ context.Context, _ string) (*api.Response, error) { return nil, nil }
 func (m *mockStore) DeleteResponse(_ context.Context, _ string) error                       { return nil }
-func (m *mockStore) HealthCheck(_ context.Context) error                                    { return nil }
-func (m *mockStore) Close() error                                                           { return nil }
+func (m *mockStore) ListResponses(_ context.Context, _ ListOptions) (*ResponseList, error)  { return nil, nil }
+func (m *mockStore) GetInputItems(_ context.Context, _ string, _ ListOptions) (*ItemList, error) {
+	return nil, nil
+}
+func (m *mockStore) HealthCheck(_ context.Context) error { return nil }
+func (m *mockStore) Close() error                        { return nil }

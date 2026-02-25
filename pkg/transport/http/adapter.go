@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/rhuss/antwort/pkg/api"
 	"github.com/rhuss/antwort/pkg/storage"
@@ -57,7 +58,9 @@ func NewAdapter(creator transport.ResponseCreator, store transport.ResponseStore
 	}
 
 	a.mux.HandleFunc("POST /v1/responses", a.handleCreateResponse)
+	a.mux.HandleFunc("GET /v1/responses/{id}/input_items", a.handleListInputItems)
 	a.mux.HandleFunc("GET /v1/responses/{id}", a.handleGetResponse)
+	a.mux.HandleFunc("GET /v1/responses", a.handleListResponses)
 	a.mux.HandleFunc("DELETE /v1/responses/{id}", a.handleDeleteResponse)
 
 	return a
@@ -278,6 +281,113 @@ func (a *Adapter) handleDeleteResponse(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleListResponses handles GET /v1/responses.
+func (a *Adapter) handleListResponses(w http.ResponseWriter, r *http.Request) {
+	if a.store == nil {
+		transport.WriteErrorResponse(w,
+			api.NewInvalidRequestError("", "response listing is not available (no store configured)"),
+			http.StatusNotImplemented,
+		)
+		return
+	}
+
+	opts, err := parseListOptions(r)
+	if err != nil {
+		transport.WriteErrorResponse(w, err, http.StatusBadRequest)
+		return
+	}
+
+	result, storeErr := a.store.ListResponses(r.Context(), opts)
+	if storeErr != nil {
+		var apiErr *api.APIError
+		if errors.As(storeErr, &apiErr) {
+			transport.WriteAPIError(w, apiErr)
+		} else {
+			transport.WriteAPIError(w, api.NewServerError(storeErr.Error()))
+		}
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
+}
+
+// handleListInputItems handles GET /v1/responses/{id}/input_items.
+func (a *Adapter) handleListInputItems(w http.ResponseWriter, r *http.Request) {
+	if a.store == nil {
+		transport.WriteErrorResponse(w,
+			api.NewInvalidRequestError("", "input items retrieval is not available (no store configured)"),
+			http.StatusNotImplemented,
+		)
+		return
+	}
+
+	id := r.PathValue("id")
+	if !api.ValidateResponseID(id) {
+		transport.WriteErrorResponse(w,
+			api.NewInvalidRequestError("id", "malformed response ID"),
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	opts, err := parseListOptions(r)
+	if err != nil {
+		transport.WriteErrorResponse(w, err, http.StatusBadRequest)
+		return
+	}
+
+	result, storeErr := a.store.GetInputItems(r.Context(), id, opts)
+	if storeErr != nil {
+		if errors.Is(storeErr, storage.ErrNotFound) {
+			transport.WriteAPIError(w, api.NewNotFoundError("response "+id+" not found"))
+		} else {
+			var apiErr *api.APIError
+			if errors.As(storeErr, &apiErr) {
+				transport.WriteAPIError(w, apiErr)
+			} else {
+				transport.WriteAPIError(w, api.NewServerError(storeErr.Error()))
+			}
+		}
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
+}
+
+// parseListOptions extracts pagination parameters from query string.
+func parseListOptions(r *http.Request) (transport.ListOptions, *api.APIError) {
+	q := r.URL.Query()
+	opts := transport.ListOptions{
+		After:  q.Get("after"),
+		Before: q.Get("before"),
+		Model:  q.Get("model"),
+		Order:  q.Get("order"),
+	}
+
+	if opts.After != "" && opts.Before != "" {
+		return opts, api.NewInvalidRequestError("after", "cannot use both 'after' and 'before' cursors")
+	}
+
+	if opts.Order != "" && opts.Order != "asc" && opts.Order != "desc" {
+		return opts, api.NewInvalidRequestError("order", "order must be 'asc' or 'desc'")
+	}
+	if opts.Order == "" {
+		opts.Order = "desc"
+	}
+
+	if limitStr := q.Get("limit"); limitStr != "" {
+		limit, err := strconv.Atoi(limitStr)
+		if err != nil || limit < 1 {
+			return opts, api.NewInvalidRequestError("limit", "limit must be a positive integer")
+		}
+		opts.Limit = limit
+	}
+
+	return opts, nil
 }
 
 // writeHandlerError writes an error response from the handler. If streaming
