@@ -1,0 +1,32 @@
+# Multi-stage build for the antwort sandbox server.
+#
+# The sandbox server runs inside agent-sandbox pods and executes
+# Python code in isolated subprocesses.
+#
+# Build: podman build -t antwort-sandbox -f Containerfile.sandbox .
+# Run:   podman run -p 8080:8080 antwort-sandbox
+
+FROM docker.io/library/golang:1.25 AS builder
+
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /sandbox-server ./cmd/sandbox-server
+
+FROM docker.io/library/python:3.12-slim
+
+# Install uv for fast package management.
+RUN pip install --no-cache-dir uv
+
+# Copy the sandbox server binary.
+COPY --from=builder /sandbox-server /usr/local/bin/sandbox-server
+
+# Create a non-root user.
+RUN useradd -m -s /bin/bash sandbox
+USER sandbox
+WORKDIR /home/sandbox
+
+EXPOSE 8080
+
+ENTRYPOINT ["sandbox-server"]

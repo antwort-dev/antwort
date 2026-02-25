@@ -4,16 +4,18 @@
 PROFILE   ?= core
 BIN_DIR   := bin
 IMAGE_REPO ?= ghcr.io/rhuss/antwort
+SANDBOX_IMAGE_REPO ?= ghcr.io/rhuss/antwort-sandbox
 IMAGE_TAG  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
 
 KUBE_NAMESPACE ?= antwort
 
-.PHONY: build test vet conformance api-test clean image-build image-push image-latest deploy deploy-openshift
+.PHONY: build test vet conformance api-test clean image-build image-push image-latest sandbox-build sandbox-push deploy deploy-openshift
 
-# Build server and mock-backend binaries.
+# Build all binaries.
 build:
 	go build -o $(BIN_DIR)/server ./cmd/server/
 	go build -o $(BIN_DIR)/mock-backend ./cmd/mock-backend/
+	go build -o $(BIN_DIR)/sandbox-server ./cmd/sandbox-server/
 
 # Run all Go tests.
 test:
@@ -32,6 +34,14 @@ api-test:
 #        make conformance PROFILE=extended
 conformance: build
 	./conformance/run.sh $(PROFILE)
+
+# Build sandbox container image.
+sandbox-build:
+	podman build -t $(SANDBOX_IMAGE_REPO):$(IMAGE_TAG) -f Containerfile.sandbox .
+
+# Push sandbox container image.
+sandbox-push: sandbox-build
+	podman push $(SANDBOX_IMAGE_REPO):$(IMAGE_TAG)
 
 # Build container image.
 image-build:
