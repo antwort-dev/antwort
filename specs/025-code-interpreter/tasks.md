@@ -18,8 +18,9 @@
 
 - [ ] T004 (antwort-at5.1) Create `pkg/tools/builtins/codeinterpreter/types.go`: define sandbox request/response types matching the Spec 024 REST API (code, timeout_seconds, requirements, files, stdout, stderr, exit_code, files_produced) (FR-003, FR-006)
 - [ ] T005 (antwort-at5.2) Create `pkg/tools/builtins/codeinterpreter/client.go`: HTTP client with `Execute(ctx, sandboxURL, request) -> (response, error)`. Handles JSON encoding, timeout via context, error mapping (FR-003, FR-004, FR-005, FR-006)
+- [ ] T005a Create `pkg/tools/builtins/codeinterpreter/client_test.go`: unit tests for the sandbox HTTP client. Table-driven tests covering: successful execution, HTTP timeout, invalid JSON response, non-200 status codes, empty stdout, sandbox server unreachable (FR-003, FR-005, FR-006)
 
-**Checkpoint**: Sandbox HTTP client can call a sandbox server and return results.
+**Checkpoint**: Sandbox HTTP client can call a sandbox server and return results. Unit tests cover error paths.
 
 ---
 
@@ -28,9 +29,10 @@
 **Goal**: Kubernetes adapter that creates/watches/deletes SandboxClaim CRDs.
 
 - [ ] T006 (antwort-iqr.1) Create `pkg/tools/builtins/codeinterpreter/kubernetes/sandbox.go`: SandboxClaim client using client-go. `AcquireSandbox(ctx, template, namespace, timeout) -> (podAddress, claimName, error)` creates a SandboxClaim, watches until Ready, returns pod address. `ReleaseSandbox(ctx, claimName, namespace) -> error` deletes the claim (FR-010, FR-011, FR-012)
+- [ ] T006a Create `pkg/tools/builtins/codeinterpreter/kubernetes/sandbox_test.go`: unit tests for the SandboxClaim client using client-go fake client. Table-driven tests covering: claim created and becomes ready, claim timeout (stuck in pending), claim deleted after execution, claim deleted on error (no leak) (FR-010, FR-011, FR-012)
 - [ ] T007 (antwort-iqr.2) Add `k8s.io/client-go` dependency to `go.mod`. Only imported by the adapter package (constitution Principle II)
 
-**Checkpoint**: SandboxClaim client can acquire and release sandbox pods on a cluster with agent-sandbox.
+**Checkpoint**: SandboxClaim client can acquire and release sandbox pods. Unit tests verify no claim leaks on error paths.
 
 ---
 
