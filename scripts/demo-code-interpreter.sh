@@ -11,19 +11,36 @@
 #
 # Usage:
 #   ./scripts/demo-code-interpreter.sh "Calculate fibonacci(20)"
-#   ./scripts/demo-code-interpreter.sh "Create a list of prime numbers up to 50"
+#   ./scripts/demo-code-interpreter.sh --verbose "Create a list of prime numbers up to 50"
 #   ./scripts/demo-code-interpreter.sh  # uses default prompt
 
 set -euo pipefail
 
+# Parse options.
+VERBOSE=false
+PROMPT=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --verbose|-v)
+      VERBOSE=true
+      shift
+      ;;
+    *)
+      PROMPT="$1"
+      shift
+      ;;
+  esac
+done
+
 NAMESPACE="${ANTWORT_NAMESPACE:-antwort}"
 LOCAL_PORT="${ANTWORT_PORT:-8081}"
 MODEL="${ANTWORT_MODEL:-/mnt/models}"
-PROMPT="${1:-Calculate the sum of squares from 1 to 100 and print the result.}"
+PROMPT="${PROMPT:-Calculate the sum of squares from 1 to 100 and print the result.}"
 
 echo "=== Antwort Code Interpreter Demo ==="
 echo "Namespace: $NAMESPACE"
 echo "Model:     $MODEL"
+echo "Verbose:   $VERBOSE"
 echo "Prompt:    $PROMPT"
 echo ""
 
@@ -62,16 +79,42 @@ REQUEST=$(jq -n \
     max_tool_calls: 3
   }')
 
+# Show request in verbose mode.
+if $VERBOSE; then
+  echo "=== Request ==="
+  echo "POST http://localhost:$LOCAL_PORT/v1/responses"
+  echo "Content-Type: application/json"
+  echo ""
+  echo "$REQUEST" | jq .
+  echo ""
+fi
+
 echo "Sending request..."
 echo ""
 
+# Use -D to capture response headers in verbose mode.
+HEADER_FILE=$(mktemp)
 RESPONSE=$(curl -s -X POST "http://localhost:$LOCAL_PORT/v1/responses" \
   -H "Content-Type: application/json" \
+  -D "$HEADER_FILE" \
   -d "$REQUEST")
+
+# Show response headers in verbose mode.
+if $VERBOSE; then
+  echo "=== Response Headers ==="
+  cat "$HEADER_FILE"
+  echo ""
+  echo "=== Response Body ==="
+  echo "$RESPONSE" | jq .
+  echo ""
+fi
+rm -f "$HEADER_FILE"
 
 # Parse and display results.
 STATUS=$(echo "$RESPONSE" | jq -r '.status')
-echo "=== Response Status: $STATUS ==="
+RESPONSE_ID=$(echo "$RESPONSE" | jq -r '.id')
+echo "=== Response: $RESPONSE_ID ==="
+echo "Status: $STATUS"
 echo ""
 
 # Show each output item.
