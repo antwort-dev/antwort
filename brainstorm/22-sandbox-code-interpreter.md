@@ -2,109 +2,198 @@
 
 ## Context
 
-Brainstorm 11 defines the full sandbox architecture (agent-sandbox CRDs, REST API, SPIFFE, warm pools). This brainstorm focuses on the first concrete integration: a `code_interpreter` FunctionProvider that executes Python code in agent-sandbox pods.
+Brainstorm 11 defines the full sandbox architecture (agent-sandbox CRDs, REST API, SPIFFE, warm pools). Spec 024 delivers the sandbox server binary and container image (deployed and tested on ROSA). This brainstorm defines the FunctionProvider that connects antwort's agentic loop to sandbox pods.
 
 This is a prerequisite for the Agent feature (brainstorm 21), where agent definitions can include `code_interpreter` as a tool type.
 
+## Decisions
+
+### SandboxClaim Per Execution
+
+Each code execution creates a `SandboxClaim` CR, waits for agent-sandbox to assign a pod from the warm pool, executes code against the pod, then deletes the claim. True pod-level isolation per execution.
+
+This requires:
+- `client-go` dependency in an adapter package (per constitution Principle II)
+- agent-sandbox controller installed on the cluster
+- SandboxTemplate and SandboxWarmPool resources pre-configured
+
+### Full OpenResponses Code Interpreter Format
+
+The output matches the upstream `code_interpreter_call` item type:
+
+```json
+{
+  "type": "code_interpreter_call",
+  "id": "ci_abc123",
+  "status": "completed",
+  "code_interpreter": {
+    "code": "import pandas as pd\n...",
+    "outputs": [
+      {"type": "logs", "logs": "Analysis complete\n42"},
+      {"type": "image", "image": {"file_id": "file_xyz"}}
+    ]
+  }
+}
+```
+
+Files produced by the code are stored (uploaded to storage or served via URL) and returned as `image` outputs with `file_id` references.
+
 ## What Gets Built
 
-A new FunctionProvider (`pkg/tools/builtins/codeinterpreter/`) that:
+### 1. SandboxClaim Client (`pkg/tools/builtins/codeinterpreter/kubernetes/`)
 
-1. Registers a `code_interpreter` tool the model can call
-2. When called, creates a `SandboxClaim` to acquire a sandbox pod
-3. Sends the code to the sandbox pod's REST API
-4. Returns stdout/stderr/files as the tool result
-5. Emits `code_interpreter_call.*` SSE events during execution
-6. Releases the sandbox when done
-
-## Simplified First Version
-
-The full brainstorm 11 has environment caching, pod routing, SPIFFE mTLS, and specialized sandbox types. For the first version, simplify:
-
-- **No environment caching**: Every execution gets a fresh sandbox from the warm pool
-- **No pod routing**: Always claim a new sandbox, no reuse optimization
-- **No SPIFFE initially**: Use Kubernetes ServiceAccount tokens and NetworkPolicy for security (SPIFFE can be added later)
-- **No specialized pods**: Only the general-purpose Python sandbox
-
-### Minimal Flow
+An adapter package that wraps `client-go` operations:
 
 ```
-1. Model calls code_interpreter(code="import pandas...")
-2. Antwort creates SandboxClaim referencing SandboxTemplate "antwort-python"
-3. Wait for SandboxClaim status to become Ready (pod assigned from warm pool)
-4. POST sandbox-pod:8080/execute {"code": "...", "timeout_seconds": 30}
-5. Receive result {stdout, stderr, exit_code}
-6. Delete SandboxClaim (pod returns to warm pool)
-7. Return tool result to agentic loop
+CreateClaim(ctx, template, namespace, timeout) -> (podAddress, claimName, error)
+DeleteClaim(ctx, claimName, namespace) -> error
 ```
 
-### SSE Events During Execution
+The `CreateClaim` function:
+1. Creates a `SandboxClaim` CR referencing the template
+2. Watches the claim's status until it becomes Ready (or times out)
+3. Extracts the pod's service address from the status
+4. Returns the address for the HTTP client to use
+
+The `DeleteClaim` function:
+1. Deletes the `SandboxClaim` CR
+2. Agent-sandbox controller returns the pod to the warm pool
+
+### 2. Sandbox HTTP Client (`pkg/tools/builtins/codeinterpreter/`)
+
+A client that calls the sandbox server's REST API:
 
 ```
-response.code_interpreter_call.in_progress  → SandboxClaim created
-response.code_interpreter_call.interpreting → code executing
-response.code_interpreter_call.completed    → result received
+Execute(ctx, podAddress, code, requirements, files, timeout) -> (ExecuteResult, error)
 ```
 
-Or on failure:
+Maps to `POST /execute` on the sandbox server. Returns stdout, stderr, exit code, produced files.
+
+### 3. CodeInterpreter FunctionProvider (`pkg/tools/builtins/codeinterpreter/`)
+
+Implements the `FunctionProvider` interface (from the function registry, Spec 016):
+
 ```
-response.code_interpreter_call.in_progress
-response.code_interpreter_call.failed       → execution error
-```
-
-## Sandbox Pod Container Image
-
-An antwort project deliverable. Minimal Python container:
-
-```dockerfile
-FROM python:3.12-slim
-RUN pip install uv
-COPY sandbox-server /usr/local/bin/sandbox-server
-EXPOSE 8080
-USER nobody
-ENTRYPOINT ["sandbox-server"]
+Name() -> "code_interpreter"
+Tools() -> [ToolDefinition for code_interpreter]
+Execute(ctx, ToolCall) -> (ToolResult, error)
+Routes() -> nil (no HTTP management routes)
 ```
 
-The `sandbox-server` binary is a simple HTTP server (could be Go or Python) that:
-- Accepts `POST /execute` with code + requirements
-- Creates a virtualenv (if requirements specified), installs packages via `uv`
-- Executes the code in a subprocess with timeout
-- Returns stdout, stderr, exit_code
-- Exposes `GET /health` for readiness probes
+The Execute flow:
+1. Parse the tool call arguments (code, requirements)
+2. Create a SandboxClaim -> get pod address
+3. Call the sandbox server's /execute endpoint
+4. Format the result as code_interpreter_call output
+5. Delete the SandboxClaim
+6. Return the formatted result
+
+### 4. Code Interpreter Item Types (`pkg/api/types.go`)
+
+New item types matching the upstream spec:
+
+```go
+const (
+    ItemTypeCodeInterpreterCall = "code_interpreter_call"
+)
+
+type CodeInterpreterCallData struct {
+    Code    string                      `json:"code"`
+    Outputs []CodeInterpreterOutput     `json:"outputs"`
+}
+
+type CodeInterpreterOutput struct {
+    Type  string                       `json:"type"` // "logs" or "image"
+    Logs  string                       `json:"logs,omitempty"`
+    Image *CodeInterpreterOutputImage  `json:"image,omitempty"`
+}
+
+type CodeInterpreterOutputImage struct {
+    FileID string `json:"file_id"`
+    URL    string `json:"url,omitempty"`
+}
+```
+
+### 5. SSE Event Classification
+
+Update `classifyToolType()` in `pkg/engine/loop.go` to recognize `code_interpreter`:
+
+```go
+case tools.ToolKindBuiltin:
+    if toolName == "code_interpreter" {
+        return "code_interpreter"
+    }
+```
+
+And add the event type mapping in `toolLifecycleEvents()`:
+
+```go
+case "code_interpreter":
+    return EventCodeInterpreterInProgress, EventCodeInterpreterInterpreting,
+           EventCodeInterpreterCompleted, ""
+```
 
 ## Configuration
 
 ```yaml
-# In antwort config.yaml
 providers:
   code_interpreter:
     enabled: true
     settings:
-      sandbox_template: antwort-python
-      sandbox_namespace: antwort-sandbox
-      claim_timeout: 30s
-      execution_timeout: 60s
+      sandbox_template: antwort-python       # SandboxTemplate name
+      sandbox_namespace: antwort              # Namespace for SandboxClaims
+      claim_timeout: 30s                      # Time to wait for pod assignment
+      execution_timeout: 60s                  # Default code execution timeout
+      max_output_size: 10485760               # 10MB max output
 ```
+
+## Fallback: Static URL Mode
+
+For development and testing without agent-sandbox controller, support a static URL mode:
+
+```yaml
+providers:
+  code_interpreter:
+    enabled: true
+    settings:
+      sandbox_url: http://sandbox-server:8080  # Static URL (no SandboxClaim)
+```
+
+When `sandbox_url` is set, skip the SandboxClaim flow and call the URL directly. When `sandbox_template` is set, use the SandboxClaim flow. Only one should be configured.
+
+## File Handling
+
+Files produced by code execution are returned by the sandbox server as base64-encoded strings. The FunctionProvider:
+
+1. Decodes the base64 content
+2. Determines the file type (from extension or magic bytes)
+3. For images (png, jpg, svg): creates a `CodeInterpreterOutputImage` with a file_id
+4. For other files: includes them as base64 in the output or stores them
+
+**File storage** for the first version: return files inline as base64 in the tool output. The model and client get the data directly. A file storage service (for persistent file_ids and URLs) is a future concern.
 
 ## Dependencies
 
-- agent-sandbox controller installed on the cluster
-- SandboxTemplate and SandboxWarmPool resources created
-- Antwort has permissions to create/delete SandboxClaim resources
-- Sandbox pod container image built and available
+- **Spec 024** (sandbox server): the execution backend
+- **Spec 016** (function registry): FunctionProvider interface
+- **Spec 023** (tool lifecycle events): SSE events during execution
+- **agent-sandbox** (kubernetes-sigs): SandboxClaim CRD and controller
+- **client-go**: For SandboxClaim CRUD (adapter package only)
 
 ## Phasing
 
-1. **Sandbox server binary**: The HTTP server that runs inside sandbox pods
-2. **Container image**: Dockerfile, build, push to registry
-3. **SandboxClaim client**: Go code to create/watch/delete SandboxClaim CRDs
-4. **CodeInterpreter FunctionProvider**: Register tool, dispatch to sandbox, return results
-5. **SSE events**: Emit code_interpreter lifecycle events
-6. **Kustomize manifests**: SandboxTemplate, SandboxWarmPool for deployment
-7. **Integration tests**: Mock sandbox server, test the full flow
+1. Add CodeInterpreterCallData types to `pkg/api/types.go`
+2. Implement sandbox HTTP client (calls /execute)
+3. Implement SandboxClaim client (adapter with client-go)
+4. Implement CodeInterpreter FunctionProvider
+5. Update classifyToolType for code_interpreter SSE events
+6. Add to config loader and server wiring
+7. Integration tests (mock sandbox server, test full agentic loop)
+8. End-to-end test on ROSA with real sandbox pods
 
-## Open Questions (from brainstorm 11, narrowed)
+## Open Questions
 
-- Should the sandbox server be Go or Python? Go is consistent with the rest of the project, but Python makes virtualenv management simpler.
-- How to handle large file outputs from code execution? Inline in the REST response for now, object storage later.
-- What's the maximum execution timeout? 60 seconds default, configurable per agent profile.
+- Should `code_interpreter` be a standard `function_call` item or a first-class `code_interpreter_call` item? Recommendation: execute as function_call via the existing tool executor path, but format the output item as `code_interpreter_call` for spec compliance.
+- How should file_ids be generated? UUID for now. A proper file storage service later.
+- Should the SandboxClaim include resource limits (CPU, memory)? Yes, from the provider config or agent constraints.
+- How to handle SandboxClaim timeout (agent-sandbox is slow or pool is exhausted)? Return an error tool result, don't fail the entire response.
