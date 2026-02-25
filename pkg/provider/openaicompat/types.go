@@ -22,6 +22,7 @@ type ChatCompletionRequest struct {
 	PresencePenalty  *float64           `json:"presence_penalty,omitempty"`
 	TopLogprobs      *int               `json:"top_logprobs,omitempty"`
 	User             string             `json:"user,omitempty"`
+	ResponseFormat   any                `json:"response_format,omitempty"`
 }
 
 // ChatStreamOptions controls streaming behavior.

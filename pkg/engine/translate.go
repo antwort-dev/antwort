@@ -22,6 +22,11 @@ func translateRequest(req *api.CreateResponseRequest) *provider.ProviderRequest 
 		User:             req.User,
 	}
 
+	// Forward text.format as response_format when it's not the default "text" type.
+	if req.Text != nil && req.Text.Format != nil && req.Text.Format.Type != "text" {
+		pr.ResponseFormat = req.Text
+	}
+
 	// Map tool choice directly if set.
 	if req.ToolChoice != nil {
 		pr.ToolChoice = req.ToolChoice

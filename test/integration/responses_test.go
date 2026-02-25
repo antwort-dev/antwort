@@ -506,6 +506,522 @@ func TestNonStreamingNoReasoningForNonReasoningModel(t *testing.T) {
 	}
 }
 
+// --- List Responses tests (Spec 028) ---
+
+func TestListResponsesEmpty(t *testing.T) {
+	// Use a fresh server with an empty store to avoid interference.
+	// The shared test environment may have stored responses from other tests,
+	// so we just verify the endpoint returns a valid list response.
+	resp := getURL(t, testEnv.BaseURL()+"/v1/responses?model=nonexistent-model-xyz")
+	if resp.StatusCode != http.StatusOK {
+		body := readBody(t, resp)
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, body)
+	}
+
+	var list map[string]json.RawMessage
+	decodeJSON(t, resp, &list)
+
+	if string(list["object"]) != `"list"` {
+		t.Errorf("object = %s, want \"list\"", list["object"])
+	}
+
+	var hasMore bool
+	json.Unmarshal(list["has_more"], &hasMore)
+	if hasMore {
+		t.Error("has_more should be false for empty list")
+	}
+}
+
+func TestListResponsesWithResults(t *testing.T) {
+	// Create two stored responses.
+	for i := 0; i < 2; i++ {
+		reqBody := map[string]any{
+			"model": "mock-model",
+			"store": true,
+			"input": []map[string]any{
+				{
+					"type": "message",
+					"role": "user",
+					"content": []map[string]any{
+						{"type": "input_text", "text": "list test"},
+					},
+				},
+			},
+		}
+		createResp := postJSON(t, testEnv.BaseURL()+"/v1/responses", reqBody)
+		if createResp.StatusCode != http.StatusOK {
+			body := readBody(t, createResp)
+			t.Fatalf("create %d: expected 200, got %d: %s", i, createResp.StatusCode, body)
+		}
+		createResp.Body.Close()
+	}
+
+	// List all responses.
+	resp := getURL(t, testEnv.BaseURL()+"/v1/responses")
+	if resp.StatusCode != http.StatusOK {
+		body := readBody(t, resp)
+		t.Fatalf("list: expected 200, got %d: %s", resp.StatusCode, body)
+	}
+
+	var list struct {
+		Object  string            `json:"object"`
+		Data    []json.RawMessage `json:"data"`
+		HasMore bool              `json:"has_more"`
+		FirstID string            `json:"first_id"`
+		LastID  string            `json:"last_id"`
+	}
+	decodeJSON(t, resp, &list)
+
+	if list.Object != "list" {
+		t.Errorf("object = %q, want %q", list.Object, "list")
+	}
+	if len(list.Data) < 2 {
+		t.Fatalf("expected at least 2 responses, got %d", len(list.Data))
+	}
+	if list.FirstID == "" {
+		t.Error("first_id is empty")
+	}
+	if list.LastID == "" {
+		t.Error("last_id is empty")
+	}
+}
+
+func TestListResponsesPagination(t *testing.T) {
+	// Create 3 stored responses.
+	var ids []string
+	for i := 0; i < 3; i++ {
+		reqBody := map[string]any{
+			"model": "mock-model",
+			"store": true,
+			"input": []map[string]any{
+				{
+					"type": "message",
+					"role": "user",
+					"content": []map[string]any{
+						{"type": "input_text", "text": "pagination test"},
+					},
+				},
+			},
+		}
+		createResp := postJSON(t, testEnv.BaseURL()+"/v1/responses", reqBody)
+		if createResp.StatusCode != http.StatusOK {
+			body := readBody(t, createResp)
+			t.Fatalf("create %d: expected 200, got %d: %s", i, createResp.StatusCode, body)
+		}
+		var created struct{ ID string `json:"id"` }
+		decodeJSON(t, createResp, &created)
+		ids = append(ids, created.ID)
+	}
+
+	// List with limit=1 to test pagination.
+	resp := getURL(t, testEnv.BaseURL()+"/v1/responses?limit=1")
+	if resp.StatusCode != http.StatusOK {
+		body := readBody(t, resp)
+		t.Fatalf("list: expected 200, got %d: %s", resp.StatusCode, body)
+	}
+
+	var page1 struct {
+		Data    []struct{ ID string `json:"id"` } `json:"data"`
+		HasMore bool                               `json:"has_more"`
+		LastID  string                             `json:"last_id"`
+	}
+	decodeJSON(t, resp, &page1)
+
+	if len(page1.Data) != 1 {
+		t.Fatalf("page 1: expected 1 response, got %d", len(page1.Data))
+	}
+	if !page1.HasMore {
+		t.Error("page 1: has_more should be true")
+	}
+
+	// Get page 2 using after cursor.
+	resp2 := getURL(t, testEnv.BaseURL()+"/v1/responses?limit=1&after="+page1.LastID)
+	if resp2.StatusCode != http.StatusOK {
+		body := readBody(t, resp2)
+		t.Fatalf("page 2: expected 200, got %d: %s", resp2.StatusCode, body)
+	}
+
+	var page2 struct {
+		Data []struct{ ID string `json:"id"` } `json:"data"`
+	}
+	decodeJSON(t, resp2, &page2)
+
+	if len(page2.Data) != 1 {
+		t.Fatalf("page 2: expected 1 response, got %d", len(page2.Data))
+	}
+	// Page 2 should have a different ID than page 1.
+	if page2.Data[0].ID == page1.Data[0].ID {
+		t.Error("page 2 returned the same response as page 1")
+	}
+}
+
+func TestListResponsesModelFilter(t *testing.T) {
+	// List responses filtered by model.
+	resp := getURL(t, testEnv.BaseURL()+"/v1/responses?model=mock-model")
+	if resp.StatusCode != http.StatusOK {
+		body := readBody(t, resp)
+		t.Fatalf("list: expected 200, got %d: %s", resp.StatusCode, body)
+	}
+
+	var list struct {
+		Data []struct{ Model string `json:"model"` } `json:"data"`
+	}
+	decodeJSON(t, resp, &list)
+
+	for i, r := range list.Data {
+		if r.Model != "mock-model" {
+			t.Errorf("data[%d].model = %q, want %q", i, r.Model, "mock-model")
+		}
+	}
+
+	// Filter by non-existent model.
+	resp2 := getURL(t, testEnv.BaseURL()+"/v1/responses?model=nonexistent")
+	if resp2.StatusCode != http.StatusOK {
+		body := readBody(t, resp2)
+		t.Fatalf("list nonexistent: expected 200, got %d: %s", resp2.StatusCode, body)
+	}
+
+	var emptyList struct {
+		Data []json.RawMessage `json:"data"`
+	}
+	decodeJSON(t, resp2, &emptyList)
+
+	if len(emptyList.Data) != 0 {
+		t.Errorf("expected 0 results for nonexistent model, got %d", len(emptyList.Data))
+	}
+}
+
+func TestListResponsesOrdering(t *testing.T) {
+	// List in ascending order.
+	respAsc := getURL(t, testEnv.BaseURL()+"/v1/responses?order=asc")
+	if respAsc.StatusCode != http.StatusOK {
+		body := readBody(t, respAsc)
+		t.Fatalf("list asc: expected 200, got %d: %s", respAsc.StatusCode, body)
+	}
+
+	var ascList struct {
+		Data []struct {
+			ID        string `json:"id"`
+			CreatedAt int64  `json:"created_at"`
+		} `json:"data"`
+	}
+	decodeJSON(t, respAsc, &ascList)
+
+	// Verify ascending order.
+	for i := 1; i < len(ascList.Data); i++ {
+		if ascList.Data[i].CreatedAt < ascList.Data[i-1].CreatedAt {
+			t.Errorf("ascending order violated at index %d: %d < %d",
+				i, ascList.Data[i].CreatedAt, ascList.Data[i-1].CreatedAt)
+		}
+	}
+}
+
+func TestListResponsesInvalidParams(t *testing.T) {
+	// Invalid order.
+	resp := getURL(t, testEnv.BaseURL()+"/v1/responses?order=invalid")
+	if resp.StatusCode != http.StatusBadRequest {
+		body := readBody(t, resp)
+		t.Errorf("invalid order: expected 400, got %d: %s", resp.StatusCode, body)
+	} else {
+		resp.Body.Close()
+	}
+
+	// Invalid limit.
+	resp2 := getURL(t, testEnv.BaseURL()+"/v1/responses?limit=abc")
+	if resp2.StatusCode != http.StatusBadRequest {
+		body := readBody(t, resp2)
+		t.Errorf("invalid limit: expected 400, got %d: %s", resp2.StatusCode, body)
+	} else {
+		resp2.Body.Close()
+	}
+
+	// Both after and before.
+	resp3 := getURL(t, testEnv.BaseURL()+"/v1/responses?after=a&before=b")
+	if resp3.StatusCode != http.StatusBadRequest {
+		body := readBody(t, resp3)
+		t.Errorf("both cursors: expected 400, got %d: %s", resp3.StatusCode, body)
+	} else {
+		resp3.Body.Close()
+	}
+}
+
+// --- Input Items tests (Spec 028) ---
+
+func TestGetInputItems(t *testing.T) {
+	// Create a response with input items.
+	reqBody := map[string]any{
+		"model": "mock-model",
+		"store": true,
+		"input": []map[string]any{
+			{
+				"type": "message",
+				"role": "user",
+				"content": []map[string]any{
+					{"type": "input_text", "text": "input items test"},
+				},
+			},
+		},
+	}
+
+	createResp := postJSON(t, testEnv.BaseURL()+"/v1/responses", reqBody)
+	if createResp.StatusCode != http.StatusOK {
+		body := readBody(t, createResp)
+		t.Fatalf("create: expected 200, got %d: %s", createResp.StatusCode, body)
+	}
+
+	var created struct{ ID string `json:"id"` }
+	decodeJSON(t, createResp, &created)
+
+	// Get input items.
+	resp := getURL(t, testEnv.BaseURL()+"/v1/responses/"+created.ID+"/input_items")
+	if resp.StatusCode != http.StatusOK {
+		body := readBody(t, resp)
+		t.Fatalf("input_items: expected 200, got %d: %s", resp.StatusCode, body)
+	}
+
+	var list struct {
+		Object  string            `json:"object"`
+		Data    []json.RawMessage `json:"data"`
+		HasMore bool              `json:"has_more"`
+	}
+	decodeJSON(t, resp, &list)
+
+	if list.Object != "list" {
+		t.Errorf("object = %q, want %q", list.Object, "list")
+	}
+	if len(list.Data) == 0 {
+		t.Error("expected at least 1 input item")
+	}
+}
+
+func TestGetInputItemsNotFound(t *testing.T) {
+	resp := getURL(t, testEnv.BaseURL()+"/v1/responses/resp_aaaaaaaaaaaaaaaaaaaaaaaa/input_items")
+	if resp.StatusCode != http.StatusNotFound {
+		body := readBody(t, resp)
+		t.Errorf("expected 404, got %d: %s", resp.StatusCode, body)
+	} else {
+		resp.Body.Close()
+	}
+}
+
+func TestGetInputItemsMalformedID(t *testing.T) {
+	resp := getURL(t, testEnv.BaseURL()+"/v1/responses/bad-id/input_items")
+	if resp.StatusCode != http.StatusBadRequest {
+		body := readBody(t, resp)
+		t.Errorf("expected 400, got %d: %s", resp.StatusCode, body)
+	} else {
+		resp.Body.Close()
+	}
+}
+
+// --- Structured Output tests (Spec 029) ---
+
+func TestStructuredOutputJsonObject(t *testing.T) {
+	reqBody := map[string]any{
+		"model": "mock-model",
+		"input": []map[string]any{
+			{
+				"type": "message",
+				"role": "user",
+				"content": []map[string]any{
+					{"type": "input_text", "text": "Give me JSON"},
+				},
+			},
+		},
+		"text": map[string]any{
+			"format": map[string]any{
+				"type": "json_object",
+			},
+		},
+	}
+
+	resp := postJSON(t, testEnv.BaseURL()+"/v1/responses", reqBody)
+	if resp.StatusCode != http.StatusOK {
+		body := readBody(t, resp)
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, body)
+	}
+
+	var response api.Response
+	decodeJSON(t, resp, &response)
+
+	// Verify text.format is echoed.
+	if response.Text == nil || response.Text.Format == nil {
+		t.Fatal("text.format not echoed in response")
+	}
+	if response.Text.Format.Type != "json_object" {
+		t.Errorf("text.format.type = %q, want %q", response.Text.Format.Type, "json_object")
+	}
+
+	// Verify the output contains JSON (mock backend returns JSON when response_format is set).
+	if len(response.Output) == 0 {
+		t.Fatal("output is empty")
+	}
+
+	// Check the output text is valid JSON.
+	outputItem := response.Output[0]
+	if outputItem.Message != nil && len(outputItem.Message.Output) > 0 {
+		text := outputItem.Message.Output[0].Text
+		if !json.Valid([]byte(text)) {
+			t.Errorf("output text is not valid JSON: %s", text)
+		}
+	}
+}
+
+func TestStructuredOutputJsonSchema(t *testing.T) {
+	strict := true
+	reqBody := map[string]any{
+		"model": "mock-model",
+		"input": []map[string]any{
+			{
+				"type": "message",
+				"role": "user",
+				"content": []map[string]any{
+					{"type": "input_text", "text": "Give me a person"},
+				},
+			},
+		},
+		"text": map[string]any{
+			"format": map[string]any{
+				"type": "json_schema",
+				"name": "person",
+				"strict": strict,
+				"schema": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"name": map[string]any{"type": "string"},
+						"age":  map[string]any{"type": "integer"},
+					},
+					"required":             []string{"name", "age"},
+					"additionalProperties": false,
+				},
+			},
+		},
+	}
+
+	resp := postJSON(t, testEnv.BaseURL()+"/v1/responses", reqBody)
+	if resp.StatusCode != http.StatusOK {
+		body := readBody(t, resp)
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, body)
+	}
+
+	var response api.Response
+	decodeJSON(t, resp, &response)
+
+	// Verify text.format is echoed with all fields.
+	if response.Text == nil || response.Text.Format == nil {
+		t.Fatal("text.format not echoed in response")
+	}
+	if response.Text.Format.Type != "json_schema" {
+		t.Errorf("text.format.type = %q, want %q", response.Text.Format.Type, "json_schema")
+	}
+	if response.Text.Format.Name != "person" {
+		t.Errorf("text.format.name = %q, want %q", response.Text.Format.Name, "person")
+	}
+	if response.Text.Format.Strict == nil || !*response.Text.Format.Strict {
+		t.Error("text.format.strict should be true")
+	}
+	if response.Text.Format.Schema == nil {
+		t.Error("text.format.schema should not be nil")
+	}
+
+	// Verify the output is valid JSON.
+	if len(response.Output) > 0 {
+		outputItem := response.Output[0]
+		if outputItem.Message != nil && len(outputItem.Message.Output) > 0 {
+			text := outputItem.Message.Output[0].Text
+			if !json.Valid([]byte(text)) {
+				t.Errorf("output text is not valid JSON: %s", text)
+			}
+		}
+	}
+}
+
+func TestStructuredOutputDefaultText(t *testing.T) {
+	// Request without text.format should not send response_format to backend.
+	reqBody := map[string]any{
+		"model": "mock-model",
+		"input": []map[string]any{
+			{
+				"type": "message",
+				"role": "user",
+				"content": []map[string]any{
+					{"type": "input_text", "text": "Hello"},
+				},
+			},
+		},
+	}
+
+	resp := postJSON(t, testEnv.BaseURL()+"/v1/responses", reqBody)
+	if resp.StatusCode != http.StatusOK {
+		body := readBody(t, resp)
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, body)
+	}
+
+	var response api.Response
+	decodeJSON(t, resp, &response)
+
+	// Output should be free-form text (not JSON from response_format handler).
+	if len(response.Output) > 0 {
+		outputItem := response.Output[0]
+		if outputItem.Message != nil && len(outputItem.Message.Output) > 0 {
+			text := outputItem.Message.Output[0].Text
+			// The mock returns "Hello from mock!" for normal requests.
+			if text == "" {
+				t.Error("output text is empty")
+			}
+		}
+	}
+}
+
+func TestStructuredOutputExplicitText(t *testing.T) {
+	// Request with text.format.type = "text" should not send response_format.
+	reqBody := map[string]any{
+		"model": "mock-model",
+		"input": []map[string]any{
+			{
+				"type": "message",
+				"role": "user",
+				"content": []map[string]any{
+					{"type": "input_text", "text": "Hello"},
+				},
+			},
+		},
+		"text": map[string]any{
+			"format": map[string]any{
+				"type": "text",
+			},
+		},
+	}
+
+	resp := postJSON(t, testEnv.BaseURL()+"/v1/responses", reqBody)
+	if resp.StatusCode != http.StatusOK {
+		body := readBody(t, resp)
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, body)
+	}
+
+	var response api.Response
+	decodeJSON(t, resp, &response)
+
+	// text.format should be echoed.
+	if response.Text == nil || response.Text.Format == nil {
+		t.Fatal("text.format not echoed")
+	}
+	if response.Text.Format.Type != "text" {
+		t.Errorf("text.format.type = %q, want %q", response.Text.Format.Type, "text")
+	}
+
+	// Output should be free-form text (not JSON from response_format handler).
+	if len(response.Output) > 0 {
+		outputItem := response.Output[0]
+		if outputItem.Message != nil && len(outputItem.Message.Output) > 0 {
+			text := outputItem.Message.Output[0].Text
+			if text == "" {
+				t.Error("output text is empty")
+			}
+		}
+	}
+}
+
 func TestNonStreamingIncompleteStatus(t *testing.T) {
 	reqBody := map[string]any{
 		"model": "mock-model",

@@ -18,6 +18,11 @@ Auto-generated from all feature plans. Last updated: 2026-02-16
 - N/A (no new persistence, fields echo through existing request/response flow) (020-api-compliance)
 - N/A (no new persistence) (021-reasoning-streaming)
 - Go 1.22+ for the server binary + Go standard library (`net/http`, `os/exec`, `context`, `encoding/json`, `encoding/base64`, `sync/atomic`) (024-sandbox-server)
+- Go 1.22+ + Go standard library for core. `k8s.io/client-go` for SandboxClaim CRUD (adapter package only). (025-code-interpreter)
+- Go 1.22+ + Go standard library only (`log/slog`, `os`, `strings`, `sync`) (026-debug-logging)
+- Go 1.22+ for the server binary + Go standard library (`net/http`, `os/exec`, `encoding/json`) (027-sandbox-modes)
+- Go 1.22+ (consistent with Specs 001-028) + Go standard library only (`encoding/json`) (029-structured-output)
+- N/A (passthrough, no persistence changes) (029-structured-output)
 
 - Go 1.22+ + None (Go standard library only: `encoding/json`, `crypto/rand`, `errors`, `fmt`, `strings`, `regexp`) (001-core-protocol)
 
@@ -37,9 +42,9 @@ tests/
 Go 1.22+: Follow standard conventions
 
 ## Recent Changes
-- 024-sandbox-server: Added Go 1.22+ for the server binary + Go standard library (`net/http`, `os/exec`, `context`, `encoding/json`, `encoding/base64`, `sync/atomic`)
-- 023-tool-lifecycle-events: Added Go 1.22+ + Go standard library only
-- 022-terminal-events: Added Go 1.22+ + Go standard library only
+- 029-structured-output: Added Go 1.22+ (consistent with Specs 001-028) + Go standard library only (`encoding/json`)
+- 029-structured-output: Added Go 1.22+ + Go standard library only (`encoding/json`)
+- 028-list-endpoints: Added Go 1.22+ + Go standard library only
 
 
 <!-- MANUAL ADDITIONS START -->

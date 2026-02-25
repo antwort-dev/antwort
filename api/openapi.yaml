@@ -60,6 +60,73 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+    get:
+      operationId: listResponses
+      summary: List stored responses
+      description: >
+        Returns a paginated list of stored responses, optionally filtered
+        by model and sorted by creation time. Uses cursor-based pagination.
+      tags:
+        - Responses
+      security:
+        - BearerAuth: []
+        - {}
+      parameters:
+        - name: after
+          in: query
+          description: Cursor for forward pagination (return items after this response ID).
+          schema:
+            type: string
+        - name: before
+          in: query
+          description: Cursor for backward pagination (return items before this response ID).
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Maximum number of items to return (1-100, default 20).
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+        - name: model
+          in: query
+          description: Filter responses by model name.
+          schema:
+            type: string
+        - name: order
+          in: query
+          description: Sort order by creation time.
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+            default: desc
+      responses:
+        "200":
+          description: Paginated list of responses
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/X-Request-ID"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResponseList"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "501":
+          description: Storage not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /v1/responses/{response_id}:
     get:
       operationId: getResponse
@@ -115,6 +182,72 @@ paths:
           headers:
             X-Request-ID:
               $ref: "#/components/headers/X-Request-ID"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "501":
+          description: Storage not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /v1/responses/{response_id}/input_items:
+    get:
+      operationId: listInputItems
+      summary: List input items for a response
+      description: >
+        Returns a paginated list of input items that were sent with a
+        stored response. Useful for debugging and conversation reconstruction.
+      tags:
+        - Responses
+      security:
+        - BearerAuth: []
+        - {}
+      parameters:
+        - $ref: "#/components/parameters/ResponseID"
+        - name: after
+          in: query
+          description: Cursor for forward pagination (return items after this item ID).
+          schema:
+            type: string
+        - name: before
+          in: query
+          description: Cursor for backward pagination (return items before this item ID).
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Maximum number of items to return (1-100, default 20).
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+        - name: order
+          in: query
+          description: Sort order.
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+            default: desc
+      responses:
+        "200":
+          description: Paginated list of input items
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/X-Request-ID"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InputItemList"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -1054,6 +1187,21 @@ components:
       properties:
         type:
           type: string
+          description: >
+            The format type. "text" for free-form text (default),
+            "json_object" for JSON mode, "json_schema" for schema-constrained output.
+        name:
+          type: string
+          description: Schema name identifier (json_schema mode only).
+        strict:
+          type:
+            - boolean
+            - "null"
+          description: Whether to enforce strict schema adherence (json_schema mode only).
+        schema:
+          type: object
+          additionalProperties: true
+          description: JSON Schema definition for structured output (json_schema mode only).
 
     ReasoningConfig:
       type: object
@@ -1144,6 +1292,64 @@ components:
       properties:
         error:
           $ref: "#/components/schemas/APIError"
+
+    # -----------------------------------------------------------------------
+    # List response schemas
+    # -----------------------------------------------------------------------
+
+    ResponseList:
+      type: object
+      required:
+        - object
+        - data
+        - has_more
+        - first_id
+        - last_id
+      properties:
+        object:
+          type: string
+          enum:
+            - list
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Response"
+        has_more:
+          type: boolean
+          description: Whether more results are available beyond this page.
+        first_id:
+          type: string
+          description: ID of the first item in the data array.
+        last_id:
+          type: string
+          description: ID of the last item in the data array.
+
+    InputItemList:
+      type: object
+      required:
+        - object
+        - data
+        - has_more
+        - first_id
+        - last_id
+      properties:
+        object:
+          type: string
+          enum:
+            - list
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/InputItem"
+        has_more:
+          type: boolean
+          description: Whether more results are available beyond this page.
+        first_id:
+          type: string
+          description: ID of the first item in the data array.
+        last_id:
+          type: string
+          description: ID of the last item in the data array.
 
     # -----------------------------------------------------------------------
     # Vector store schemas

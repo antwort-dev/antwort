@@ -21,6 +21,30 @@ func TranslateToChat(req *provider.ProviderRequest) ChatCompletionRequest {
 		User:             req.User,
 	}
 
+	// Forward response_format when set (text.format passthrough).
+	if req.ResponseFormat != nil && req.ResponseFormat.Format != nil {
+		f := req.ResponseFormat.Format
+		switch f.Type {
+		case "json_object":
+			cr.ResponseFormat = map[string]any{"type": "json_object"}
+		case "json_schema":
+			rf := map[string]any{
+				"type": f.Type,
+				"json_schema": map[string]any{
+					"name":   f.Name,
+					"schema": f.Schema,
+				},
+			}
+			if f.Strict != nil {
+				rf["json_schema"].(map[string]any)["strict"] = *f.Strict
+			}
+			cr.ResponseFormat = rf
+		default:
+			// Unknown format type: forward as-is for the backend to validate.
+			cr.ResponseFormat = map[string]any{"type": f.Type}
+		}
+	}
+
 	// When streaming, enable usage reporting in the stream.
 	if req.Stream {
 		cr.StreamOptions = &ChatStreamOptions{

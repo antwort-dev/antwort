@@ -52,6 +52,10 @@ type ProviderRequest struct {
 	TopLogprobs      *int              `json:"top_logprobs,omitempty"`
 	User             string            `json:"user,omitempty"`
 
+	// ResponseFormat carries the text.format constraint from the Responses API.
+	// When set, it is translated to the Chat Completions response_format parameter.
+	ResponseFormat *api.TextConfig `json:"-"`
+
 	// Extra holds provider-specific parameters that don't map to standard fields.
 	Extra map[string]any `json:"-"`
 }

@@ -192,8 +192,9 @@ func handleMockChatCompletions(w http.ResponseWriter, r *http.Request) {
 			Role    string `json:"role"`
 			Content any    `json:"content"`
 		} `json:"messages"`
-		Tools  []any `json:"tools"`
-		Stream bool  `json:"stream"`
+		Tools          []any          `json:"tools"`
+		Stream         bool           `json:"stream"`
+		ResponseFormat map[string]any `json:"response_format"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -276,6 +277,36 @@ func handleMockChatCompletions(w http.ResponseWriter, r *http.Request) {
 	model := req.Model
 	if model == "" {
 		model = "mock-model"
+	}
+
+	// When response_format is set, return JSON output.
+	if req.ResponseFormat != nil {
+		rfType, _ := req.ResponseFormat["type"].(string)
+		var content string
+		if rfType == "json_schema" {
+			// Return schema-conforming JSON.
+			content = `{"name":"Alice","age":30}`
+		} else {
+			// json_object or other: return generic JSON.
+			content = `{"result":"structured output","format":"` + rfType + `"}`
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"id":     "chatcmpl-mock-json",
+			"object": "chat.completion",
+			"model":  model,
+			"choices": []map[string]any{
+				{
+					"index":         0,
+					"message":       map[string]any{"role": "assistant", "content": content},
+					"finish_reason": "stop",
+				},
+			},
+			"usage": map[string]any{
+				"prompt_tokens": 10, "completion_tokens": 8, "total_tokens": 18,
+			},
+		})
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")

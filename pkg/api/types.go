@@ -664,8 +664,13 @@ type TextConfig struct {
 }
 
 // TextFormat specifies the output text format.
+// For json_schema mode, the Name, Strict, and Schema fields carry
+// the schema definition through the pipeline as opaque data.
 type TextFormat struct {
-	Type string `json:"type"`
+	Type   string          `json:"type"`
+	Name   string          `json:"name,omitempty"`
+	Strict *bool           `json:"strict,omitempty"`
+	Schema json.RawMessage `json:"schema,omitempty"`
 }
 
 // ReasoningConfig holds reasoning configuration echoed in the response.
