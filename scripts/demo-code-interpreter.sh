@@ -75,11 +75,13 @@ echo "=== Response Status: $STATUS ==="
 echo ""
 
 # Show each output item.
+# Note: .arguments and .output may contain literal newlines that break fromjson,
+# so we display them as raw strings and use gsub to sanitize.
 echo "$RESPONSE" | jq -r '.output[] |
   if .type == "function_call" then
-    "🔧 Tool Call: \(.name)\n   Code: \(.arguments | fromjson | .code)"
+    "🔧 Tool Call: \(.name)\n   Code:\n\(.arguments // "{}" | gsub("\\\\n"; "\n") | "   " + gsub("\n"; "\n   "))"
   elif .type == "function_call_output" then
-    "📤 Result: \(.output | fromjson | .outputs[]? | select(.type == "logs") | .logs // "(no output)")"
+    "📤 Output:\n   \(.output // "(empty)" | gsub("\\\\n"; "\n") | gsub("\n"; "\n   "))"
   elif .type == "message" then
     "💬 Answer: \(.content[]?.text // "(no text)")"
   else
