@@ -14,6 +14,7 @@
 package debug
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
 	"strings"
@@ -81,6 +82,24 @@ func Trace(category string, msg string, args ...any) {
 		return
 	}
 	slog.Log(nil, LevelTrace, msg, append([]any{"debug", category}, args...)...)
+}
+
+// TraceIsEnabled reports whether TRACE level is active for the given category.
+func TraceIsEnabled(category string) bool {
+	if !Enabled(category) {
+		return false
+	}
+	return slog.Default().Enabled(nil, LevelTrace)
+}
+
+// Raw writes plain text to stderr without any slog formatting.
+// Use this for copy-paste-ready output (full HTTP bodies, headers).
+// Only emitted when category is enabled AND level is TRACE.
+func Raw(category string, text string) {
+	if !TraceIsEnabled(category) {
+		return
+	}
+	fmt.Fprintln(os.Stderr, text)
 }
 
 // ParseLevel converts a level string to a slog.Level.

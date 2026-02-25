@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -88,7 +89,16 @@ func (c *Client) Complete(ctx context.Context, req *provider.ProviderRequest) (*
 		"tools", len(chatReq.Tools),
 		"stream", chatReq.Stream,
 	)
-	debug.Trace("providers", "request body", "body", debug.Truncate(string(body), 5000))
+	// Trace: full request for copy-paste (no prefix).
+	if debug.TraceIsEnabled("providers") {
+		debug.Raw("providers", ">>> POST "+url)
+		for k, v := range httpReq.Header {
+			debug.Raw("providers", ">>> "+k+": "+strings.Join(v, ", "))
+		}
+		debug.Raw("providers", ">>>")
+		debug.Raw("providers", string(body))
+		debug.Raw("providers", "")
+	}
 
 	// Send request.
 	requestStart := time.Now()
@@ -105,13 +115,30 @@ func (c *Client) Complete(ctx context.Context, req *provider.ProviderRequest) (*
 		return nil, MapHTTPError(httpResp)
 	}
 
+	// Read response body (needed for both parsing and TRACE logging).
+	respBody, err := io.ReadAll(httpResp.Body)
+	if err != nil {
+		return nil, api.NewServerError(fmt.Sprintf("failed to read backend response: %s", err.Error()))
+	}
+
+	// Trace: full response for copy-paste (no prefix).
+	if debug.TraceIsEnabled("providers") {
+		debug.Raw("providers", fmt.Sprintf("<<< %d %s (%dms)", httpResp.StatusCode, httpResp.Status, time.Since(requestStart).Milliseconds()))
+		for k, v := range httpResp.Header {
+			debug.Raw("providers", "<<< "+k+": "+strings.Join(v, ", "))
+		}
+		debug.Raw("providers", "<<<")
+		debug.Raw("providers", string(respBody))
+		debug.Raw("providers", "")
+	}
+
 	// Parse response.
 	var chatResp ChatCompletionResponse
-	if err := json.NewDecoder(httpResp.Body).Decode(&chatResp); err != nil {
+	if err := json.Unmarshal(respBody, &chatResp); err != nil {
 		return nil, api.NewServerError(fmt.Sprintf("failed to parse backend response: %s", err.Error()))
 	}
 
-	// Debug: log response.
+	// Debug: log response summary.
 	debug.Log("providers", "response",
 		"status", httpResp.StatusCode,
 		"duration_ms", time.Since(requestStart).Milliseconds(),
