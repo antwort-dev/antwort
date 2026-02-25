@@ -22,10 +22,13 @@ RUN pip install --no-cache-dir uv
 # Copy the sandbox server binary.
 COPY --from=builder /sandbox-server /usr/local/bin/sandbox-server
 
-# Create a non-root user.
+# Create a non-root user. On OpenShift, the UID is randomized,
+# so use /tmp for writable directories.
 RUN useradd -m -s /bin/bash sandbox
+ENV UV_CACHE_DIR=/tmp/uv-cache
+ENV HOME=/tmp
 USER sandbox
-WORKDIR /home/sandbox
+WORKDIR /tmp
 
 EXPOSE 8080
 

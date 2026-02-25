@@ -184,7 +184,8 @@ func (s *sandboxServer) handleExecute(w http.ResponseWriter, r *http.Request) {
 	startTime := time.Now()
 	cmd := exec.CommandContext(ctx, "python3", codePath)
 	cmd.Dir = tmpDir
-	cmd.Env = append(os.Environ(), "OUTPUT_DIR="+outputDir)
+	pyLibs := filepath.Join(tmpDir, ".pylibs")
+	cmd.Env = append(os.Environ(), "OUTPUT_DIR="+outputDir, "PYTHONPATH="+pyLibs)
 
 	var stdoutBuf, stderrBuf strings.Builder
 	cmd.Stdout = &stdoutBuf
@@ -231,7 +232,9 @@ func (s *sandboxServer) installRequirements(ctx context.Context, workDir string,
 	installCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutSecs)*time.Second)
 	defer cancel()
 
-	args := []string{"pip", "install", "--index-url", s.pythonIndex}
+	// Install to a user-writable location (needed when running as non-root).
+	targetDir := filepath.Join(workDir, ".pylibs")
+	args := []string{"pip", "install", "--system", "--target", targetDir, "--index-url", s.pythonIndex}
 	args = append(args, requirements...)
 
 	cmd := exec.CommandContext(installCtx, "uv", args...)
