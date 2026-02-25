@@ -25,6 +25,7 @@ import (
 	authjwt "github.com/rhuss/antwort/pkg/auth/jwt"
 	"github.com/rhuss/antwort/pkg/auth/noop"
 	"github.com/rhuss/antwort/pkg/config"
+	"github.com/rhuss/antwort/pkg/debug"
 	"github.com/rhuss/antwort/pkg/engine"
 	"github.com/rhuss/antwort/pkg/observability"
 	"github.com/rhuss/antwort/pkg/provider"
@@ -58,6 +59,9 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("loading configuration: %w", err)
 	}
+
+	// Initialize debug logging from config (env overrides config).
+	debug.Init(cfg.Logging.Debug, cfg.Logging.Level)
 
 	// Create provider from config.
 	prov, err := createProvider(cfg)

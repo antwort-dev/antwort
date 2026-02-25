@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/rhuss/antwort/pkg/api"
+	"github.com/rhuss/antwort/pkg/debug"
 	"github.com/rhuss/antwort/pkg/provider"
 )
 
@@ -78,15 +79,29 @@ func (c *Client) Complete(ctx context.Context, req *provider.ProviderRequest) (*
 		httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
 	}
 
+	// Debug: log outbound request.
+	debug.Log("providers", "request",
+		"method", "POST",
+		"url", url,
+		"model", chatReq.Model,
+		"messages", len(chatReq.Messages),
+		"tools", len(chatReq.Tools),
+		"stream", chatReq.Stream,
+	)
+	debug.Trace("providers", "request body", "body", debug.Truncate(string(body), 5000))
+
 	// Send request.
+	requestStart := time.Now()
 	httpResp, err := c.httpClient.Do(httpReq)
 	if err != nil {
+		debug.Log("providers", "request error", "error", err.Error(), "duration_ms", time.Since(requestStart).Milliseconds())
 		return nil, MapNetworkError(err)
 	}
 	defer httpResp.Body.Close()
 
 	// Check for error status codes.
 	if httpResp.StatusCode < 200 || httpResp.StatusCode >= 300 {
+		debug.Log("providers", "response error", "status", httpResp.StatusCode, "duration_ms", time.Since(requestStart).Milliseconds())
 		return nil, MapHTTPError(httpResp)
 	}
 
@@ -94,6 +109,20 @@ func (c *Client) Complete(ctx context.Context, req *provider.ProviderRequest) (*
 	var chatResp ChatCompletionResponse
 	if err := json.NewDecoder(httpResp.Body).Decode(&chatResp); err != nil {
 		return nil, api.NewServerError(fmt.Sprintf("failed to parse backend response: %s", err.Error()))
+	}
+
+	// Debug: log response.
+	debug.Log("providers", "response",
+		"status", httpResp.StatusCode,
+		"duration_ms", time.Since(requestStart).Milliseconds(),
+		"model", chatResp.Model,
+		"choices", len(chatResp.Choices),
+	)
+	if chatResp.Usage != nil {
+		debug.Log("providers", "usage",
+			"prompt_tokens", chatResp.Usage.PromptTokens,
+			"completion_tokens", chatResp.Usage.CompletionTokens,
+		)
 	}
 
 	// Translate to ProviderResponse.

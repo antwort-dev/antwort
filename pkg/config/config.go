@@ -20,6 +20,13 @@ type Config struct {
 	MCP           MCPConfig                   `yaml:"mcp"`
 	Providers     map[string]ProviderConfig   `yaml:"providers"`
 	Observability ObservabilityConfig         `yaml:"observability"`
+	Logging       LoggingConfig               `yaml:"logging"`
+}
+
+// LoggingConfig controls log verbosity and debug categories.
+type LoggingConfig struct {
+	Level string `yaml:"level"` // ERROR, WARN, INFO, DEBUG, TRACE (default: INFO)
+	Debug string `yaml:"debug"` // Comma-separated debug categories (e.g., "providers,engine")
 }
 
 // ProviderConfig holds settings for a built-in function provider.

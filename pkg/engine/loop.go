@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/rhuss/antwort/pkg/api"
+	"github.com/rhuss/antwort/pkg/debug"
 	"github.com/rhuss/antwort/pkg/observability"
 	"github.com/rhuss/antwort/pkg/provider"
 	"github.com/rhuss/antwort/pkg/tools"
@@ -28,9 +29,14 @@ func (e *Engine) runAgenticLoop(ctx context.Context, req *api.CreateResponseRequ
 	var allOutputItems []api.Item
 	var cumulativeUsage api.Usage
 
+	debug.Log("engine", "agentic loop start", "max_turns", maxTurns, "parallel", parallel, "tools", len(req.Tools))
+
 	for turn := 0; turn < maxTurns; turn++ {
+		debug.Log("engine", "agentic loop turn", "turn", turn+1, "max_turns", maxTurns)
+
 		// Check context before each turn.
 		if ctx.Err() != nil {
+			debug.Log("engine", "context cancelled", "turn", turn+1)
 			return e.buildAndWriteResponse(ctx, req, allOutputItems, &cumulativeUsage, api.ResponseStatusCancelled, nil, w)
 		}
 
@@ -75,7 +81,17 @@ func (e *Engine) runAgenticLoop(ctx context.Context, req *api.CreateResponseRequ
 
 		// No tool calls: final answer. Return completed response.
 		if len(toolCalls) == 0 {
+			debug.Log("engine", "final answer (no tool calls)", "turn", turn+1, "status", string(provResp.Status))
 			return e.buildAndWriteResponse(ctx, req, allOutputItems, &cumulativeUsage, provResp.Status, nil, w)
+		}
+
+		// Log tool calls.
+		if debug.Enabled("engine") {
+			names := make([]string, len(toolCalls))
+			for i, tc := range toolCalls {
+				names[i] = tc.Name
+			}
+			debug.Log("engine", "tool calls", "turn", turn+1, "count", len(toolCalls), "tools", names)
 		}
 
 		// Check if tool_choice is "none": don't enter loop.
