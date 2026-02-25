@@ -122,6 +122,18 @@ func (s *sandboxServer) handleExecute(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Truncate code for logging (first 120 chars).
+	codePreview := req.Code
+	if len(codePreview) > 120 {
+		codePreview = codePreview[:120] + "..."
+	}
+	slog.Info("execute request",
+		"code", codePreview,
+		"timeout", req.TimeoutSeconds,
+		"requirements", len(req.Requirements),
+		"files", len(req.Files),
+	)
+
 	if req.TimeoutSeconds <= 0 {
 		req.TimeoutSeconds = 30 // Default timeout.
 	}
@@ -214,6 +226,21 @@ func (s *sandboxServer) handleExecute(w http.ResponseWriter, r *http.Request) {
 
 	// Collect output files.
 	filesProduced := collectOutputFiles(outputDir)
+
+	// Log completion.
+	stdoutPreview := stdoutBuf.String()
+	if len(stdoutPreview) > 200 {
+		stdoutPreview = stdoutPreview[:200] + "..."
+	}
+	fileCount := len(filesProduced)
+	slog.Info("execute complete",
+		"status", status,
+		"exit_code", exitCode,
+		"duration_ms", duration.Milliseconds(),
+		"stdout_len", stdoutBuf.Len(),
+		"stdout", stdoutPreview,
+		"files_produced", fileCount,
+	)
 
 	// Return response.
 	w.Header().Set("Content-Type", "application/json")
