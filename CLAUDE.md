@@ -23,6 +23,8 @@ Auto-generated from all feature plans. Last updated: 2026-02-16
 - Go 1.22+ for the server binary + Go standard library (`net/http`, `os/exec`, `encoding/json`) (027-sandbox-modes)
 - Go 1.22+ (consistent with Specs 001-028) + Go standard library only (`encoding/json`) (029-structured-output)
 - N/A (passthrough, no persistence changes) (029-structured-output)
+- Astro 5.x, TypeScript/JavaScript, AsciiDoc + Astro, AstroWind template, Tailwind CSS, Antora, @antora/lunr-extension (018-landing-page)
+- N/A (static site) (018-landing-page)
 
 - Go 1.22+ + None (Go standard library only: `encoding/json`, `crypto/rand`, `errors`, `fmt`, `strings`, `regexp`) (001-core-protocol)
 
@@ -45,6 +47,7 @@ Go 1.22+: Follow standard conventions
 - 029-structured-output: Added Go 1.22+ (consistent with Specs 001-028) + Go standard library only (`encoding/json`)
 - 029-structured-output: Added Go 1.22+ + Go standard library only (`encoding/json`)
 - 028-list-endpoints: Added Go 1.22+ + Go standard library only
+- 018-landing-page: Added Astro 5.x, TypeScript/JavaScript, AsciiDoc + Astro, AstroWind template, Tailwind CSS, Antora, @antora/lunr-extension
 
 
 <!-- MANUAL ADDITIONS START -->
