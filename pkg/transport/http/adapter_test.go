@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -372,9 +373,19 @@ func TestStreamingInFlightRegistration(t *testing.T) {
 	resp := postJSON(t, srv, reqBody)
 	defer resp.Body.Close()
 
+	// Drain the response body to ensure the handler goroutine finishes.
+	io.ReadAll(resp.Body)
+
 	// After streaming completes, the in-flight entry should be cleaned up.
-	// We verify this by checking that Cancel returns false.
-	ok := adapter.inflight.Cancel("resp_inflightABCD567890123450")
+	// The cleanup runs in the handler goroutine, so allow a brief window.
+	var ok bool
+	for range 20 {
+		ok = adapter.inflight.Cancel("resp_inflightABCD567890123450")
+		if !ok {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
 	if ok {
 		t.Error("in-flight entry should have been cleaned up after streaming completed")
 	}
