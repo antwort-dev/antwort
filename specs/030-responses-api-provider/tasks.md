@@ -24,7 +24,7 @@
 - [ ] T007 (antwort-1k1.4) [US1] Create `pkg/provider/responses/provider.go`: `ResponsesProvider` implementing `Provider` interface with `CreateResponse` (non-streaming) and `StreamResponse` (streaming). Constructor takes backend URL, API key, model. Built-in tool types pass through without expansion (FR-001, FR-004, FR-008)
 - [ ] T008 (antwort-1k1.5) [P] [US1] Create `pkg/provider/responses/translate_test.go`: table-driven tests for request/response translation. Verify `store: false` is always set, tools pass through, input items are correctly formatted (FR-002, FR-003)
 - [ ] T009 (antwort-1k1.6) [P] [US1] Create `pkg/provider/responses/stream_test.go`: tests for SSE event parsing with mock event data. Cover text delta, function call, error events, unknown event types (FR-005, FR-006)
-- [ ] T010 (antwort-1k1.7) [US1] Wire `"responses"` provider type in `cmd/server/main.go`: add case to provider factory that creates `ResponsesProvider` from config (FR-011, FR-012)
+- [ ] T010 (antwort-1k1.7) [US1] Wire `"vllm-responses"` provider type in `cmd/server/main.go`: add case to provider factory that creates `ResponsesProvider` from config. Coexists with existing `"vllm"` and `"litellm"` providers (FR-011, FR-012)
 
 **Checkpoint**: Responses API provider compiles. Unit tests pass for translation and streaming. Provider is selectable via config.
 
