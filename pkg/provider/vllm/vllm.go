@@ -41,6 +41,7 @@ func New(cfg Config) (*VLLMProvider, error) {
 		caps: provider.ProviderCapabilities{
 			Streaming:   true,
 			ToolCalling: true,
+			Vision:      true,
 		},
 	}, nil
 }

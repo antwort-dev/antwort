@@ -52,6 +52,7 @@ func New(cfg Config) (*LiteLLMProvider, error) {
 		caps: provider.ProviderCapabilities{
 			Streaming:   true,
 			ToolCalling: true,
+			Vision:      true,
 		},
 	}, nil
 }
