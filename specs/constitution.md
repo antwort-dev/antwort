@@ -78,9 +78,10 @@ Request-scoped data (request IDs, user identity, tracing context) propagates thr
 
 ### Testing
 
+- **Real components over fakes.** Integration tests use actual server binaries (started as subprocesses or in-process), real execution paths, and real data. If a component can run in the test process or as a subprocess, use it. Never hand-write mocks for components under your control.
+- **Fakes only at infrastructure boundaries.** Use fakes exclusively for infrastructure unavailable in CI: Kubernetes API (client-go `fake.NewSimpleClientset()`), external cloud services, LLM provider backends (test HTTP servers that speak the real protocol). These are test doubles at system boundaries, not substitutes for real logic.
+- **CI-friendly by design.** All tests must run on GitHub Actions free-tier Ubuntu runners (2 cores, 7GB RAM, no container runtime required, no external services). Tests that need Python, Go, or Node.js can rely on pre-installed runtimes. Tests must complete within 10 minutes.
 - **Table-driven tests** for all validation, parsing, and translation logic. Each test case is a row with inputs, expected outputs, and a descriptive name.
-- **Mock backends** for provider adapter tests. A test HTTP server that speaks Chat Completions (or other protocols) exercises the full adapter path without external infrastructure.
-- **Interface mocks** for engine tests. The engine is tested against mock providers and mock stores, verifying orchestration logic in isolation.
 - **Nil-safe tests** for every optional capability. Tests verify correct behavior when optional dependencies are present AND when they are nil.
 - **Error path coverage** is mandatory. Every error branch in the code has a corresponding test case. Testing only happy paths is insufficient.
 
@@ -156,4 +157,4 @@ The engine handles both modes. Stateless mode is always available. Stateful feat
 - New specs must declare compliance with these principles. Deviations require explicit justification in the spec's Assumptions or Clarifications section.
 - Code reviews verify constitutional compliance. Non-compliant code is not merged.
 
-**Version**: 1.1.0 | **Ratified**: 2026-02-17 | **Last Amended**: 2026-02-18
+**Version**: 1.2.0 | **Ratified**: 2026-02-17 | **Last Amended**: 2026-02-26
