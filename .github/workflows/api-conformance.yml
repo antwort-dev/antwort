@@ -80,12 +80,10 @@ jobs:
         id: compliance
         run: |
           cd /tmp/openresponses
-          # Core profile: exclude image-input (mock backend has no vision support)
           bun run bin/compliance-test.ts \
             --base-url "http://localhost:8080/v1" \
             --model "mock-model" \
             --api-key "test" \
-            --filter "basic-response,streaming-response,system-prompt,tool-calling,multi-turn" \
             --json > /tmp/compliance-results.json 2>&1 || true
           cat /tmp/compliance-results.json
 
@@ -95,8 +93,7 @@ jobs:
           bun run bin/compliance-test.ts \
             --base-url "http://localhost:8080/v1" \
             --model "mock-model" \
-            --api-key "test" \
-            --filter "basic-response,streaming-response,system-prompt,tool-calling,multi-turn"
+            --api-key "test"
 
       - name: Generate summary
         if: always()

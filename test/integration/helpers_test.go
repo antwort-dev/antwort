@@ -18,6 +18,7 @@ import (
 	"context"
 
 	"github.com/rhuss/antwort/pkg/engine"
+	"github.com/rhuss/antwort/pkg/provider"
 	"github.com/rhuss/antwort/pkg/provider/vllm"
 	"github.com/rhuss/antwort/pkg/storage/memory"
 	"github.com/rhuss/antwort/pkg/tools"
@@ -46,9 +47,13 @@ func setupTestEnvironment() *TestEnvironment {
 	// Start mock backend.
 	mockBackend := startMockBackend()
 
-	// Create provider pointing to the mock backend.
-	prov, err := vllm.New(vllm.Config{
+	// Create provider pointing to the mock backend with vision support.
+	prov, err := vllm.NewWithCapabilities(vllm.Config{
 		BaseURL: mockBackend.URL,
+	}, provider.ProviderCapabilities{
+		Streaming:   true,
+		ToolCalling: true,
+		Vision:      true,
 	})
 	if err != nil {
 		panic(fmt.Sprintf("creating provider: %v", err))
