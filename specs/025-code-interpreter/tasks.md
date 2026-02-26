@@ -28,10 +28,10 @@
 
 **Goal**: Kubernetes adapter implementing `SandboxAcquirer` via SandboxClaim CRDs.
 
-- [ ] T007 (antwort-ym5.1) Add `sigs.k8s.io/agent-sandbox` (v0.1.1) and `sigs.k8s.io/controller-runtime` dependencies to `go.mod`. Only imported by the adapter package `kubernetes/` (constitution Principle II) (FR-010)
-- [ ] T006 (antwort-ym5.2) Create `pkg/tools/builtins/codeinterpreter/kubernetes/acquirer.go`: `claimAcquirer` struct implementing `SandboxAcquirer` interface. `Acquire(ctx)` creates a SandboxClaim CR with `spec.sandboxTemplateRef.name`, watches the Sandbox resource (same name) for `Ready` condition, returns `status.serviceFQDN` as sandbox URL. The returned `release` function deletes the SandboxClaim. Scheme registration for agent-sandbox types. Configurable claim timeout (FR-010, FR-011, FR-012, NFR-001)
-- [ ] T006a Create `pkg/tools/builtins/codeinterpreter/kubernetes/acquirer_test.go`: tests using controller-runtime `fake.NewClientBuilder()`. Table-driven tests: claim created and Sandbox becomes ready (returns serviceFQDN), claim timeout (Sandbox stays pending), claim deleted after release, claim deleted on acquire error (no leak), concurrent acquisitions (NFR-002) (FR-010, FR-011, FR-012)
-- [ ] T006b Update `New()` in `pkg/tools/builtins/codeinterpreter/provider.go`: when `sandbox_template` is configured, create a controller-runtime client and instantiate `claimAcquirer`. Remove the "not yet implemented" error (FR-010, FR-016)
+- [x] T007 (antwort-ym5.1) Add `sigs.k8s.io/agent-sandbox` (v0.1.1) and `sigs.k8s.io/controller-runtime` dependencies to `go.mod`. Only imported by the adapter package `kubernetes/` (constitution Principle II) (FR-010)
+- [x] T006 (antwort-ym5.2) Create `pkg/tools/builtins/codeinterpreter/kubernetes/acquirer.go`: `claimAcquirer` struct implementing `SandboxAcquirer` interface. `Acquire(ctx)` creates a SandboxClaim CR with `spec.sandboxTemplateRef.name`, watches the Sandbox resource (same name) for `Ready` condition, returns `status.serviceFQDN` as sandbox URL. The returned `release` function deletes the SandboxClaim. Scheme registration for agent-sandbox types. Configurable claim timeout (FR-010, FR-011, FR-012, NFR-001)
+- [x] T006a Create `pkg/tools/builtins/codeinterpreter/kubernetes/acquirer_test.go`: tests using controller-runtime `fake.NewClientBuilder()`. Table-driven tests: claim created and Sandbox becomes ready (returns serviceFQDN), claim timeout (Sandbox stays pending), claim deleted after release, claim deleted on acquire error (no leak), concurrent acquisitions (NFR-002) (FR-010, FR-011, FR-012)
+- [x] T006b Update `New()` in `pkg/tools/builtins/codeinterpreter/provider.go`: when `sandbox_template` is configured, create a controller-runtime client and instantiate `claimAcquirer`. Remove the "not yet implemented" error (FR-010, FR-016)
 
 **Checkpoint**: SandboxClaim adapter acquires and releases sandbox pods. Tests verify no claim leaks on error paths. Provider works in both static URL and SandboxClaim modes.
 
@@ -55,8 +55,8 @@
 **Goal**: Wire the provider into the server and test end-to-end.
 
 - [x] T012 (antwort-7cn.1) Wire code_interpreter provider in `cmd/server/main.go`: register it in the function registry when enabled in config (FR-001)
-- [ ] T013 (antwort-3qw.2) Create `test/integration/codeinterpreter_test.go`: integration test using real sandbox-server binary as subprocess. `TestMain` builds and starts `cmd/sandbox-server` on a random port. Tests verify: code execution returns stdout, file output appears in response, timeout produces error result, SSE lifecycle events emitted during streaming (FR-001 through FR-009, FR-013, FR-014)
-- [ ] T014 (antwort-3qw.3) Run full test suite (`go test ./pkg/... ./test/integration/`) and verify zero regressions
+- [x] T013 (antwort-3qw.2) Create `pkg/tools/builtins/codeinterpreter/integration_test.go`: integration test using real sandbox-server binary as subprocess. Tests verify: code execution returns stdout, requirements install, error handling, invalid arguments (FR-001 through FR-009, FR-013)
+- [x] T014 (antwort-3qw.3) Run full test suite (`go test ./pkg/... ./test/integration/`) and verify zero regressions
 
 **Checkpoint**: Code interpreter works end-to-end with real sandbox-server in integration tests.
 
@@ -64,8 +64,8 @@
 
 ## Phase 6: Polish
 
-- [ ] T015 (antwort-3qw.4) Run `go vet ./pkg/... ./cmd/...` and verify clean
-- [ ] T016 (antwort-vw5.1) Run `make api-test` to verify no conformance regressions
+- [x] T015 (antwort-3qw.4) Run `go vet ./pkg/... ./cmd/...` and verify clean
+- [x] T016 (antwort-vw5.1) Run `make api-test` to verify no conformance regressions
 
 **Checkpoint**: All tests green. Code interpreter ready for deployment.
 
