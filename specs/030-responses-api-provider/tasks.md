@@ -4,11 +4,11 @@
 
 **Purpose**: Move built-in tool type expansion from the engine to the provider layer. This is a prerequisite for the Responses API provider and fixes the Constitution Principle VI violation.
 
-- [ ] T001 (antwort-a4j.1) Move `expandBuiltinTools` logic from `pkg/engine/engine.go` to `pkg/provider/openaicompat/translate.go`. The `TranslateToChat` function should expand built-in tool types (`code_interpreter`, `file_search`, `web_search_preview`) to function definitions when translating `ProviderTool` to `ChatTool` (FR-009)
-- [ ] T002 (antwort-a4j.2) Remove `expandBuiltinTools()` function and its call from `pkg/engine/engine.go`. The engine must preserve `tool.Type` as-is in `translateRequest()` at `pkg/engine/translate.go` (FR-010)
-- [ ] T003 (antwort-a4j.3) Update existing tests to verify tool types are preserved through the engine and expanded only in the Chat Completions adapter. Verify no regressions in `go test ./pkg/engine/ ./pkg/provider/...` (FR-009, FR-010)
+- [ ] T001 (antwort-a4j.1) Create shared utility `pkg/provider/tools.go`: extract built-in tool expansion logic from `pkg/engine/engine.go` into a function `ExpandBuiltinTools(tools []ProviderTool, definitions []ProviderTool) []ProviderTool` that replaces built-in type stubs with function definitions. Used by both Chat Completions and Responses API providers (FR-008, FR-009)
+- [ ] T002 (antwort-a4j.2) Remove `expandBuiltinTools()` function and its call from `pkg/engine/engine.go`. The engine must preserve `tool.Type` as-is in `translateRequest()` at `pkg/engine/translate.go`. Both vLLM/LiteLLM and Responses API providers call the shared utility from their translation layers (FR-010)
+- [ ] T003 (antwort-a4j.3) Update existing tests to verify tool types are preserved through the engine and expanded in both provider adapters via the shared utility. Verify no regressions in `go test ./pkg/engine/ ./pkg/provider/...` (FR-008, FR-009, FR-010)
 
-**Checkpoint**: Built-in tool types flow through the engine unchanged. Chat Completions adapters expand them. Existing tests pass.
+**Checkpoint**: Built-in tool types flow through the engine unchanged. Both provider types expand them via shared utility. Existing tests pass.
 
 ---
 
@@ -21,8 +21,8 @@
 - [ ] T004 (antwort-1k1.1) [P] [US1] Create `pkg/provider/responses/types.go`: Responses API wire format types for request, response, SSE events, and error objects (FR-001, FR-003)
 - [ ] T005 (antwort-1k1.2) [P] [US1] Create `pkg/provider/responses/translate.go`: translate `ProviderRequest` to Responses API request (input items, tools, model, `store: false`) and `Responses API response` back to `ProviderResponse` (FR-002, FR-003)
 - [ ] T006 (antwort-1k1.3) [US1] Create `pkg/provider/responses/stream.go`: SSE event parser that reads the backend's event stream and maps Responses API events to `ProviderEvent` types (FR-005, FR-006)
-- [ ] T007 (antwort-1k1.4) [US1] Create `pkg/provider/responses/provider.go`: `ResponsesProvider` implementing `Provider` interface with `CreateResponse` (non-streaming) and `StreamResponse` (streaming). Constructor takes backend URL, API key, model. Built-in tool types pass through without expansion (FR-001, FR-004, FR-008)
-- [ ] T008 (antwort-1k1.5) [P] [US1] Create `pkg/provider/responses/translate_test.go`: table-driven tests for request/response translation. Verify `store: false` is always set, tools pass through, input items are correctly formatted (FR-002, FR-003)
+- [ ] T007 (antwort-1k1.4) [US1] Create `pkg/provider/responses/provider.go`: `ResponsesProvider` implementing `Provider` interface with `CreateResponse` (non-streaming) and `StreamResponse` (streaming). Constructor takes backend URL, API key, model. Uses shared `ExpandBuiltinTools` utility to expand built-in types before forwarding (FR-001, FR-004, FR-008)
+- [ ] T008 (antwort-1k1.5) [P] [US1] Create `pkg/provider/responses/translate_test.go`: table-driven tests for request/response translation. Verify `store: false` is always set, built-in tool types are expanded to function definitions, input items are correctly formatted (FR-002, FR-003, FR-008)
 - [ ] T009 (antwort-1k1.6) [P] [US1] Create `pkg/provider/responses/stream_test.go`: tests for SSE event parsing with mock event data. Cover text delta, function call, error events, unknown event types (FR-005, FR-006)
 - [ ] T010 (antwort-1k1.7) [US1] Wire `"vllm-responses"` provider type in `cmd/server/main.go`: add case to provider factory that creates `ResponsesProvider` from config. Coexists with existing `"vllm"` and `"litellm"` providers (FR-011, FR-012)
 

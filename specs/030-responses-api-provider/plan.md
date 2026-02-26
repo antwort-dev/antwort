@@ -4,7 +4,7 @@
 
 ## Summary
 
-Add a provider adapter that forwards inference requests to backends using the Responses API wire format (`/v1/responses`) instead of Chat Completions. Antwort continues to own the agentic loop, state management, and tool execution. The new provider yields native SSE events and eliminates custom event synthesis logic. As part of this work, move the `expandBuiltinTools` logic from the engine to the provider layer (Chat Completions adapters expand, Responses API adapter passes through).
+Add a provider adapter that forwards inference requests to backends using the Responses API wire format (`/v1/responses`) instead of Chat Completions. Antwort continues to own the agentic loop, state management, and tool execution. The new provider yields native SSE events and eliminates custom event synthesis logic. As part of this work, move the `expandBuiltinTools` logic from the engine to a shared provider utility used by both provider types.
 
 ## Technical Context
 
@@ -40,14 +40,14 @@ pkg/provider/responses/
 ├── stream_test.go               # Streaming unit tests (NEW)
 └── types.go                     # Responses API wire format types (NEW)
 
-pkg/provider/openaicompat/
-├── translate.go                 # ADD: built-in tool type expansion (moved from engine)
+pkg/provider/
+├── tools.go                     # Shared built-in tool expansion utility (NEW, moved from engine)
 
 pkg/engine/
 ├── engine.go                    # MODIFY: remove expandBuiltinTools, preserve tool types
 
 cmd/server/
-├── main.go                      # MODIFY: add "responses" provider case
+├── main.go                      # MODIFY: add "vllm-responses" provider case
 ```
 
 ## Design Decisions
@@ -61,7 +61,7 @@ New package `pkg/provider/responses/` alongside the existing `vllm/` and `litell
 `ProviderRequest` maps almost 1:1 to the Responses API request format. Key differences:
 - `ProviderRequest.Messages` become the `input` field (array of items)
 - Always sends `store: false` (antwort manages state)
-- Tools are forwarded as-is (no expansion needed)
+- Built-in tool types expanded to function definitions via shared utility (same as Chat Completions)
 - `ProviderRequest.Model`, `Stream`, `MaxTokens` map directly
 
 ### D3: SSE Event Mapping
@@ -70,9 +70,7 @@ The Responses API produces events like `response.output_text.delta` and `respons
 
 ### D4: expandBuiltinTools Migration
 
-Phase 1 of implementation moves `expandBuiltinTools` from `engine.go` to `openaicompat/translate.go`. The engine stops modifying tool types. Each provider adapter decides how to handle built-in types:
-- `openaicompat`: Expands to function definitions (Chat Completions requires `type: "function"`)
-- `responses`: Passes through as-is (but antwort's built-in tools are stripped, only function tools forwarded to backend)
+Phase 1 moves `expandBuiltinTools` from `engine.go` to a shared utility in `pkg/provider/tools.go`. Both provider types use this utility to expand built-in tool types (`code_interpreter`, `file_search`, `web_search_preview`) to function definitions before forwarding to the backend. This prevents backends (particularly vLLM) from attempting their own built-in tool execution via MCP servers. The engine stops modifying tool types, restoring Constitution Principle VI compliance.
 
 ### D5: Backend Validation
 
