@@ -22,6 +22,10 @@ This is the framework only. Concrete providers (web search, file search, code in
 - Q: Where do provider routes go? -> A: The registry merges all provider routes into a single `http.Handler` that the server mounts. Auth + metrics middleware wraps each route.
 - Q: How is provider configuration structured? -> A: A top-level `providers` section in config.yaml with a map keyed by provider type. Each value is provider-specific (schema defined by the provider). The registry reads the map, finds the factory for each type, passes the config to the factory. Unknown types produce a startup error.
 
+### Session 2026-02-26
+
+- Q: How do OpenResponses built-in tool types work with Chat Completions backends? -> A: The OpenResponses API allows `{"type": "code_interpreter"}` in the tools array, but Chat Completions backends only understand `{"type": "function"}`. The engine's `expandBuiltinTools()` replaces these stubs with the full function definition from the matching FunctionProvider before translating the request. Added as FR-007a.
+
 ## User Scenarios & Testing
 
 ### User Story 1 - Register a Built-In Provider (Priority: P1)
@@ -81,6 +85,7 @@ A provider registers custom Prometheus metrics (e.g., web search query count, ve
 - **FR-005**: The registry MUST implement the `ToolExecutor` interface from Spec 004
 - **FR-006**: The registry MUST merge tools from all registered providers into a unified tool set
 - **FR-007**: The registry MUST route tool execution calls to the correct provider based on `CanExecute`
+- **FR-007a**: The engine MUST expand OpenResponses built-in tool type stubs (e.g., `{"type": "code_interpreter"}`, `{"type": "file_search"}`, `{"type": "web_search_preview"}`) to full function definitions from the matching registered provider before translating to the provider request. Chat Completions backends only understand `{"type": "function"}` tools.
 - **FR-008**: The registry MUST provide an `http.Handler` that serves all provider management API routes
 
 **Infrastructure Integration (Automatic)**
