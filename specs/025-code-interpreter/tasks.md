@@ -4,9 +4,9 @@
 
 **Purpose**: Add the code_interpreter item types and sandbox client interface.
 
-- [x] T001 (antwort-21e.1) Add `CodeInterpreterCallData` and `CodeInterpreterOutput` types to `pkg/api/types.go`. Add `ItemTypeCodeInterpreterCall` constant. Support `logs` and `image` output types (FR-007, FR-008, FR-009)
-- [x] T002 (antwort-21e.2) [P] Add `code_interpreter_call` SSE event type constants (`EventCodeInterpreterInProgress`, `EventCodeInterpreterInterpreting`, `EventCodeInterpreterCompleted`) to `pkg/api/events.go` with MarshalJSON cases (FR-014)
-- [x] T003 (antwort-21e.3) [P] Update `classifyToolType()` in `pkg/engine/loop.go` to recognize `code_interpreter` and return the correct lifecycle event types (FR-014)
+- [x] T001 (antwort-x9x.1) (antwort-21e.1) Add `CodeInterpreterCallData` and `CodeInterpreterOutput` types to `pkg/api/types.go`. Add `ItemTypeCodeInterpreterCall` constant. Support `logs` and `image` output types (FR-007, FR-008, FR-009)
+- [x] T002 (antwort-x9x.2) (antwort-21e.2) [P] Add `code_interpreter_call` SSE event type constants (`EventCodeInterpreterInProgress`, `EventCodeInterpreterInterpreting`, `EventCodeInterpreterCompleted`) to `pkg/api/events.go` with MarshalJSON cases (FR-014)
+- [x] T003 (antwort-x9x.3) (antwort-21e.3) [P] Update `classifyToolType()` in `pkg/engine/loop.go` to recognize `code_interpreter` and return the correct lifecycle event types (FR-014)
 
 **Checkpoint**: Types compile. SSE event classification works for code_interpreter.
 
@@ -16,23 +16,24 @@
 
 **Goal**: HTTP client that calls the sandbox server's /execute endpoint.
 
-- [x] T004 (antwort-at5.1) Create `pkg/tools/builtins/codeinterpreter/types.go`: define sandbox request/response types matching the Spec 024 REST API (code, timeout_seconds, requirements, files, stdout, stderr, exit_code, files_produced) (FR-003, FR-006)
-- [x] T005 (antwort-at5.2) Create `pkg/tools/builtins/codeinterpreter/client.go`: HTTP client with `Execute(ctx, sandboxURL, request) -> (response, error)`. Handles JSON encoding, timeout via context, error mapping (FR-003, FR-004, FR-005, FR-006)
+- [x] T004 (antwort-6lv.1) (antwort-at5.1) Create `pkg/tools/builtins/codeinterpreter/types.go`: define sandbox request/response types matching the Spec 024 REST API (code, timeout_seconds, requirements, files, stdout, stderr, exit_code, files_produced) (FR-003, FR-006)
+- [x] T005 (antwort-6lv.2) (antwort-at5.2) Create `pkg/tools/builtins/codeinterpreter/client.go`: HTTP client with `Execute(ctx, sandboxURL, request) -> (response, error)`. Handles JSON encoding, timeout via context, error mapping (FR-003, FR-004, FR-005, FR-006)
 - [x] T005a Create `pkg/tools/builtins/codeinterpreter/client_test.go`: unit tests for the sandbox HTTP client. Table-driven tests covering: successful execution, HTTP timeout, invalid JSON response, non-200 status codes, empty stdout, sandbox server unreachable (FR-003, FR-005, FR-006)
 
 **Checkpoint**: Sandbox HTTP client can call a sandbox server and return results. Unit tests cover error paths.
 
 ---
 
-## Phase 3: SandboxClaim Client (Adapter)
+## Phase 3: SandboxClaim Adapter (controller-runtime)
 
-**Goal**: Kubernetes adapter that creates/watches/deletes SandboxClaim CRDs.
+**Goal**: Kubernetes adapter implementing `SandboxAcquirer` via SandboxClaim CRDs.
 
-- [ ] T006 (antwort-iqr.1) Create `pkg/tools/builtins/codeinterpreter/kubernetes/sandbox.go`: SandboxClaim client using client-go. `AcquireSandbox(ctx, template, namespace, timeout) -> (podAddress, claimName, error)` creates a SandboxClaim, watches until Ready, returns pod address. `ReleaseSandbox(ctx, claimName, namespace) -> error` deletes the claim (FR-010, FR-011, FR-012)
-- [ ] T006a Create `pkg/tools/builtins/codeinterpreter/kubernetes/sandbox_test.go`: unit tests for the SandboxClaim client using client-go fake client. Table-driven tests covering: claim created and becomes ready, claim timeout (stuck in pending), claim deleted after execution, claim deleted on error (no leak) (FR-010, FR-011, FR-012)
-- [ ] T007 (antwort-iqr.2) Add `k8s.io/client-go` dependency to `go.mod`. Only imported by the adapter package (constitution Principle II)
+- [ ] T007 (antwort-ym5.1) Add `sigs.k8s.io/agent-sandbox` (v0.1.1) and `sigs.k8s.io/controller-runtime` dependencies to `go.mod`. Only imported by the adapter package `kubernetes/` (constitution Principle II) (FR-010)
+- [ ] T006 (antwort-ym5.2) Create `pkg/tools/builtins/codeinterpreter/kubernetes/acquirer.go`: `claimAcquirer` struct implementing `SandboxAcquirer` interface. `Acquire(ctx)` creates a SandboxClaim CR with `spec.sandboxTemplateRef.name`, watches the Sandbox resource (same name) for `Ready` condition, returns `status.serviceFQDN` as sandbox URL. The returned `release` function deletes the SandboxClaim. Scheme registration for agent-sandbox types. Configurable claim timeout (FR-010, FR-011, FR-012, NFR-001)
+- [ ] T006a Create `pkg/tools/builtins/codeinterpreter/kubernetes/acquirer_test.go`: tests using controller-runtime `fake.NewClientBuilder()`. Table-driven tests: claim created and Sandbox becomes ready (returns serviceFQDN), claim timeout (Sandbox stays pending), claim deleted after release, claim deleted on acquire error (no leak), concurrent acquisitions (NFR-002) (FR-010, FR-011, FR-012)
+- [ ] T006b Update `New()` in `pkg/tools/builtins/codeinterpreter/provider.go`: when `sandbox_template` is configured, create a controller-runtime client and instantiate `claimAcquirer`. Remove the "not yet implemented" error (FR-010, FR-016)
 
-**Checkpoint**: SandboxClaim client can acquire and release sandbox pods. Unit tests verify no claim leaks on error paths.
+**Checkpoint**: SandboxClaim adapter acquires and releases sandbox pods. Tests verify no claim leaks on error paths. Provider works in both static URL and SandboxClaim modes.
 
 ---
 
@@ -40,10 +41,10 @@
 
 **Goal**: Full FunctionProvider that wires sandbox client, SandboxClaim lifecycle, and output formatting.
 
-- [x] T008 (antwort-6q6.1) Create `pkg/tools/builtins/codeinterpreter/provider.go`: implements FunctionProvider interface. `Name()` returns "code_interpreter". `Tools()` returns the tool definition with code and requirements parameters. `Execute()` acquires sandbox (via SandboxClaim or static URL), calls sandbox HTTP client, formats result as code_interpreter_call output, releases sandbox (FR-001, FR-002, FR-003, FR-007, FR-008, FR-009)
-- [x] T009 (antwort-6q6.2) Implement static URL mode in provider: when `sandbox_url` is configured, skip SandboxClaim and call the URL directly (FR-013, FR-016)
-- [x] T010 (antwort-6q6.3) Implement file output handling: decode base64 files from sandbox response, format as CodeInterpreterOutput entries with type "image" for image files and type "logs" for text (FR-009)
-- [x] T011 (antwort-6q6.4) Add configuration support: add `code_interpreter` to the providers section in config loader, validate mutual exclusion of sandbox_url and sandbox_template (FR-015, FR-016)
+- [x] T008 (antwort-3t4.1) (antwort-6q6.1) Create `pkg/tools/builtins/codeinterpreter/provider.go`: implements FunctionProvider interface. `Name()` returns "code_interpreter". `Tools()` returns the tool definition with code and requirements parameters. `Execute()` acquires sandbox (via SandboxClaim or static URL), calls sandbox HTTP client, formats result as code_interpreter_call output, releases sandbox (FR-001, FR-002, FR-003, FR-007, FR-008, FR-009)
+- [x] T009 (antwort-3t4.2) (antwort-6q6.2) Implement static URL mode in provider: when `sandbox_url` is configured, skip SandboxClaim and call the URL directly (FR-013, FR-016)
+- [x] T010 (antwort-3t4.3) (antwort-6q6.3) Implement file output handling: decode base64 files from sandbox response, format as CodeInterpreterOutput entries with type "image" for image files and type "logs" for text (FR-009)
+- [x] T011 (antwort-3t4.4) (antwort-6q6.4) Add configuration support: add `code_interpreter` to the providers section in config loader, validate mutual exclusion of sandbox_url and sandbox_template (FR-015, FR-016)
 
 **Checkpoint**: CodeInterpreter provider registered and functional with static URL.
 
@@ -53,19 +54,18 @@
 
 **Goal**: Wire the provider into the server and test end-to-end.
 
-- [x] T012 (antwort-3qw.1) Wire code_interpreter provider in `cmd/server/main.go`: register it in the function registry when enabled in config (FR-001)
-- [ ] T013 (antwort-3qw.2) Add mock sandbox server to integration test helpers in `test/integration/helpers_test.go`: respond to /execute with deterministic results based on code content
-- [ ] T014 (antwort-3qw.3) Create `test/integration/codeinterpreter_test.go`: test code_interpreter tool in the agentic loop using static URL mode. Verify code execution, output format, SSE events (FR-001 through FR-009, FR-013, FR-014)
-- [ ] T015 (antwort-3qw.4) Run full test suite (`go test ./pkg/... ./test/integration/`) and verify zero regressions
+- [x] T012 (antwort-7cn.1) Wire code_interpreter provider in `cmd/server/main.go`: register it in the function registry when enabled in config (FR-001)
+- [ ] T013 (antwort-3qw.2) Create `test/integration/codeinterpreter_test.go`: integration test using real sandbox-server binary as subprocess. `TestMain` builds and starts `cmd/sandbox-server` on a random port. Tests verify: code execution returns stdout, file output appears in response, timeout produces error result, SSE lifecycle events emitted during streaming (FR-001 through FR-009, FR-013, FR-014)
+- [ ] T014 (antwort-3qw.3) Run full test suite (`go test ./pkg/... ./test/integration/`) and verify zero regressions
 
-**Checkpoint**: Code interpreter works end-to-end with mock sandbox in integration tests.
+**Checkpoint**: Code interpreter works end-to-end with real sandbox-server in integration tests.
 
 ---
 
 ## Phase 6: Polish
 
-- [ ] T016 (antwort-x89.1) Run `go vet ./pkg/... ./cmd/...` and verify clean
-- [ ] T017 (antwort-x89.2) Run `make api-test` to verify no conformance regressions
+- [ ] T015 (antwort-3qw.4) Run `go vet ./pkg/... ./cmd/...` and verify clean
+- [ ] T016 (antwort-vw5.1) Run `make api-test` to verify no conformance regressions
 
 **Checkpoint**: All tests green. Code interpreter ready for deployment.
 
@@ -73,9 +73,9 @@
 
 ## Dependencies
 
-- Phase 1: No dependencies
-- Phase 2: No dependencies (standalone HTTP client)
-- Phase 3: No dependencies (standalone K8s adapter)
-- Phase 4: Depends on Phase 2 and 3
-- Phase 5: Depends on Phase 4
+- Phase 1: Done
+- Phase 2: Done
+- Phase 3: T007 first (deps), then T006 + T006a (parallel), then T006b
+- Phase 4: Done
+- Phase 5: Depends on Phase 3 (T006b wires the acquirer into provider)
 - Phase 6: Depends on Phase 5

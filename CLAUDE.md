@@ -25,6 +25,8 @@ Auto-generated from all feature plans. Last updated: 2026-02-16
 - N/A (passthrough, no persistence changes) (029-structured-output)
 - Astro 5.x, TypeScript/JavaScript, AsciiDoc + Astro, AstroWind template, Tailwind CSS, Antora, @antora/lunr-extension (018-landing-page)
 - N/A (static site) (018-landing-page)
+- Go 1.22+ + Go standard library for core. `sigs.k8s.io/controller-runtime` + `sigs.k8s.io/agent-sandbox` for SandboxClaim adapter (adapter package only). (025-code-interpreter)
+- N/A (no persistence in this feature) (025-code-interpreter)
 
 - Go 1.22+ + None (Go standard library only: `encoding/json`, `crypto/rand`, `errors`, `fmt`, `strings`, `regexp`) (001-core-protocol)
 
@@ -44,10 +46,9 @@ tests/
 Go 1.22+: Follow standard conventions
 
 ## Recent Changes
+- 025-code-interpreter: Added Go 1.22+ + Go standard library for core. `sigs.k8s.io/controller-runtime` + `sigs.k8s.io/agent-sandbox` for SandboxClaim adapter (adapter package only).
 - 029-structured-output: Added Go 1.22+ (consistent with Specs 001-028) + Go standard library only (`encoding/json`)
 - 029-structured-output: Added Go 1.22+ + Go standard library only (`encoding/json`)
-- 028-list-endpoints: Added Go 1.22+ + Go standard library only
-- 018-landing-page: Added Astro 5.x, TypeScript/JavaScript, AsciiDoc + Astro, AstroWind template, Tailwind CSS, Antora, @antora/lunr-extension
 
 
 <!-- MANUAL ADDITIONS START -->
