@@ -56,6 +56,10 @@ func (e *Engine) CreateResponse(ctx context.Context, req *api.CreateResponseRequ
 		return apiErr
 	}
 
+	// Expand built-in tool types (code_interpreter, web_search_preview, file_search)
+	// to full function definitions from registered providers.
+	e.expandBuiltinTools(req)
+
 	// Merge MCP-discovered tools into the request before translation.
 	e.mergeMCPTools(ctx, req)
 
@@ -444,6 +448,64 @@ func snapshotResponse(r *api.Response) *api.Response {
 		cp.Output = []api.Item{}
 	}
 	return &cp
+}
+
+// builtinToolTypes maps OpenResponses built-in tool types to the tool name
+// used by the corresponding FunctionProvider.
+var builtinToolTypes = map[string]string{
+	"code_interpreter":   "code_interpreter",
+	"file_search":        "file_search",
+	"web_search_preview": "web_search",
+}
+
+// toolDiscoverer is implemented by executors that expose tool definitions
+// (FunctionRegistry, MCPExecutor).
+type toolDiscoverer interface {
+	DiscoveredTools() []api.ToolDefinition
+}
+
+// expandBuiltinTools replaces stub tool entries like {"type": "code_interpreter"}
+// with the full function definition from the matching FunctionProvider.
+// Without this, built-in tool types are passed directly to the Chat Completions
+// backend, which only understands {"type": "function"} tools.
+func (e *Engine) expandBuiltinTools(req *api.CreateResponseRequest) {
+	// Collect all function definitions from builtin executors.
+	var builtinDefs []api.ToolDefinition
+	for _, exec := range e.executors {
+		if exec.Kind() != tools.ToolKindBuiltin {
+			continue
+		}
+		if disc, ok := exec.(toolDiscoverer); ok {
+			builtinDefs = append(builtinDefs, disc.DiscoveredTools()...)
+		}
+	}
+	if len(builtinDefs) == 0 {
+		return
+	}
+
+	// Index by name for fast lookup.
+	defByName := make(map[string]api.ToolDefinition, len(builtinDefs))
+	for _, d := range builtinDefs {
+		defByName[d.Name] = d
+	}
+
+	// Replace stub entries with full definitions.
+	expanded := make([]api.ToolDefinition, 0, len(req.Tools))
+	for _, t := range req.Tools {
+		toolName, isBuiltin := builtinToolTypes[t.Type]
+		if isBuiltin && t.Name == "" {
+			// Stub entry like {"type": "code_interpreter"}.
+			if def, found := defByName[toolName]; found {
+				expanded = append(expanded, def)
+				continue
+			}
+			// Provider not registered; drop silently (tool won't be available).
+			slog.Warn("built-in tool type requested but no provider registered", "type", t.Type)
+			continue
+		}
+		expanded = append(expanded, t)
+	}
+	req.Tools = expanded
 }
 
 // mergeMCPTools discovers tools from MCP executors and merges them into
