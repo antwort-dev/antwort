@@ -18,7 +18,12 @@ import (
 func mockResponsesServer(t *testing.T, handler func(req responsesRequest) (int, any)) *httptest.Server {
 	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Handle probe requests (startup validation).
+		// Handle GET probe (startup validation): return 405 to signal endpoint exists.
+		if r.Method == http.MethodGet {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			http.Error(w, "read body: "+err.Error(), http.StatusInternalServerError)
@@ -29,13 +34,6 @@ func mockResponsesServer(t *testing.T, handler func(req responsesRequest) (int, 
 		var req responsesRequest
 		if err := json.Unmarshal(body, &req); err != nil {
 			http.Error(w, "decode: "+err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		// Probe detection: model "_probe" is the startup validation.
-		if req.Model == "_probe" {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{"error": "probe"})
 			return
 		}
 
@@ -50,6 +48,12 @@ func mockResponsesServer(t *testing.T, handler func(req responsesRequest) (int, 
 func mockStreamingServer(t *testing.T, handler func(req responsesRequest) string) *httptest.Server {
 	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Handle GET probe (startup validation): return 405.
+		if r.Method == http.MethodGet {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			http.Error(w, "read body: "+err.Error(), http.StatusInternalServerError)
@@ -60,13 +64,6 @@ func mockStreamingServer(t *testing.T, handler func(req responsesRequest) string
 		var req responsesRequest
 		if err := json.Unmarshal(body, &req); err != nil {
 			http.Error(w, "decode: "+err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		// Probe detection.
-		if req.Model == "_probe" {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{"error": "probe"})
 			return
 		}
 
@@ -90,35 +87,20 @@ func mockStreamingServer(t *testing.T, handler func(req responsesRequest) string
 
 // --- T015: Startup validation tests ---
 
-func TestNew_ProbeSuccess(t *testing.T) {
-	// Backend returns 400 for the probe (endpoint exists but rejects the request).
+func TestNew_Probe405(t *testing.T) {
+	// Backend returns 405 Method Not Allowed for GET (endpoint exists, only POST allowed).
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(`{"error":"invalid model"}`))
+		if r.Method == http.MethodGet {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
 	}))
 	defer srv.Close()
 
 	p, err := New(Config{BaseURL: srv.URL})
 	if err != nil {
-		t.Fatalf("New() should succeed when endpoint returns 400, got: %v", err)
-	}
-	if p == nil {
-		t.Fatal("expected non-nil provider")
-	}
-}
-
-func TestNew_ProbeModelNotFound(t *testing.T) {
-	// Backend returns 404 with a JSON API error (model not found).
-	// This means the endpoint exists but the probe model doesn't.
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`{"object":"error","message":"The model '_probe' does not exist.","type":"NotFoundError","code":404}`))
-	}))
-	defer srv.Close()
-
-	p, err := New(Config{BaseURL: srv.URL})
-	if err != nil {
-		t.Fatalf("New() should succeed when 404 is a model-not-found API error, got: %v", err)
+		t.Fatalf("New() should succeed when GET returns 405, got: %v", err)
 	}
 	if p == nil {
 		t.Fatal("expected non-nil provider")
@@ -126,7 +108,7 @@ func TestNew_ProbeModelNotFound(t *testing.T) {
 }
 
 func TestNew_ProbeNotFound(t *testing.T) {
-	// Backend returns 404 with no body (endpoint does not exist).
+	// Backend returns 404 for GET (endpoint does not exist).
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 	}))
@@ -627,8 +609,7 @@ func TestIntegration_APIKeyForwarded(t *testing.T) {
 	var capturedAuth string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		capturedAuth = r.Header.Get("Authorization")
-		w.WriteHeader(http.StatusBadRequest) // probe accepted
-		w.Write([]byte(`{"error":"test"}`))
+		w.WriteHeader(http.StatusMethodNotAllowed) // probe: endpoint exists
 	}))
 	defer srv.Close()
 

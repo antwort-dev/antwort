@@ -64,22 +64,19 @@ func New(cfg Config) (*ResponsesProvider, error) {
 	return p, nil
 }
 
-// probeEndpoint sends a lightweight request to /v1/responses to verify the
-// backend supports the Responses API. Connection errors and plain 404s (path
-// not found) indicate the endpoint is unavailable. A JSON-formatted 404 from
-// the API (e.g., "model not found") means the endpoint exists but rejected
-// our probe, which is acceptable.
+// probeEndpoint sends a GET to /v1/responses to verify the backend supports
+// the Responses API. The endpoint only accepts POST, so a backend that has it
+// returns 405 (Method Not Allowed). A backend without it returns 404. This
+// avoids sending a POST with a fake model, which can produce ambiguous 404s
+// (vLLM returns 404 for both "path not found" and "model not found").
 func (p *ResponsesProvider) probeEndpoint() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Send a minimal request that will be rejected but proves the endpoint exists.
-	probe := []byte(`{"model":"_probe","input":"probe","store":false}`)
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseURL+"/v1/responses", bytes.NewReader(probe))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, p.baseURL+"/v1/responses", nil)
 	if err != nil {
 		return fmt.Errorf("responses: probe request creation failed: %w", err)
 	}
-	httpReq.Header.Set("Content-Type", "application/json")
 	if p.apiKey != "" {
 		httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
 	}
@@ -89,44 +86,25 @@ func (p *ResponsesProvider) probeEndpoint() error {
 		return fmt.Errorf("responses: backend at %s is not reachable: %w", p.baseURL, err)
 	}
 	defer resp.Body.Close()
+	io.Copy(io.Discard, resp.Body)
 
-	respBody, _ := io.ReadAll(resp.Body)
-
-	if resp.StatusCode == http.StatusNotFound {
-		// Distinguish between "path not found" (endpoint missing) and
-		// "model not found" (endpoint exists, model name invalid). vLLM
-		// returns 404 with a JSON body for model-not-found errors.
-		if isAPIError(respBody) {
-			// The endpoint exists, it just rejected our probe model.
-			slog.Info("responses provider: backend probe successful (endpoint exists)",
-				"url", p.baseURL+"/v1/responses",
-				"status", resp.StatusCode,
-			)
-			return nil
-		}
+	switch resp.StatusCode {
+	case http.StatusMethodNotAllowed:
+		// 405: route exists, GET not allowed. This is the expected response.
+		slog.Info("responses provider: backend probe successful",
+			"url", p.baseURL+"/v1/responses",
+			"status", resp.StatusCode,
+		)
+	case http.StatusNotFound:
 		return fmt.Errorf("responses: backend at %s does not support the Responses API (/v1/responses returned 404)", p.baseURL)
+	default:
+		// Any other status (200, 400, etc.) means the endpoint exists.
+		slog.Info("responses provider: backend probe successful",
+			"url", p.baseURL+"/v1/responses",
+			"status", resp.StatusCode,
+		)
 	}
-
-	slog.Info("responses provider: backend probe successful",
-		"url", p.baseURL+"/v1/responses",
-		"status", resp.StatusCode,
-	)
 	return nil
-}
-
-// isAPIError checks if a response body is a JSON API error (as opposed to a
-// plain text "Not Found" from a web framework). vLLM returns JSON errors like
-// {"object":"error","message":"The model '_probe' does not exist.","code":404}
-// when the endpoint exists but the request is invalid.
-func isAPIError(body []byte) bool {
-	var obj struct {
-		Object  string `json:"object"`
-		Message string `json:"message"`
-	}
-	if json.Unmarshal(body, &obj) == nil && obj.Message != "" {
-		return true
-	}
-	return false
 }
 
 // Name returns the provider identifier.
