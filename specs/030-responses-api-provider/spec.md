@@ -16,7 +16,8 @@ Backends like vLLM, SGLang, and Ollama are adding native Responses API support. 
 
 - Q: Should the gateway delegate the full request or just the inference call? A: Inference only. The gateway owns the agentic loop, state, and tools. The provider only handles a single inference call per turn.
 - Q: What's the primary value? A: Adding statefulness (persistence, conversation chaining) and server-side tool execution (code_interpreter, MCP, web_search) to a stateless Responses API backend.
-- Q: Where do built-in tool type expansions happen? A: In the provider layer. Chat Completions adapters expand `code_interpreter` to function definitions. The Responses API adapter passes them through natively. This fixes the current violation of Constitution Principle VI.
+- Q: Where do built-in tool type expansions happen? A: In the provider layer. Both providers expand built-in types to function definitions. This fixes the current violation of Constitution Principle VI.
+- Q: Should the Responses API provider pass built-in tool types through to the backend? A: No. Both providers expand built-in types (`code_interpreter`, `file_search`, `web_search_preview`) to function definitions before forwarding. vLLM routes built-in types to its own MCP servers, which would conflict with antwort's server-side execution. The model sees function tools, antwort handles execution.
 
 ## User Scenarios & Testing
 
@@ -32,7 +33,7 @@ An operator deploys the gateway in front of a vLLM instance that supports the Re
 
 1. **Given** a backend supporting the Responses API, **When** a streaming request is sent, **Then** the client receives native Responses API SSE events (response.created, output_item.added, content_part.delta, response.completed)
 2. **Given** a backend supporting the Responses API, **When** a non-streaming request is sent, **Then** the response contains the complete output in the standard format
-3. **Given** a request with `{"type": "code_interpreter"}` in the tools array, **When** forwarded to a Responses API backend, **Then** the built-in tool type is preserved (not expanded to a function definition)
+3. **Given** a request with `{"type": "code_interpreter"}` in the tools array, **When** forwarded to a Responses API backend, **Then** the built-in tool type is expanded to a function definition so the model can call it and antwort handles execution
 
 ---
 
@@ -109,8 +110,8 @@ An operator switches from the existing Chat Completions provider (`vllm`) to the
 
 **Built-in Tool Types**
 
-- **FR-008**: The Responses API provider MUST pass built-in tool types (`code_interpreter`, `file_search`, `web_search_preview`) through to the backend without expansion
-- **FR-009**: The Chat Completions providers MUST expand built-in tool types to function definitions (moving this logic from the engine to the provider layer)
+- **FR-008**: Both the Responses API provider and the Chat Completions providers MUST expand built-in tool types (`code_interpreter`, `file_search`, `web_search_preview`) to function definitions before forwarding to the backend. The model sees function tools; the gateway handles execution. This prevents backends from attempting their own built-in tool execution (e.g., vLLM routing to MCP servers).
+- **FR-009**: The built-in tool expansion logic MUST move from the engine to the provider layer (shared utility or per-adapter)
 - **FR-010**: The engine MUST stop expanding built-in tool types and preserve them as-is for the provider to handle
 
 **Configuration**
@@ -139,7 +140,7 @@ An operator switches from the existing Chat Completions provider (`vllm`) to the
 - The backend's Responses API produces SSE events compatible with the OpenResponses specification.
 - The gateway's internal types (ProviderRequest, ProviderResponse, ProviderEvent) are close enough to the Responses API format that translation is minimal.
 - The existing Provider interface (CreateResponse, StreamResponse, Capabilities) is sufficient for the Responses API adapter without changes.
-- Built-in tool types in the tools array are recognized and handled by the backend's Responses API (or ignored gracefully if unsupported).
+- Built-in tool types are expanded to function definitions by the provider before forwarding. The backend never sees raw built-in tool types.
 
 ## Dependencies
 
@@ -153,7 +154,7 @@ An operator switches from the existing Chat Completions provider (`vllm`) to the
 
 - Responses API provider adapter (inference only, single-turn per call)
 - SSE event mapping (backend events to gateway events)
-- Built-in tool type passthrough for Responses API, expansion for Chat Completions
+- Built-in tool type expansion in both providers (function definitions for the model, gateway handles execution)
 - Migration of `expandBuiltinTools` from engine to provider layer
 - Configuration for provider type selection
 - Startup validation of backend Responses API support
