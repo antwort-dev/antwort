@@ -7,11 +7,15 @@ import (
 	"log/slog"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rhuss/antwort/pkg/api"
 	"github.com/rhuss/antwort/pkg/tools"
+	"github.com/rhuss/antwort/pkg/tools/builtins/codeinterpreter/kubernetes"
 	"github.com/rhuss/antwort/pkg/tools/registry"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	k8sconfig "sigs.k8s.io/controller-runtime/pkg/client/config"
 )
 
 // Ensure CodeInterpreterProvider implements FunctionProvider.
@@ -88,8 +92,38 @@ func New(settings map[string]any) (*CodeInterpreterProvider, error) {
 	if cfg.SandboxURL != "" {
 		acquirer = &staticURLAcquirer{url: cfg.SandboxURL}
 	} else {
-		// SandboxClaim mode requires the Kubernetes adapter (future).
-		return nil, fmt.Errorf("code_interpreter: sandbox_template mode requires the Kubernetes adapter (not yet implemented, use sandbox_url for now)")
+		// SandboxClaim mode: create controller-runtime client for K8s API.
+		scheme, err := kubernetes.NewScheme()
+		if err != nil {
+			return nil, fmt.Errorf("code_interpreter: create scheme: %w", err)
+		}
+
+		restConfig, err := k8sconfig.GetConfig()
+		if err != nil {
+			return nil, fmt.Errorf("code_interpreter: get kubeconfig: %w", err)
+		}
+
+		k8sClient, err := client.New(restConfig, client.Options{Scheme: scheme})
+		if err != nil {
+			return nil, fmt.Errorf("code_interpreter: create k8s client: %w", err)
+		}
+
+		ns := cfg.SandboxNamespace
+		if ns == "" {
+			ns = "default"
+		}
+
+		acquirer = kubernetes.NewClaimAcquirer(
+			k8sClient,
+			cfg.SandboxTemplate,
+			ns,
+			time.Duration(cfg.ClaimTimeout)*time.Second,
+		)
+		slog.Info("code_interpreter: using SandboxClaim mode",
+			"template", cfg.SandboxTemplate,
+			"namespace", ns,
+			"claim_timeout", cfg.ClaimTimeout,
+		)
 	}
 
 	return &CodeInterpreterProvider{

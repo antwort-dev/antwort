@@ -18,6 +18,12 @@ The code interpreter uses the sandbox server (Spec 024) as its execution backend
 - Q: Output format? A: Full OpenResponses `code_interpreter_call` format with logs and image outputs.
 - Q: Where does client-go go? A: Adapter package per constitution Principle II.
 
+### Session 2026-02-26
+
+- Q: Which Kubernetes client library for SandboxClaim CRUD? A: controller-runtime typed client with agent-sandbox Go types (`sigs.k8s.io/agent-sandbox`). Type-safe, matches what the agent-sandbox project itself uses.
+- Q: Integration test strategy? A: Use the real sandbox-server binary as a subprocess (per constitution testing principle). Fakes only at Kubernetes API boundary (controller-runtime fake client).
+- Q: CI constraints? A: GitHub Actions free-tier Ubuntu runners (2 cores, 7GB RAM, no container runtime). Python is pre-installed, so the real sandbox-server can execute Python directly.
+
 ## User Scenarios & Testing
 
 ### User Story 1 - Code Execution in Agentic Loop (Priority: P1)
@@ -121,12 +127,18 @@ A developer testing locally configures a static sandbox URL instead of using San
 
 **SSE Events**
 
-- **FR-014**: During streaming execution, the system MUST emit `code_interpreter_call.in_progress`, `code_interpreter_call.interpreting`, and `code_interpreter_call.completed` or `code_interpreter_call.failed` events
+- **FR-014**: During streaming execution, the system MUST emit `code_interpreter_call.in_progress`, `code_interpreter_call.interpreting`, and `code_interpreter_call.completed` events (consistent with the three-event lifecycle pattern used by `web_search_call` and `file_search_call`)
 
 **Configuration**
 
 - **FR-015**: The code_interpreter provider MUST be configurable via the standard provider configuration in config.yaml
 - **FR-016**: The configuration MUST support either `sandbox_template` (SandboxClaim mode) or `sandbox_url` (static URL mode), not both
+
+### Non-Functional Requirements
+
+- **NFR-001**: SandboxClaim acquisition from a warm pool SHOULD complete within 5 seconds under normal conditions
+- **NFR-002**: The system MUST support concurrent code_interpreter executions (each with its own SandboxClaim and pod)
+- **NFR-003**: Code output exceeding `max_output_size` (configurable, default 10MB) MUST be truncated, not rejected
 
 ## Success Criteria
 
@@ -163,7 +175,7 @@ A developer testing locally configures a static sandbox URL instead of using San
 - File output handling (base64 inline)
 - SSE lifecycle events during execution
 - Configuration in config.yaml
-- Integration tests with mock sandbox server
+- Integration tests with real sandbox-server binary (per constitution testing principle)
 
 ### Out of Scope
 
