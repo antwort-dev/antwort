@@ -15,14 +15,11 @@ import (
 
 	sandboxv1alpha1 "sigs.k8s.io/agent-sandbox/api/v1alpha1"
 	extensionsv1alpha1 "sigs.k8s.io/agent-sandbox/extensions/api/v1alpha1"
-
-	"github.com/rhuss/antwort/pkg/tools/builtins/codeinterpreter"
 )
 
-// Ensure claimAcquirer implements SandboxAcquirer.
-var _ codeinterpreter.SandboxAcquirer = (*ClaimAcquirer)(nil)
-
 // ClaimAcquirer implements SandboxAcquirer by creating and deleting SandboxClaim CRDs.
+// Interface conformance is verified by the provider package when assigning to the
+// SandboxAcquirer field (avoids import cycle between parent and adapter packages).
 // Each call to Acquire creates a SandboxClaim, waits for the corresponding Sandbox
 // to become ready, and returns the Sandbox's serviceFQDN as the sandbox URL.
 type ClaimAcquirer struct {
