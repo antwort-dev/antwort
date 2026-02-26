@@ -24,7 +24,7 @@ This is the framework only. Concrete providers (web search, file search, code in
 
 ### Session 2026-02-26
 
-- Q: How do OpenResponses built-in tool types work with Chat Completions backends? -> A: The OpenResponses API allows `{"type": "code_interpreter"}` in the tools array, but Chat Completions backends only understand `{"type": "function"}`. The engine's `expandBuiltinTools()` replaces these stubs with the full function definition from the matching FunctionProvider before translating the request. Added as FR-007a.
+- Q: How do OpenResponses built-in tool types work with Chat Completions backends? -> A: The OpenResponses API allows `{"type": "code_interpreter"}` in the tools array, but Chat Completions backends only understand `{"type": "function"}`. The provider layer's shared `ExpandBuiltinTools()` utility (in `pkg/provider/tools.go`) replaces these stubs with the full function definition from the matching FunctionProvider before forwarding to the backend. Both Chat Completions and Responses API providers use this utility. Added as FR-007a. (Updated by Spec 030: expansion moved from engine to provider layer.)
 
 ## User Scenarios & Testing
 
@@ -85,7 +85,7 @@ A provider registers custom Prometheus metrics (e.g., web search query count, ve
 - **FR-005**: The registry MUST implement the `ToolExecutor` interface from Spec 004
 - **FR-006**: The registry MUST merge tools from all registered providers into a unified tool set
 - **FR-007**: The registry MUST route tool execution calls to the correct provider based on `CanExecute`
-- **FR-007a**: The engine MUST expand OpenResponses built-in tool type stubs (e.g., `{"type": "code_interpreter"}`, `{"type": "file_search"}`, `{"type": "web_search_preview"}`) to full function definitions from the matching registered provider before translating to the provider request. Chat Completions backends only understand `{"type": "function"}` tools.
+- **FR-007a**: The provider layer MUST expand OpenResponses built-in tool type stubs (e.g., `{"type": "code_interpreter"}`, `{"type": "file_search"}`, `{"type": "web_search_preview"}`) to full function definitions from the matching registered provider before forwarding to the backend. Both Chat Completions and Responses API providers use the shared `ExpandBuiltinTools()` utility in the provider package. (Updated by Spec 030: expansion moved from engine to provider layer per Constitution Principle VI.)
 - **FR-008**: The registry MUST provide an `http.Handler` that serves all provider management API routes
 
 **Infrastructure Integration (Automatic)**

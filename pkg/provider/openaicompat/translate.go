@@ -74,8 +74,9 @@ func TranslateToChat(req *provider.ProviderRequest) ChatCompletionRequest {
 		cr.Messages = append(cr.Messages, cm)
 	}
 
-	// Translate tools.
-	for _, pt := range req.Tools {
+	// Expand built-in tool types to function definitions, then translate.
+	expandedTools := provider.ExpandBuiltinTools(req.Tools, req.BuiltinToolDefs)
+	for _, pt := range expandedTools {
 		cr.Tools = append(cr.Tools, ChatTool{
 			Type: pt.Type,
 			Function: ChatFunctionDef{
