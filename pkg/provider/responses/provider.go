@@ -33,7 +33,8 @@ type Config struct {
 	Timeout time.Duration
 }
 
-// New creates a new ResponsesProvider.
+// New creates a new ResponsesProvider. It validates that the backend supports
+// the Responses API by probing the /v1/responses endpoint at startup (FR-013).
 func New(cfg Config) (*ResponsesProvider, error) {
 	if cfg.BaseURL == "" {
 		return nil, fmt.Errorf("responses: BaseURL is required")
@@ -42,7 +43,7 @@ func New(cfg Config) (*ResponsesProvider, error) {
 		cfg.Timeout = 120 * time.Second
 	}
 
-	return &ResponsesProvider{
+	p := &ResponsesProvider{
 		baseURL: cfg.BaseURL,
 		apiKey:  cfg.APIKey,
 		httpClient: &http.Client{
@@ -53,7 +54,52 @@ func New(cfg Config) (*ResponsesProvider, error) {
 			ToolCalling: true,
 			Vision:      true,
 		},
-	}, nil
+	}
+
+	// Probe the backend to verify Responses API support (FR-013).
+	if err := p.probeEndpoint(); err != nil {
+		return nil, err
+	}
+
+	return p, nil
+}
+
+// probeEndpoint sends a lightweight request to /v1/responses to verify the
+// backend supports the Responses API. A 404 means the endpoint is not
+// available. Connection errors are also reported. Any 4xx/5xx response that
+// is not 404 is accepted (the endpoint exists, just rejected our probe).
+func (p *ResponsesProvider) probeEndpoint() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Send a minimal request that will be rejected but proves the endpoint exists.
+	probe := []byte(`{"model":"_probe","input":"probe","store":false}`)
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseURL+"/v1/responses", bytes.NewReader(probe))
+	if err != nil {
+		return fmt.Errorf("responses: probe request creation failed: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	if p.apiKey != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
+	}
+
+	resp, err := p.httpClient.Do(httpReq)
+	if err != nil {
+		return fmt.Errorf("responses: backend at %s is not reachable: %w", p.baseURL, err)
+	}
+	defer resp.Body.Close()
+	// Drain the body so the connection can be reused.
+	io.Copy(io.Discard, resp.Body)
+
+	if resp.StatusCode == http.StatusNotFound {
+		return fmt.Errorf("responses: backend at %s does not support the Responses API (/v1/responses returned 404)", p.baseURL)
+	}
+
+	slog.Info("responses provider: backend probe successful",
+		"url", p.baseURL+"/v1/responses",
+		"status", resp.StatusCode,
+	)
+	return nil
 }
 
 // Name returns the provider identifier.
