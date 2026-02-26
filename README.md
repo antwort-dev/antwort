@@ -16,28 +16,41 @@ Any existing OpenAI SDK (Python, Node, Go, Rust) works without modification. Poi
 
 Antwort started as a proof-of-concept for [Specification-Driven Development (SDD)](https://github.com/rhuss/cc-sdd-plugin), exploring how an AI-assisted, spec-first methodology works for building a non-trivial system from scratch. The project has since grown beyond that original scope into a full agentic AI platform targeting production Kubernetes environments.
 
-| Spec | Status | Description |
-|------|--------|-------------|
-| 001 Core Protocol & Data Model | Implemented | Items, content types, state machines, validation, errors, extensions |
-| 002 Transport Layer | Implemented | HTTP/SSE adapter, middleware chain, graceful shutdown, in-flight registry |
-| 003 Core Engine & Provider | Implemented | Protocol-agnostic Provider interface, vLLM adapter, streaming, conversation chaining |
-| 004 Agentic Loop | Implemented | Multi-turn reasoning, concurrent tool execution, tool call routing |
-| 005 Storage | Implemented | Storage interface, PostgreSQL adapter, in-memory store |
-| 006 Conformance | Implemented | Compliance test suite for the OpenResponses API |
-| 007 Authentication | Implemented | JWT/OIDC, API key auth, multi-user isolation |
-| 008 Provider: LiteLLM | Implemented | LiteLLM adapter for multi-provider access |
-| 009 MCP Tools | Implemented | Model Context Protocol integration with OAuth token exchange |
-| 010 Web Search | Implemented | SearXNG integration as built-in function provider |
-| 011 Observability | Implemented | Prometheus metrics, OpenTelemetry GenAI conventions |
-| 012-017 Various | Implemented | Configuration, deployment overlays, file search provider |
-| 018 Landing Page | Implemented | [antwort-dev.github.io](https://antwort-dev.github.io), Antora documentation |
-| 020 API Compliance | Implemented | Request-echo fields, include filtering, truncation, parallel tool calls |
-| 021 Reasoning & Streaming | Implemented | Reasoning items, streaming reasoning events, refusal handling |
-| 024 Sandbox Server | Implemented | HTTP server for Python execution with timeout, file I/O, packages |
-| 025 Code Interpreter | Implemented | Built-in code_interpreter tool with sandbox pods, lifecycle events |
-| 026 Debug Logging | Planned | Structured debug logging with category filtering |
-| 029 Structured Output | Implemented | JSON/JSON Schema constrained decoding via text.format |
-| 030 Responses API Provider | Implemented | Native Responses API backend adapter (vllm-responses) |
+All 30 specifications have been implemented through the SDD process. Each spec produces a complete artifact set (spec, plan, tasks, research, review) before any code is written.
+
+| Spec | Description |
+|------|-------------|
+| 001 Core Protocol | Items, content types, state machines, validation, errors |
+| 002 Transport Layer | HTTP/SSE adapter, middleware chain, graceful shutdown |
+| 003 Core Engine | Protocol-agnostic Provider interface, vLLM adapter, streaming |
+| 004 Agentic Loop | Multi-turn reasoning, concurrent tool execution, tool routing |
+| 005 Storage | Storage interface, PostgreSQL adapter, in-memory store |
+| 006 Conformance | Compliance test suite for the OpenResponses API |
+| 007 Authentication | JWT/OIDC, API key auth, multi-user isolation |
+| 008 LiteLLM Provider | LiteLLM adapter for multi-provider access |
+| 009 Container Image | Multi-stage Containerfile, distroless runtime |
+| 010 Kustomize Deploy | Overlays for dev, production, and OpenShift |
+| 011 MCP Client | Model Context Protocol tool integration |
+| 012 Configuration | Unified YAML config with env var overrides |
+| 013 Observability | Prometheus metrics, OpenTelemetry GenAI conventions |
+| 014 MCP OAuth | OAuth client credentials for MCP server auth |
+| 015 Quickstarts | Minimal, production, multi-user, MCP tools guides |
+| 016 Function Registry | Pluggable built-in tool providers with management APIs |
+| 017 Web Search | SearXNG integration as built-in function provider |
+| 018 File Search | File search provider with vector store management |
+| 018b Landing Page | [antwort-dev.github.io](https://antwort-dev.github.io), Antora docs |
+| 019 API Conformance | Integration test suite with mock LLM backend |
+| 020 API Compliance | Request-echo fields, include filtering, truncation |
+| 021 Reasoning Streaming | Reasoning items, streaming reasoning events |
+| 022 Terminal Events | response.completed/failed/cancelled/incomplete events |
+| 023 Tool Lifecycle Events | SSE events for MCP, web search, code interpreter tools |
+| 024 Sandbox Server | HTTP server for Python execution with timeout, file I/O |
+| 025 Code Interpreter | Built-in code_interpreter tool with sandbox pods |
+| 026 Debug Logging | Category-based debug logging (providers, engine, tools) |
+| 027 Sandbox Modes | Python, shell, Go, Node.js runtime modes |
+| 028 List Endpoints | GET /v1/responses, GET /v1/responses/{id}/input_items |
+| 029 Structured Output | JSON/JSON Schema constrained decoding via text.format |
+| 030 Responses API Provider | Native Responses API backend adapter (vllm-responses) |
 
 ### Platform Vision (Next Phases)
 
