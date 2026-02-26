@@ -58,7 +58,7 @@ func NewScheme() (*runtime.Scheme, error) {
 // and returns the sandbox URL (http://<serviceFQDN>:8080) along with a
 // release function that deletes the claim.
 func (a *ClaimAcquirer) Acquire(ctx context.Context) (string, func(), error) {
-	claimName := generateClaimName()
+	claimName := generateClaimNameFn()
 
 	claim := &extensionsv1alpha1.SandboxClaim{
 		ObjectMeta: metav1.ObjectMeta{
@@ -154,7 +154,8 @@ func (a *ClaimAcquirer) deleteClaim(ctx context.Context, name string) {
 	slog.Debug("deleted SandboxClaim", "name", name, "namespace", a.namespace)
 }
 
-// generateClaimName creates a unique name for a SandboxClaim.
-func generateClaimName() string {
+// generateClaimNameFn creates a unique name for a SandboxClaim.
+// Replaceable in tests for deterministic naming.
+var generateClaimNameFn = func() string {
 	return fmt.Sprintf("antwort-ci-%d", time.Now().UnixNano())
 }
