@@ -8,7 +8,7 @@ A production-grade [OpenResponses](https://www.openresponses.org/) API implement
 
 ## What It Does
 
-Antwort is the most complete open-source server-side implementation of the OpenResponses standard. It translates between the Responses API and any `/v1/chat/completions` backend (vLLM, Ollama, LiteLLM, or any OpenAI-compatible server), adding agentic capabilities, tool execution, multi-user isolation, and production operations on top.
+Antwort is the most complete open-source server-side implementation of the OpenResponses standard. It connects to LLM backends via Chat Completions (`/v1/chat/completions`) or the native Responses API (`/v1/responses`), adding agentic capabilities, sandboxed code execution, tool execution, multi-user isolation, and production operations on top. Supports vLLM, Ollama, LiteLLM, or any OpenAI-compatible server.
 
 Any existing OpenAI SDK (Python, Node, Go, Rust) works without modification. Point your client at Antwort, and the Responses API works as expected.
 
@@ -31,6 +31,13 @@ Antwort started as a proof-of-concept for [Specification-Driven Development (SDD
 | 011 Observability | Implemented | Prometheus metrics, OpenTelemetry GenAI conventions |
 | 012-017 Various | Implemented | Configuration, deployment overlays, file search provider |
 | 018 Landing Page | Implemented | [antwort-dev.github.io](https://antwort-dev.github.io), Antora documentation |
+| 020 API Compliance | Implemented | Request-echo fields, include filtering, truncation, parallel tool calls |
+| 021 Reasoning & Streaming | Implemented | Reasoning items, streaming reasoning events, refusal handling |
+| 024 Sandbox Server | Implemented | HTTP server for Python execution with timeout, file I/O, packages |
+| 025 Code Interpreter | Implemented | Built-in code_interpreter tool with sandbox pods, lifecycle events |
+| 026 Debug Logging | Planned | Structured debug logging with category filtering |
+| 029 Structured Output | Implemented | JSON/JSON Schema constrained decoding via text.format |
+| 030 Responses API Provider | Implemented | Native Responses API backend adapter (vllm-responses) |
 
 ### Platform Vision (Next Phases)
 
@@ -38,7 +45,7 @@ Antwort is evolving into a server-native agent platform that brings the best ide
 
 | Phase | Capability | Status |
 |-------|-----------|--------|
-| 1 | Kubernetes Sandbox Executor (code_interpreter via agent-sandbox CRDs) | Planned |
+| 1 | Kubernetes Sandbox Executor (code_interpreter via agent-sandbox CRDs) | Implemented |
 | 2 | Agent Profiles (server-side SOUL.md, `/v1/agents` API) | Planned |
 | 3 | Memory & Knowledge (pluggable vector stores, file_search) | Planned |
 | 4 | Ambient Agents (webhooks, cron triggers, completion hooks) | Planned |
@@ -66,9 +73,9 @@ Antwort is designed interface-first. Every major subsystem is defined as a Go in
 │       │              │                               │
 │  ┌────▼─────┐  ┌─────▼──────────────────────┐       │
 │  │ Provider │  │    Tool Executors           │       │
-│  │ vLLM     │  │  ┌─────┐ ┌─────┐ ┌──────┐  │       │
-│  │ LiteLLM  │  │  │ MCP │ │Web  │ │Sand- │  │       │
-│  │ Ollama   │  │  │     │ │Srch │ │box   │  │       │
+│  │ vLLM CC  │  │  ┌─────┐ ┌─────┐ ┌──────┐  │       │
+│  │ vLLM Rsp │  │  │ MCP │ │Web  │ │Code  │  │       │
+│  │ LiteLLM  │  │  │     │ │Srch │ │Intrp │  │       │
 │  └──────────┘  │  └─────┘ └─────┘ └──────┘  │       │
 │                └─────────────────────────────┘       │
 │  ┌──────────────────────────┐                        │
@@ -84,7 +91,7 @@ Antwort is designed interface-first. Every major subsystem is defined as a Go in
 |----------|--------|-----------|
 | Language | Go 1.22+ | High concurrency, single binary, interface-first |
 | Core dependencies | Zero (stdlib only) | Maximum portability, minimal attack surface |
-| Provider protocol | Protocol-agnostic | Any backend via adapter pattern |
+| Provider protocol | Protocol-agnostic | Chat Completions and Responses API adapters, extensible to any backend |
 | API modes | Stateless + stateful per-request | `store: false` for fire-and-forget, `store: true` for conversation chaining |
 | Storage | Pluggable (PostgreSQL default) | Clean interface for custom backends |
 | Deployment | Kubernetes-exclusive | No standalone mode. HPA, Prometheus, Kustomize overlays |
