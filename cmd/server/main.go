@@ -30,6 +30,7 @@ import (
 	"github.com/rhuss/antwort/pkg/observability"
 	"github.com/rhuss/antwort/pkg/provider"
 	"github.com/rhuss/antwort/pkg/provider/litellm"
+	"github.com/rhuss/antwort/pkg/provider/responses"
 	"github.com/rhuss/antwort/pkg/provider/vllm"
 	"github.com/rhuss/antwort/pkg/storage/memory"
 	"github.com/rhuss/antwort/pkg/tools"
@@ -240,8 +241,15 @@ func createProvider(cfg *config.Config) (provider.Provider, error) {
 			Timeout: cfg.Server.WriteTimeout,
 		})
 
+	case "vllm-responses":
+		return responses.New(responses.Config{
+			BaseURL: cfg.Engine.BackendURL,
+			APIKey:  cfg.Engine.APIKey,
+			Timeout: cfg.Server.WriteTimeout,
+		})
+
 	default:
-		return nil, fmt.Errorf("unknown provider type %q (supported: vllm, litellm)", cfg.Engine.Provider)
+		return nil, fmt.Errorf("unknown provider type %q (supported: vllm, litellm, vllm-responses)", cfg.Engine.Provider)
 	}
 }
 
