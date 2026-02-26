@@ -52,10 +52,10 @@ func (c *Config) Validate() error {
 
 	// engine.provider must be a known value if set.
 	switch c.Engine.Provider {
-	case "vllm", "litellm", "":
+	case "vllm", "litellm", "vllm-responses", "":
 		// valid
 	default:
-		errs = append(errs, fmt.Errorf("engine.provider must be \"vllm\" or \"litellm\", got %q", c.Engine.Provider))
+		errs = append(errs, fmt.Errorf("engine.provider must be \"vllm\", \"litellm\", or \"vllm-responses\", got %q", c.Engine.Provider))
 	}
 
 	return errors.Join(errs...)

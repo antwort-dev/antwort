@@ -65,9 +65,10 @@ func New(cfg Config) (*ResponsesProvider, error) {
 }
 
 // probeEndpoint sends a lightweight request to /v1/responses to verify the
-// backend supports the Responses API. A 404 means the endpoint is not
-// available. Connection errors are also reported. Any 4xx/5xx response that
-// is not 404 is accepted (the endpoint exists, just rejected our probe).
+// backend supports the Responses API. Connection errors and plain 404s (path
+// not found) indicate the endpoint is unavailable. A JSON-formatted 404 from
+// the API (e.g., "model not found") means the endpoint exists but rejected
+// our probe, which is acceptable.
 func (p *ResponsesProvider) probeEndpoint() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -88,10 +89,21 @@ func (p *ResponsesProvider) probeEndpoint() error {
 		return fmt.Errorf("responses: backend at %s is not reachable: %w", p.baseURL, err)
 	}
 	defer resp.Body.Close()
-	// Drain the body so the connection can be reused.
-	io.Copy(io.Discard, resp.Body)
+
+	respBody, _ := io.ReadAll(resp.Body)
 
 	if resp.StatusCode == http.StatusNotFound {
+		// Distinguish between "path not found" (endpoint missing) and
+		// "model not found" (endpoint exists, model name invalid). vLLM
+		// returns 404 with a JSON body for model-not-found errors.
+		if isAPIError(respBody) {
+			// The endpoint exists, it just rejected our probe model.
+			slog.Info("responses provider: backend probe successful (endpoint exists)",
+				"url", p.baseURL+"/v1/responses",
+				"status", resp.StatusCode,
+			)
+			return nil
+		}
 		return fmt.Errorf("responses: backend at %s does not support the Responses API (/v1/responses returned 404)", p.baseURL)
 	}
 
@@ -100,6 +112,21 @@ func (p *ResponsesProvider) probeEndpoint() error {
 		"status", resp.StatusCode,
 	)
 	return nil
+}
+
+// isAPIError checks if a response body is a JSON API error (as opposed to a
+// plain text "Not Found" from a web framework). vLLM returns JSON errors like
+// {"object":"error","message":"The model '_probe' does not exist.","code":404}
+// when the endpoint exists but the request is invalid.
+func isAPIError(body []byte) bool {
+	var obj struct {
+		Object  string `json:"object"`
+		Message string `json:"message"`
+	}
+	if json.Unmarshal(body, &obj) == nil && obj.Message != "" {
+		return true
+	}
+	return false
 }
 
 // Name returns the provider identifier.

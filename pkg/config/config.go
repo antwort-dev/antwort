@@ -55,7 +55,7 @@ type ServerConfig struct {
 
 // EngineConfig holds inference engine and provider settings.
 type EngineConfig struct {
-	Provider     string `yaml:"provider"`      // "vllm" or "litellm", default: "vllm"
+	Provider     string `yaml:"provider"`      // "vllm", "litellm", or "vllm-responses", default: "vllm"
 	BackendURL   string `yaml:"backend_url"`   // required
 	APIKey       string `yaml:"api_key"`       // optional
 	APIKeyFile   string `yaml:"api_key_file"`  // _file variant for api_key

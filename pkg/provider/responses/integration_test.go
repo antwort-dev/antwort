@@ -107,8 +107,26 @@ func TestNew_ProbeSuccess(t *testing.T) {
 	}
 }
 
+func TestNew_ProbeModelNotFound(t *testing.T) {
+	// Backend returns 404 with a JSON API error (model not found).
+	// This means the endpoint exists but the probe model doesn't.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"object":"error","message":"The model '_probe' does not exist.","type":"NotFoundError","code":404}`))
+	}))
+	defer srv.Close()
+
+	p, err := New(Config{BaseURL: srv.URL})
+	if err != nil {
+		t.Fatalf("New() should succeed when 404 is a model-not-found API error, got: %v", err)
+	}
+	if p == nil {
+		t.Fatal("expected non-nil provider")
+	}
+}
+
 func TestNew_ProbeNotFound(t *testing.T) {
-	// Backend returns 404 (endpoint does not exist).
+	// Backend returns 404 with no body (endpoint does not exist).
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 	}))
