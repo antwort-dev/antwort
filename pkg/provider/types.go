@@ -56,6 +56,12 @@ type ProviderRequest struct {
 	// When set, it is translated to the Chat Completions response_format parameter.
 	ResponseFormat *api.TextConfig `json:"-"`
 
+	// BuiltinToolDefs holds function definitions for built-in tool types
+	// (code_interpreter, file_search, web_search_preview). Populated by the
+	// engine from registered FunctionProviders. Used by provider adapters to
+	// expand built-in tool stubs to function definitions before forwarding.
+	BuiltinToolDefs []ProviderTool `json:"-"`
+
 	// Extra holds provider-specific parameters that don't map to standard fields.
 	Extra map[string]any `json:"-"`
 }
