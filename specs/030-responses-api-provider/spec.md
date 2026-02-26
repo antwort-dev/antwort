@@ -70,7 +70,7 @@ A developer sends a request with `code_interpreter` and MCP tools enabled. The m
 
 ### User Story 4 - Migration from Chat Completions Provider (Priority: P2)
 
-An operator switches from the existing Chat Completions provider to the Responses API provider by changing a single configuration field. All existing functionality (streaming, tools, state) continues to work without client changes.
+An operator switches from the existing Chat Completions provider (`vllm`) to the Responses API provider (`vllm-responses`) by changing the `provider` field in the configuration. All existing functionality (streaming, tools, state) continues to work without client changes. Both providers remain available; the operator chooses which one to use.
 
 **Why this priority**: Seamless migration ensures adoption without disruption.
 
@@ -115,7 +115,7 @@ An operator switches from the existing Chat Completions provider to the Response
 
 **Configuration**
 
-- **FR-011**: The provider type MUST be selectable via the standard engine configuration (e.g., `provider: responses`)
+- **FR-011**: The provider MUST be a separate provider type (e.g., `provider: vllm-responses`) that coexists with the existing Chat Completions providers (`vllm`, `litellm`). The operator selects one provider per deployment. The existing providers are not modified or replaced.
 - **FR-012**: The provider MUST accept the same configuration fields as the existing providers (backend_url, api_key, default_model)
 
 **Error Handling**
