@@ -33,6 +33,7 @@ import (
 	"github.com/rhuss/antwort/pkg/provider/responses"
 	"github.com/rhuss/antwort/pkg/provider/vllm"
 	"github.com/rhuss/antwort/pkg/storage/memory"
+	"github.com/rhuss/antwort/pkg/storage/postgres"
 	"github.com/rhuss/antwort/pkg/tools"
 	"github.com/rhuss/antwort/pkg/tools/builtins/codeinterpreter"
 	"github.com/rhuss/antwort/pkg/tools/builtins/filesearch"
@@ -72,7 +73,10 @@ func run() error {
 	defer prov.Close()
 
 	// Create storage from config.
-	store := createStore(cfg)
+	store, err := createStore(cfg)
+	if err != nil {
+		return fmt.Errorf("creating store: %w", err)
+	}
 
 	// Create MCP executor if configured.
 	var executors []tools.ToolExecutor
@@ -254,15 +258,26 @@ func createProvider(cfg *config.Config) (provider.Provider, error) {
 }
 
 // createStore creates a ResponseStore from the config.
-func createStore(cfg *config.Config) transport.ResponseStore {
+func createStore(cfg *config.Config) (transport.ResponseStore, error) {
 	switch cfg.Storage.Type {
 	case "memory":
 		store := memory.New(cfg.Storage.MaxSize)
 		slog.Info("storage enabled", "type", "memory", "max_size", cfg.Storage.MaxSize)
-		return store
+		return store, nil
+	case "postgres":
+		store, err := postgres.New(context.Background(), postgres.Config{
+			DSN:            cfg.Storage.Postgres.DSN,
+			MaxConns:       cfg.Storage.Postgres.MaxConns,
+			MigrateOnStart: cfg.Storage.Postgres.MigrateOnStart,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("creating postgres store: %w", err)
+		}
+		slog.Info("storage enabled", "type", "postgres", "migrate_on_start", cfg.Storage.Postgres.MigrateOnStart)
+		return store, nil
 	default:
 		slog.Info("storage disabled")
-		return nil
+		return nil, nil
 	}
 }
 
