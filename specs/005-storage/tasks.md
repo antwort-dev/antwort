@@ -17,9 +17,9 @@
 
 **Purpose**: Extend ResponseStore interface and create package structure
 
-- [ ] T001 (antwort-1yu.1) Extend `ResponseStore` interface in `pkg/transport/handler.go` with `SaveResponse(ctx, *Response) error`, `GetResponseForChain(ctx, id) (*Response, error)`, `HealthCheck(ctx) error`, and `Close() error`. Update mock in engine tests to satisfy new interface (FR-001, FR-004, FR-005, FR-023).
-- [ ] T002 (antwort-1yu.2) [P] Create `pkg/storage/doc.go` with package documentation. Create `pkg/storage/errors.go` with `ErrNotFound` and `ErrConflict` sentinel errors.
-- [ ] T003 (antwort-1yu.3) [P] Create `pkg/storage/tenant.go` with `SetTenant(ctx, tenantID) context.Context` and `GetTenant(ctx) string` using a private context key. Write tests in `pkg/storage/tenant_test.go` (FR-018, FR-019).
+- [x] T001 (antwort-vr3.1) (antwort-1yu.1) Extend `ResponseStore` interface in `pkg/transport/handler.go` with `SaveResponse(ctx, *Response) error`, `GetResponseForChain(ctx, id) (*Response, error)`, `HealthCheck(ctx) error`, and `Close() error`. Update mock in engine tests to satisfy new interface (FR-001, FR-004, FR-005, FR-023).
+- [x] T002 (antwort-vr3.2) (antwort-1yu.2) [P] Create `pkg/storage/doc.go` with package documentation. Create `pkg/storage/errors.go` with `ErrNotFound` and `ErrConflict` sentinel errors.
+- [x] T003 (antwort-vr3.3) (antwort-1yu.3) [P] Create `pkg/storage/tenant.go` with `SetTenant(ctx, tenantID) context.Context` and `GetTenant(ctx) string` using a private context key. Write tests in `pkg/storage/tenant_test.go` (FR-018, FR-019).
 
 ---
 
@@ -31,10 +31,10 @@
 
 ### Implementation for User Story 1 (In-Memory First)
 
-- [ ] T004 (antwort-67x.1) [US1] Implement in-memory store in `pkg/storage/memory/memory.go`: SaveResponse, GetResponse, GetResponseForChain, DeleteResponse (soft delete), HealthCheck, Close. Use sync.RWMutex for concurrency. Store responses in a map with soft-delete tracking. Write comprehensive tests in `pkg/storage/memory/memory_test.go` covering: save+get, get not-found, delete+get (soft delete), duplicate save (conflict), health check (FR-001, FR-002, FR-003, FR-009, FR-010, FR-012).
-- [ ] T005 (antwort-67x.2) [US1] Integrate SaveResponse into engine's `CreateResponse` in `pkg/engine/engine.go`: after WriteResponse (non-streaming) or after terminal event (streaming), call store.SaveResponse if store is configured and request has store=true. Populate Response.Input from request items before saving. Log warning on save failure, do not fail client response (FR-006, FR-007, FR-008, FR-024).
-- [ ] T006 (antwort-67x.3) [US1] Update engine's `history.go` to use `GetResponseForChain` instead of `GetResponse` for chain traversal, so soft-deleted responses are included in chain reconstruction (FR-022, FR-023).
-- [ ] T007 (antwort-67x.4) [US1] Write engine storage integration tests in `pkg/engine/engine_test.go`: verify save is called after non-streaming inference, verify save is skipped for store=false, verify save is skipped when store is nil, verify save failure does not affect client response.
+- [x] T004 (antwort-58h.1) (antwort-67x.1) [US1] Implement in-memory store in `pkg/storage/memory/memory.go`: SaveResponse, GetResponse, GetResponseForChain, DeleteResponse (soft delete), HealthCheck, Close. Use sync.RWMutex for concurrency. Store responses in a map with soft-delete tracking. Write comprehensive tests in `pkg/storage/memory/memory_test.go` covering: save+get, get not-found, delete+get (soft delete), duplicate save (conflict), health check (FR-001, FR-002, FR-003, FR-009, FR-010, FR-012).
+- [x] T005 (antwort-58h.2) (antwort-67x.2) [US1] Integrate SaveResponse into engine's `CreateResponse` in `pkg/engine/engine.go`: after WriteResponse (non-streaming) or after terminal event (streaming), call store.SaveResponse if store is configured and request has store=true. Populate Response.Input from request items before saving. Log warning on save failure, do not fail client response (FR-006, FR-007, FR-008, FR-024).
+- [x] T006 (antwort-58h.3) (antwort-67x.3) [US1] Update engine's `history.go` to use `GetResponseForChain` instead of `GetResponse` for chain traversal, so soft-deleted responses are included in chain reconstruction (FR-022, FR-023).
+- [x] T007 (antwort-58h.4) (antwort-67x.4) [US1] Write engine storage integration tests in `pkg/engine/engine_test.go`: verify save is called after non-streaming inference, verify save is skipped for store=false, verify save is skipped when store is nil, verify save failure does not affect client response.
 
 **Checkpoint**: Responses are persisted and retrievable using in-memory store.
 
@@ -48,8 +48,8 @@
 
 ### Implementation for User Story 2
 
-- [ ] T008 (antwort-8kk.1) [US2] Write chain reconstruction tests in `pkg/engine/engine_test.go` using in-memory store: store 3 chained responses (A->B->C), send request with previous_response_id=C, verify engine reconstructs full conversation. Test soft-deleted intermediate response still accessible for chain. Test non-existent previous_response_id returns not-found.
-- [ ] T009 (antwort-8kk.2) [US2] Write soft-delete chain integrity tests in `pkg/storage/memory/memory_test.go`: save A->B->C, delete B, verify GetResponse(B) returns not-found but GetResponseForChain(B) returns B.
+- [x] T008 (antwort-nuy.1) (antwort-8kk.1) [US2] Write chain reconstruction tests in `pkg/engine/engine_test.go` using in-memory store: store 3 chained responses (A->B->C), send request with previous_response_id=C, verify engine reconstructs full conversation. Test soft-deleted intermediate response still accessible for chain. Test non-existent previous_response_id returns not-found.
+- [x] T009 (antwort-nuy.2) (antwort-8kk.2) [US2] Write soft-delete chain integrity tests in `pkg/storage/memory/memory_test.go`: save A->B->C, delete B, verify GetResponse(B) returns not-found but GetResponseForChain(B) returns B.
 
 **Checkpoint**: Chain reconstruction works with soft-deleted responses.
 
@@ -63,7 +63,7 @@
 
 ### Implementation for User Story 3
 
-- [ ] T010 (antwort-bvm.1) [US3] Implement LRU eviction in `pkg/storage/memory/memory.go`: when SaveResponse is called and the store is at max capacity, evict the least recently accessed response. Use a doubly-linked list for access ordering. Write tests in `pkg/storage/memory/memory_test.go` covering: eviction at capacity, access updates order, max size 0 means unlimited (FR-011).
+- [x] T010 (antwort-7km.1) (antwort-bvm.1) [US3] Implement LRU eviction in `pkg/storage/memory/memory.go`: when SaveResponse is called and the store is at max capacity, evict the least recently accessed response. Use a doubly-linked list for access ordering. Write tests in `pkg/storage/memory/memory_test.go` covering: eviction at capacity, access updates order, max size 0 means unlimited (FR-011).
 
 **Checkpoint**: LRU eviction prevents unbounded memory growth.
 
@@ -77,12 +77,12 @@
 
 ### Implementation for User Story 4
 
-- [ ] T011 (antwort-3m9.1) [US4] [P] Create `pkg/storage/postgres/config.go` with PostgresConfig struct (DSN, MaxConns, MaxIdleConns, ConnMaxLifetime, MigrateOnStart, TLS options) (FR-014, FR-017).
-- [ ] T012 (antwort-3m9.2) [US4] [P] Create `pkg/storage/postgres/migrations/001_create_responses.sql` with the schema from data-model.md (responses table, indexes, schema_migrations table).
-- [ ] T013 (antwort-3m9.3) [US4] Create `pkg/storage/postgres/migrations.go` with embedded SQL migration runner using `//go:embed`. Track applied versions in schema_migrations table (FR-015).
-- [ ] T014 (antwort-3m9.4) [US4] Implement PostgreSQL adapter in `pkg/storage/postgres/postgres.go`: New() constructor with pgxpool, SaveResponse (INSERT with ON CONFLICT), GetResponse (SELECT WHERE deleted_at IS NULL), GetResponseForChain (SELECT without deleted_at filter), DeleteResponse (UPDATE SET deleted_at), HealthCheck (pool.Ping), Close (pool.Close). Handle JSONB serialization for input/output/error/extensions (FR-013, FR-014, FR-016).
-- [ ] T015 (antwort-3m9.5) [US4] Write PostgreSQL integration tests in `pkg/storage/postgres/postgres_test.go` using testcontainers-go: start PostgreSQL container, run migrations, test full CRUD cycle, test soft delete, test chain retrieval, test health check, test duplicate save conflict (FR-013).
-- [ ] T016 (antwort-3m9.6) [US4] Add `pgx/v5` and `testcontainers-go` dependencies to go.mod.
+- [x] T011 (antwort-me1.1) (antwort-3m9.1) [US4] [P] Create `pkg/storage/postgres/config.go` with PostgresConfig struct (DSN, MaxConns, MaxIdleConns, ConnMaxLifetime, MigrateOnStart, TLS options) (FR-014, FR-017).
+- [x] T012 (antwort-me1.2) (antwort-3m9.2) [US4] [P] Create `pkg/storage/postgres/migrations/001_create_responses.sql` with the schema from data-model.md (responses table, indexes, schema_migrations table).
+- [x] T013 (antwort-me1.3) (antwort-3m9.3) [US4] Create `pkg/storage/postgres/migrations.go` with embedded SQL migration runner using `//go:embed`. Track applied versions in schema_migrations table (FR-015).
+- [x] T014 (antwort-me1.4) (antwort-3m9.4) [US4] Implement PostgreSQL adapter in `pkg/storage/postgres/postgres.go`: New() constructor with pgxpool, SaveResponse (INSERT with ON CONFLICT), GetResponse (SELECT WHERE deleted_at IS NULL), GetResponseForChain (SELECT without deleted_at filter), DeleteResponse (UPDATE SET deleted_at), HealthCheck (pool.Ping), Close (pool.Close). Handle JSONB serialization for input/output/error/extensions (FR-013, FR-014, FR-016).
+- [x] T015 (antwort-me1.5) (antwort-3m9.5) [US4] Write PostgreSQL integration tests in `pkg/storage/postgres/postgres_test.go` using testcontainers-go: start PostgreSQL container, run migrations, test full CRUD cycle, test soft delete, test chain retrieval, test health check, test duplicate save conflict (FR-013).
+- [x] T016 (antwort-me1.6) (antwort-3m9.6) [US4] Add `pgx/v5` and `testcontainers-go` dependencies to go.mod.
 
 **Checkpoint**: PostgreSQL adapter fully functional with schema migrations.
 
@@ -96,8 +96,8 @@
 
 ### Implementation for User Story 5
 
-- [ ] T017 (antwort-zaj.1) [US5] Add tenant scoping to in-memory store in `pkg/storage/memory/memory.go`: extract tenant from context via storage.GetTenant, scope SaveResponse (store tenant_id), GetResponse (filter by tenant), DeleteResponse (filter by tenant). Empty tenant = no filtering. Write tests in `pkg/storage/memory/memory_test.go` (FR-018, FR-019, FR-020, FR-021).
-- [ ] T018 (antwort-zaj.2) [US5] Add tenant scoping to PostgreSQL adapter in `pkg/storage/postgres/postgres.go`: add `tenant_id` to INSERT, add `WHERE tenant_id = $tenant` to SELECT/UPDATE (when tenant is not empty). Write tests in `pkg/storage/postgres/postgres_test.go` (FR-018, FR-021).
+- [x] T017 (antwort-ues.1) (antwort-zaj.1) [US5] Add tenant scoping to in-memory store in `pkg/storage/memory/memory.go`: extract tenant from context via storage.GetTenant, scope SaveResponse (store tenant_id), GetResponse (filter by tenant), DeleteResponse (filter by tenant). Empty tenant = no filtering. Write tests in `pkg/storage/memory/memory_test.go` (FR-018, FR-019, FR-020, FR-021).
+- [x] T018 (antwort-ues.2) (antwort-zaj.2) [US5] Add tenant scoping to PostgreSQL adapter in `pkg/storage/postgres/postgres.go`: add `tenant_id` to INSERT, add `WHERE tenant_id = $tenant` to SELECT/UPDATE (when tenant is not empty). Write tests in `pkg/storage/postgres/postgres_test.go` (FR-018, FR-021).
 
 **Checkpoint**: Tenant isolation prevents cross-tenant access.
 
@@ -107,11 +107,11 @@
 
 **Purpose**: Edge cases, validation, and final verification
 
-- [ ] T019 (antwort-inj.1) [P] Handle edge case: SaveResponse with duplicate ID returns ErrConflict in both adapters.
-- [ ] T020 (antwort-inj.2) [P] Handle edge case: database unreachable during SaveResponse logs warning, doesn't fail client.
-- [ ] T021 (antwort-inj.3) [P] Handle edge case: in-memory store concurrent access (verify mutex correctness with race detector).
-- [ ] T022 (antwort-inj.4) Run `go vet ./...` and `go test ./...` across all packages to verify compilation and test passing.
-- [ ] T023 (antwort-inj.5) Run `go test -race ./pkg/storage/...` to verify concurrent access safety.
+- [x] T019 (antwort-7az.1) (antwort-inj.1) [P] Handle edge case: SaveResponse with duplicate ID returns ErrConflict in both adapters.
+- [x] T020 (antwort-7az.2) (antwort-inj.2) [P] Handle edge case: database unreachable during SaveResponse logs warning, doesn't fail client.
+- [x] T021 (antwort-7az.3) (antwort-inj.3) [P] Handle edge case: in-memory store concurrent access (verify mutex correctness with race detector).
+- [x] T022 (antwort-7az.4) (antwort-inj.4) Run `go vet ./...` and `go test ./...` across all packages to verify compilation and test passing.
+- [x] T023 (antwort-7az.5) (antwort-inj.5) Run `go test -race ./pkg/storage/...` to verify concurrent access safety.
 
 ---
 
