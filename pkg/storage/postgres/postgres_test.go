@@ -30,9 +30,11 @@ func init() {
 			}
 		}
 	}
-	// Ryuk needs privileged mode with podman.
-	if os.Getenv("TESTCONTAINERS_RYUK_CONTAINER_PRIVILEGED") == "" {
-		os.Setenv("TESTCONTAINERS_RYUK_CONTAINER_PRIVILEGED", "true")
+	// Disable Ryuk reaper with podman (it requires the "bridge" network
+	// which doesn't exist in podman). Container cleanup is handled by
+	// t.Cleanup() instead.
+	if os.Getenv("TESTCONTAINERS_RYUK_DISABLED") == "" {
+		os.Setenv("TESTCONTAINERS_RYUK_DISABLED", "true")
 	}
 }
 
