@@ -57,8 +57,13 @@ func New(cfg Config) (*ResponsesProvider, error) {
 	}
 
 	// Probe the backend to verify Responses API support (FR-013).
+	// Non-fatal: log a warning if the backend is unreachable (e.g., GPU node
+	// scaling up). The first real request will fail with a clear error.
 	if err := p.probeEndpoint(); err != nil {
-		return nil, err
+		slog.Warn("responses provider: backend probe failed, continuing anyway",
+			"url", cfg.BaseURL+"/v1/responses",
+			"error", err.Error(),
+		)
 	}
 
 	return p, nil

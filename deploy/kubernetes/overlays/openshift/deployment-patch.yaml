@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: antwort
+spec:
+  template:
+    spec:
+      containers:
+        - name: antwort
+          volumeMounts:
+            - name: postgres-credentials
+              mountPath: /run/secrets/postgres
+              readOnly: true
+      volumes:
+        - name: postgres-credentials
+          secret:
+            secretName: postgres-credentials
+            items:
+              - key: dsn
+                path: dsn

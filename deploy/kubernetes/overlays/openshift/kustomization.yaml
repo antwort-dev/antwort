@@ -4,3 +4,25 @@ kind: Kustomization
 resources:
   - ../../base
   - route.yaml
+  - postgres/
+
+# Use quay.io images (Docker Hub rate limits on OpenShift).
+images:
+  - name: ghcr.io/rhuss/antwort
+    newName: quay.io/rhuss/antwort
+
+# Override config for OpenShift + PostgreSQL.
+patches:
+  - target:
+      kind: ConfigMap
+      name: antwort-config
+    patch: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: antwort-config
+      data:
+        ANTWORT_STORAGE: "postgres"
+        ANTWORT_STORAGE_DSN_FILE: "/run/secrets/postgres/dsn"
+        ANTWORT_STORAGE_MIGRATE: "true"
+  - path: deployment-patch.yaml

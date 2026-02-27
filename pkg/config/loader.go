@@ -118,6 +118,15 @@ func applyEnvOverrides(cfg *Config) {
 			cfg.Storage.MaxSize = size
 		}
 	}
+	if v := os.Getenv("ANTWORT_STORAGE_DSN"); v != "" {
+		cfg.Storage.Postgres.DSN = v
+	}
+	if v := os.Getenv("ANTWORT_STORAGE_DSN_FILE"); v != "" {
+		cfg.Storage.Postgres.DSNFile = v
+	}
+	if v := os.Getenv("ANTWORT_STORAGE_MIGRATE"); v == "true" {
+		cfg.Storage.Postgres.MigrateOnStart = true
+	}
 	if v := os.Getenv("ANTWORT_AUTH_TYPE"); v != "" {
 		cfg.Auth.Type = v
 	}

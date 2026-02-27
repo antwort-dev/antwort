@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/rhuss/antwort/pkg/provider"
@@ -109,28 +108,30 @@ func TestNew_Probe405(t *testing.T) {
 
 func TestNew_ProbeNotFound(t *testing.T) {
 	// Backend returns 404 for GET (endpoint does not exist).
+	// Probe is non-fatal: provider should still be created.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 	}))
 	defer srv.Close()
 
-	_, err := New(Config{BaseURL: srv.URL})
-	if err == nil {
-		t.Fatal("expected error when backend returns 404")
+	p, err := New(Config{BaseURL: srv.URL})
+	if err != nil {
+		t.Fatalf("New() should succeed even when probe returns 404 (non-fatal), got: %v", err)
 	}
-	if !strings.Contains(err.Error(), "does not support the Responses API") {
-		t.Errorf("error message should mention Responses API support, got: %v", err)
+	if p == nil {
+		t.Fatal("expected non-nil provider")
 	}
 }
 
 func TestNew_ProbeUnreachable(t *testing.T) {
 	// Backend is not reachable at all.
-	_, err := New(Config{BaseURL: "http://127.0.0.1:1"})
-	if err == nil {
-		t.Fatal("expected error when backend is unreachable")
+	// Probe is non-fatal: provider should still be created with a warning.
+	p, err := New(Config{BaseURL: "http://127.0.0.1:1"})
+	if err != nil {
+		t.Fatalf("New() should succeed even when backend is unreachable (non-fatal), got: %v", err)
 	}
-	if !strings.Contains(err.Error(), "not reachable") {
-		t.Errorf("error message should mention unreachable, got: %v", err)
+	if p == nil {
+		t.Fatal("expected non-nil provider")
 	}
 }
 
