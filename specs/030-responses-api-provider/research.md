@@ -60,3 +60,27 @@ This is the same pattern used by the Chat Completions providers today: the engin
 - **SGLang**: Has `/v1/responses` but does NOT support custom function tools (only built-in/MCP tools). This blocks agentic loop usage since antwort needs the model to call custom functions.
 - **Ollama**: Has `/v1/responses` since v0.13.3 but is explicitly stateless. Works for basic inference but multi-turn is client-managed.
 - Both could work as backends with limitations. vLLM is the most complete implementation.
+
+## R6: vLLM Multi-Turn & Augmented Protocol (Brainstorm, Feb 2026)
+
+**Status**: Tracking upstream, not actionable yet.
+
+**Context**: Internal discussion (Slack, Feb 23-24 2026) between Roland, Ben Browning, and Seb Han explored how stateful Responses API should work between a proxy (antwort/openresponses-gw) and vLLM.
+
+**Key insights from the discussion**:
+- vLLM's `/v1/responses` endpoint does NOT support multi-turn conversations in the Responses API input format ([vllm#33089](https://github.com/vllm-project/vllm/issues/33089)). Pydantic validation rejects typed input items from prior turns.
+- Ben: "None of Responses, Chat Completions, or Completions API provide everything needed by the thing doing the state and agentic loops. You have to go outside of any of those APIs a bit, or invent a new protocol."
+- vLLM is "smuggling additional data" via extensions to the Responses API (e.g., [PR #24985](https://github.com/vllm-project/vllm/pull/24985) for `enable_response_messages`), but nothing is standardized.
+- The vLLM Semantic Router has its own in-memory state management for Responses API, but that's a separate layer from vLLM core.
+- Flora Feng (new RHT hire) is starting to work on Responses API and tool calling in vLLM upstream.
+- A vLLM community SIG for Responses API and Tool Calling is forming.
+
+**Roland's position**: vLLM should not frame its endpoint as a "stateless Responses API" but as a proxy protocol inspired by the Responses API. The gateway (antwort) speaks compliant Responses API to clients, and uses a purpose-specific internal protocol to the backend.
+
+**Recommendation**: Once vLLM settles on extensions (e.g., `previous_input_messages`, custom fields for conversation history), the `vllm-responses` provider should adopt them. Until then, the current approach (sending history as `input` items via the standard Responses API format, or falling back to Chat Completions for multi-turn) works. This is a future spec, not part of 030.
+
+**References**:
+- [vLLM Issue #33089: Multi-turn conversation support](https://github.com/vllm-project/vllm/issues/33089)
+- [vLLM PR #24985: Response messages output](https://github.com/vllm-project/vllm/pull/24985)
+- [vLLM Semantic Router v0.1](https://blog.vllm.ai/2026/01/05/vllm-sr-iris.html)
+- [openresponses-gw proposal for vSR separation](https://github.com/leseb/openresponses-gw/blob/main/docs/proposal-vsr-responses-api-separation.md)
