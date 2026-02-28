@@ -69,7 +69,7 @@ When the client sets `"stream": true`, the transport layer switches from JSON to
 The `sseResponseWriter` (in `pkg/transport/http/sse.go`) manages the SSE lifecycle:
 
 1. On the first `WriteEvent` call, it sets `Content-Type: text/event-stream`, `Cache-Control: no-cache`, and `Connection: keep-alive`.
-2. Each event is written in standard SSE format: `event: {type}\ndata: {json}\n\n`.
+2. Each event is written in standard SSE format: `event: \{type\}\ndata: \{json\}\n\n`.
 3. Every event is flushed immediately to prevent buffering delays.
 4. After a terminal event (`response.completed`, `response.failed`, `response.cancelled`, `response.incomplete`, or `response.requires_action`), it sends `data: [DONE]\n\n` and marks the writer as completed.
 
@@ -310,4 +310,4 @@ The four primary extension points are:
 |===
 
 Each interface is defined in its respective package and can be implemented independently.
-The xref:extensions:index.adoc[Extensions] module provides detailed guidance on implementing each one.
+The xref:extensions:overview.adoc[Extensions] module provides detailed guidance on implementing each one.
