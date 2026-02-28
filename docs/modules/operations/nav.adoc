@@ -1,0 +1,5 @@
+.Operations
+* xref:monitoring.adoc[Monitoring]
+* xref:deployment.adoc[Deployment]
+* xref:troubleshooting.adoc[Troubleshooting]
+* xref:security.adoc[Security]

@@ -9,7 +9,7 @@ IMAGE_TAG  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
 
 KUBE_NAMESPACE ?= antwort
 
-.PHONY: build test vet conformance api-test clean image-build image-push image-latest sandbox-build sandbox-push deploy deploy-openshift
+.PHONY: build test vet conformance api-test clean image-build image-push image-latest sandbox-build sandbox-push deploy deploy-openshift docs docs-serve
 
 # Build all binaries.
 build:
@@ -64,6 +64,18 @@ deploy:
 deploy-openshift:
 	kustomize build deploy/kubernetes/overlays/openshift/ | kubectl apply -n $(KUBE_NAMESPACE) -f -
 
+# Build documentation site.
+docs:
+	@command -v npx >/dev/null 2>&1 || { echo "Error: npx not found. Install Node.js 18+ from https://nodejs.org"; exit 1; }
+	@test -d docs/node_modules/@antora/lunr-extension || (cd docs && npm install --save-dev @antora/lunr-extension 2>/dev/null)
+	npx antora docs/antora-playbook.yml
+
+# Build and serve documentation locally.
+docs-serve: docs
+	@echo "Documentation built at docs/build/site/"
+	@echo "Starting local server at http://localhost:8070"
+	npx http-server docs/build/site -p 8070 -c-1
+
 # Clean build artifacts.
 clean:
-	rm -rf $(BIN_DIR)
+	rm -rf $(BIN_DIR) docs/build
