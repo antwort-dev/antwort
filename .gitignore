@@ -54,3 +54,6 @@ api/openresponses-ref.json
 
 # Beads ephemeral database
 .beads/ephemeral.sqlite3
+docs/node_modules/
+docs/package-lock.json
+docs/build/
