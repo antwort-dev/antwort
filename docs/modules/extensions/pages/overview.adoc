@@ -1,1 +1,126 @@
-= overview
+= Extension Architecture
+
+Antwort follows an interface-first design philosophy.
+Every major subsystem is defined as a Go interface before any concrete implementation exists.
+This principle, codified in the project constitution, ensures that you can replace or extend any part of the gateway without modifying core logic.
+
+In this section, we examine the four primary extension points, the distinction between core packages and adapter packages, and the mechanics of plugging a custom implementation into the server.
+
+== Interface-First Design
+
+The architecture is similar to the strategy pattern in object-oriented design.
+Each subsystem declares an interface that captures its behavioral contract.
+The engine, transport layer, and server binary depend only on these interfaces, never on concrete types.
+
+This separation yields several benefits:
+
+* **Testability**: Unit tests can substitute lightweight in-memory implementations without standing up external services.
+* **Deployment flexibility**: A development deployment can use the in-memory store while production uses PostgreSQL, with no code changes beyond configuration.
+* **Extensibility**: Adding a new LLM backend or authentication scheme requires implementing a single interface, not modifying existing code.
+
+== Core vs Adapter Packages
+
+Antwort distinguishes between _core_ packages and _adapter_ packages:
+
+Core packages:: Reside in `pkg/api`, `pkg/engine`, `pkg/transport`, `pkg/auth`, and `pkg/tools`.
+They depend exclusively on the Go standard library and define the interfaces that adapters implement.
+This constraint, mandated by the project constitution, guarantees that the gateway's core logic has zero external dependencies.
+
+Adapter packages:: Reside in subdirectories such as `pkg/provider/vllm`, `pkg/storage/postgres`, or `pkg/auth/jwt`.
+They import external libraries (for example, `pgx/v5` for PostgreSQL or a JWKS library for JWT validation) and translate between Antwort's internal types and the external system's wire format.
+
+This layering is analogous to the ports-and-adapters (hexagonal) architecture.
+The core defines the ports.
+Adapters connect those ports to the outside world.
+
+== The Four Extension Points
+
+Antwort exposes four primary interfaces for extension.
+Each interface represents a distinct responsibility within the request lifecycle:
+
+[cols="1,2,3",options="header"]
+|===
+| Interface | Package | Responsibility
+
+| `Provider`
+| `pkg/provider`
+| Translates inference requests to a backend LLM and returns completions (streaming or non-streaming).
+
+| `ResponseStore`
+| `pkg/transport`
+| Persists, retrieves, and deletes stored responses for stateful deployments.
+
+| `Authenticator`
+| `pkg/auth`
+| Examines HTTP request credentials and returns a three-outcome vote (Yes, No, Abstain).
+
+| `FunctionProvider`
+| `pkg/tools/registry`
+| Contributes server-side tool definitions, handles tool execution, and optionally exposes HTTP routes and Prometheus metrics.
+|===
+
+The following sections provide detailed documentation for each interface.
+
+== Plugging In: Registration
+
+Custom implementations are registered in `cmd/server/main.go`.
+Each extension point has a dedicated factory function that reads the server configuration and instantiates the appropriate implementation.
+
+=== Provider Registration
+
+The `createProvider()` function selects a provider based on the `engine.provider` configuration value:
+
+[source,go]
+----
+switch cfg.Engine.Provider {
+case "vllm", "":
+    return vllm.New(vllm.Config{...})
+case "litellm":
+    return litellm.New(litellm.Config{...})
+case "vllm-responses":
+    return responses.New(responses.Config{...})
+default:
+    return nil, fmt.Errorf("unknown provider type %q", cfg.Engine.Provider)
+}
+----
+
+To add a new provider, you add a case to this switch statement and import the adapter package.
+
+=== Storage Registration
+
+The `createStore()` function selects a storage backend based on `storage.type`:
+
+[source,go]
+----
+switch cfg.Storage.Type {
+case "memory":
+    return memory.New(cfg.Storage.MaxSize), nil
+case "postgres":
+    return postgres.New(ctx, postgres.Config{...})
+}
+----
+
+=== Authenticator Registration
+
+The `buildAuthChain()` function constructs an `AuthChain` from the `auth.type` configuration.
+It supports `apikey`, `jwt`, and `chain` (which combines both) out of the box.
+
+=== Tool Provider Registration
+
+The `createFunctionRegistry()` function iterates over `providers` in the configuration and registers each enabled provider with the `FunctionRegistry`.
+The registry aggregates all providers and implements the `ToolExecutor` interface consumed by the engine.
+
+== Request Lifecycle
+
+Understanding how these extension points interact helps when writing custom implementations.
+A simplified request lifecycle looks like this:
+
+. The HTTP transport layer receives the request and invokes the `ResponseCreator`.
+. The auth middleware runs the `AuthChain`, injecting `Identity` and tenant context.
+. The engine validates the request and calls `Provider.Complete()` or `Provider.Stream()`.
+. If the model returns tool calls, the engine dispatches them through registered `ToolExecutor` implementations (which include the `FunctionRegistry`).
+. On completion, the engine persists the response via `ResponseStore.SaveResponse()` (if storage is configured).
+. The transport layer writes the response or streams events back to the client.
+
+Each extension point operates within this pipeline.
+The following pages document each interface in detail, with method signatures, contracts, and implementation guidance.

@@ -1,1 +1,266 @@
-= storage
+= Custom Storage
+
+The `ResponseStore` interface governs how Antwort persists, retrieves, and deletes API responses.
+In stateful deployments, the store enables conversation chaining (via `previous_response_id`), response listing, and input item retrieval.
+In stateless deployments, storage is simply disabled and the store is nil.
+
+This page documents the `ResponseStore` interface, the tenant context propagation mechanism, pagination patterns, and the two reference implementations.
+
+== The ResponseStore Interface
+
+The `ResponseStore` interface is defined in `pkg/transport/handler.go`:
+
+[source,go]
+----
+type ResponseStore interface {
+    SaveResponse(ctx context.Context, resp *api.Response) error
+    GetResponse(ctx context.Context, id string) (*api.Response, error)
+    GetResponseForChain(ctx context.Context, id string) (*api.Response, error)
+    DeleteResponse(ctx context.Context, id string) error
+    ListResponses(ctx context.Context, opts ListOptions) (*ResponseList, error)
+    GetInputItems(ctx context.Context, responseID string, opts ListOptions) (*ItemList, error)
+    HealthCheck(ctx context.Context) error
+    Close() error
+}
+----
+
+The design follows the repository pattern: each method performs a single, well-defined storage operation.
+The interface intentionally does not expose database-specific types or query builders.
+
+=== SaveResponse
+
+[source,go]
+----
+SaveResponse(ctx context.Context, resp *api.Response) error
+----
+
+Persists a completed response.
+The implementation must extract the tenant identifier from the context (via `storage.GetTenant(ctx)`) and associate it with the stored response.
+
+Returns `storage.ErrConflict` if a response with the same ID already exists.
+
+=== GetResponse
+
+[source,go]
+----
+GetResponse(ctx context.Context, id string) (*api.Response, error)
+----
+
+Retrieves a response by ID.
+Returns `storage.ErrNotFound` if the response does not exist or has been soft-deleted.
+
+When a tenant is present in the context, the implementation must enforce tenant scoping: a response stored by tenant A must not be visible to tenant B.
+
+=== GetResponseForChain
+
+[source,go]
+----
+GetResponseForChain(ctx context.Context, id string) (*api.Response, error)
+----
+
+Retrieves a response by ID for conversation chain reconstruction.
+Unlike `GetResponse`, this method *includes* soft-deleted responses.
+This ensures that conversation chains remain intact even when intermediate responses have been deleted.
+
+Tenant scoping still applies.
+
+=== DeleteResponse
+
+[source,go]
+----
+DeleteResponse(ctx context.Context, id string) error
+----
+
+Performs a soft delete by marking the response with a deletion timestamp.
+The response data remains in storage for chain reconstruction via `GetResponseForChain`.
+
+Returns `storage.ErrNotFound` if the response does not exist or has already been deleted.
+
+=== ListResponses
+
+[source,go]
+----
+ListResponses(ctx context.Context, opts ListOptions) (*ResponseList, error)
+----
+
+Returns a paginated list of stored responses.
+Results are filtered by tenant (when present in context) and optionally by model.
+Supports cursor-based pagination and ordering.
+
+=== GetInputItems
+
+[source,go]
+----
+GetInputItems(ctx context.Context, responseID string, opts ListOptions) (*ItemList, error)
+----
+
+Returns a paginated list of input items for a given response.
+Returns `storage.ErrNotFound` if the response does not exist.
+
+=== HealthCheck
+
+[source,go]
+----
+HealthCheck(ctx context.Context) error
+----
+
+Verifies that the store connection is functional.
+Used by health and readiness probes.
+For in-memory stores, this is typically a no-op returning nil.
+For database-backed stores, this should perform a connection check (for example, a SQL `ping`).
+
+=== Close
+
+[source,go]
+----
+Close() error
+----
+
+Releases database connections and resources.
+Called during server shutdown.
+
+== Tenant Context Propagation
+
+Antwort uses Go's `context.Context` to propagate tenant identity from the authentication layer to the storage layer.
+This mechanism is defined in `pkg/storage/tenant.go`:
+
+[source,go]
+----
+func SetTenant(ctx context.Context, tenantID string) context.Context {
+    return context.WithValue(ctx, tenantKey{}, tenantID)
+}
+
+func GetTenant(ctx context.Context) string {
+    if v, ok := ctx.Value(tenantKey{}).(string); ok {
+        return v
+    }
+    return ""
+}
+----
+
+The auth middleware calls `SetTenant` when it extracts a `tenant_id` from the authenticated identity's metadata.
+Every `ResponseStore` method receives this enriched context and must use `GetTenant(ctx)` to scope queries.
+
+When `GetTenant` returns an empty string, the system is operating in single-tenant mode and no tenant filtering should be applied.
+
+== Pagination: ListOptions
+
+List operations accept a `ListOptions` struct for cursor-based pagination:
+
+[source,go]
+----
+type ListOptions struct {
+    After  string // Cursor: return items after this ID
+    Before string // Cursor: return items before this ID
+    Limit  int    // Maximum items to return (default 20, max 100)
+    Model  string // Filter responses by model name (list responses only)
+    Order  string // Sort order: "asc" or "desc" (default "desc")
+}
+----
+
+The returned list types carry pagination metadata:
+
+[source,go]
+----
+type ResponseList struct {
+    Object  string          `json:"object"`
+    Data    []*api.Response `json:"data"`
+    HasMore bool            `json:"has_more"`
+    FirstID string          `json:"first_id"`
+    LastID  string          `json:"last_id"`
+}
+----
+
+Implementations must apply cursors before the limit.
+When `After` is specified, results begin after the entry with that ID.
+When `Before` is specified, results end before the entry with that ID.
+The `HasMore` field indicates whether additional pages exist beyond the current result set.
+
+== Sentinel Errors
+
+The `pkg/storage` package defines two sentinel errors that all implementations must use:
+
+[source,go]
+----
+var (
+    ErrNotFound = errors.New("response not found")
+    ErrConflict = errors.New("response already exists")
+)
+----
+
+Using these sentinel errors enables the transport layer to map storage errors to appropriate HTTP status codes (404 and 409, respectively).
+
+== Reference Implementations
+
+=== In-Memory Store
+
+Located in `pkg/storage/memory/memory.go`.
+
+The in-memory store is suitable for development, testing, and lightweight single-instance deployments.
+It stores responses in a Go map protected by a `sync.RWMutex`, with optional LRU eviction when a `maxSize` is configured.
+
+Key characteristics:
+
+* Data is lost when the process restarts.
+* LRU eviction removes the least recently used entry when the store reaches capacity.
+* `HealthCheck` is a no-op (always returns nil).
+* `Close` is a no-op.
+
+Configuration:
+
+[source,yaml]
+----
+storage:
+  type: memory
+  max_size: 10000  # 0 = unlimited
+----
+
+=== PostgreSQL Adapter
+
+Located in `pkg/storage/postgres/postgres.go`.
+
+The PostgreSQL adapter is designed for production multi-instance deployments.
+It uses `pgx/v5` for connection pooling and stores response input/output as JSONB columns.
+
+Key characteristics:
+
+* Supports concurrent access from multiple server instances.
+* Tenant scoping is enforced via a `tenant_id` column.
+* Soft deletes use a `deleted_at` timestamp column.
+* `HealthCheck` performs a `pool.Ping()` to verify database connectivity.
+
+Configuration:
+
+[source,yaml]
+----
+storage:
+  type: postgres
+  postgres:
+    dsn: "postgres://user:pass@localhost:5432/antwort?sslmode=disable"
+    max_conns: 10
+    migrate_on_start: true
+----
+
+==== Schema Migrations
+
+The PostgreSQL adapter uses embedded SQL migration files (`pkg/storage/postgres/migrations/*.sql`).
+When `migrate_on_start` is set to `true`, the adapter applies pending migrations automatically during initialization.
+
+Migrations are versioned with numeric prefixes (for example, `001_create_responses.sql`) and tracked in a `schema_migrations` table.
+Each migration runs exactly once.
+
+To add a new migration:
+
+. Create a new SQL file with the next version number prefix.
+. The file will be embedded via Go's `//go:embed` directive and applied on the next server start.
+
+== Writing a Custom Store
+
+To implement a custom `ResponseStore`:
+
+. Create a new package under `pkg/storage/yourbackend/`.
+. Implement all eight methods of the `ResponseStore` interface.
+. Use `storage.GetTenant(ctx)` in every method to enforce tenant scoping.
+. Return `storage.ErrNotFound` and `storage.ErrConflict` for the appropriate error conditions.
+. Add a compile-time interface check: `var _ transport.ResponseStore = (*Store)(nil)`.
+. Add a case to the `createStore()` function in `cmd/server/main.go`.

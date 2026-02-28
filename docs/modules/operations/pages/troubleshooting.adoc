@@ -1,1 +1,242 @@
-= troubleshooting
+= Troubleshooting
+:navtitle: Troubleshooting
+
+This page covers debug logging, common error conditions, and health check interpretation.
+When something goes wrong, start by enabling debug output for the relevant subsystem and examining the gateway logs.
+
+== Debug Logging
+
+Antwort provides two orthogonal controls for diagnostic output:
+
+* **Categories** control _what_ subsystem produces debug output.
+* **Levels** control _how much_ detail each log line contains.
+
+Both can be configured via YAML config, environment variables, or a combination of the two.
+Environment variables always take precedence over config file values.
+
+=== Configuration
+
+[source,yaml]
+----
+logging:
+  level: INFO            # <1>
+  debug: providers,engine # <2>
+----
+<1> Log level. One of `ERROR`, `WARN`, `INFO`, `DEBUG`, or `TRACE`.
+<2> Comma-separated list of debug categories to enable.
+
+The equivalent environment variables are:
+
+[source,bash]
+----
+export ANTWORT_LOG_LEVEL=DEBUG
+export ANTWORT_DEBUG=providers,engine
+----
+
+=== Debug Categories
+
+The following categories are available.
+Use `all` to enable every category at once.
+
+[cols="1,3", options="header"]
+|===
+| Category | What It Logs
+
+| `providers`
+| Backend provider request/response details, model selection, token counts.
+
+| `engine`
+| Agentic loop turns, tool call decisions, conversation chaining.
+
+| `transport`
+| HTTP request handling, SSE stream lifecycle, response serialization.
+
+| `tools`
+| Tool registration, tool call dispatch, result formatting.
+
+| `sandbox`
+| Sandbox server interactions, code execution requests, container lifecycle.
+
+| `mcp`
+| MCP server connections, protocol messages, tool discovery.
+
+| `auth`
+| Authentication decisions, token validation, rate limit checks.
+
+| `streaming`
+| SSE event formatting, chunk assembly, connection management.
+
+| `config`
+| Configuration loading, file discovery, environment variable resolution.
+
+| `all`
+| Enables all categories simultaneously.
+|===
+
+=== Log Levels
+
+Log levels control the verbosity of output.
+Each level includes all messages from the levels above it.
+
+[cols="1,3", options="header"]
+|===
+| Level | Description
+
+| `ERROR`
+| Only errors that require attention.
+
+| `WARN`
+| Warnings and errors. Includes non-fatal conditions that may indicate problems.
+
+| `INFO`
+| Informational messages, warnings, and errors. This is the default level.
+
+| `DEBUG`
+| Debug output for enabled categories. Includes truncated request/response summaries.
+
+| `TRACE`
+| Maximum verbosity. Includes full, untruncated request and response bodies. Use this level when you need to inspect the exact payloads sent to and received from backend providers.
+|===
+
+At `TRACE` level, the `debug.Raw()` function writes plain text directly to stderr without slog formatting.
+This produces copy-paste-ready output of full HTTP bodies and headers.
+
+=== Enabling Debug Output in Kubernetes
+
+To enable debug logging on a running Deployment, patch the ConfigMap and restart the Pods:
+
+[source,bash]
+----
+kubectl set env deployment/antwort \
+  ANTWORT_LOG_LEVEL=DEBUG \
+  ANTWORT_DEBUG=providers,engine
+
+kubectl rollout restart deployment/antwort
+----
+
+To view the debug output:
+
+[source,bash]
+----
+kubectl logs -f deployment/antwort
+----
+
+== Common Errors and Resolutions
+
+=== Backend Connection Error
+
+**Symptom:** Requests fail with a connection error or timeout when calling the LLM backend.
+
+**Resolution:**
+
+. Verify `engine.backend_url` (or `ANTWORT_BACKEND_URL`) points to the correct address.
+. Check that the LLM backend Pod is running and ready:
++
+[source,bash]
+----
+kubectl get pods -l app=vllm
+----
+. If the backend runs in a different namespace, use the fully qualified Service name:
++
+[source]
+----
+http://vllm.llm-namespace.svc.cluster.local:8000
+----
+. Enable the `providers` debug category to see the exact URL and headers being sent.
+
+=== Sandbox Returned HTTP 500
+
+**Symptom:** Code interpreter tool calls fail with a 500 error from the sandbox server.
+
+**Resolution:**
+
+. Check the sandbox server logs for the root cause:
++
+[source,bash]
+----
+kubectl logs deployment/sandbox-server
+----
+. Verify that `/tmp` is writable inside the sandbox container. The antwort container uses `readOnlyRootFilesystem: true`, but the sandbox server needs a writable temp directory.
+. Enable the `sandbox` debug category to see the full request and response.
+
+=== Authentication Failed
+
+**Symptom:** Requests return HTTP 401 or 403.
+
+**Resolution:**
+
+. Confirm `auth.type` (or `ANTWORT_AUTH_TYPE`) matches your authentication method (`apikey`, `jwt`, or `chain`).
+. For API key authentication, verify the key matches one of the configured entries. Remember that keys are compared using SHA-256 hashes with constant-time comparison, so there is no partial match feedback.
+. For JWT authentication, check:
+** The token has not expired.
+** The `iss` claim matches the configured `issuer`.
+** The `aud` claim matches the configured `audience`.
+** The signing key ID (`kid`) is present in the JWKS endpoint response.
+. Enable the `auth` debug category to see the authentication decision chain.
+
+=== Store Not Configured
+
+**Symptom:** Conversation chaining fails, or previous responses cannot be retrieved.
+
+**Resolution:**
+
+. The default storage type is `memory`. This works for single-replica deployments but does not share state across replicas.
+. For multi-replica deployments, configure PostgreSQL storage:
++
+[source,yaml]
+----
+storage:
+  type: postgres
+  postgres:
+    dsn_file: /run/secrets/postgres/dsn
+    migrate_on_start: true
+----
+. Verify the PostgreSQL Pod is running and the DSN credentials are correct.
+
+=== Rate Limit Exceeded
+
+**Symptom:** Requests return HTTP 429 (Too Many Requests).
+
+**Resolution:**
+
+. Check which service tier the client is using. The `antwort_ratelimit_rejected_total` metric shows rejections by tier.
+. Increase the `requests_per_minute` for the affected tier in the rate limit configuration.
+. Enable the `auth` debug category to see rate limit decisions.
+
+== Health Check Interpretation
+
+The gateway exposes a health endpoint at `GET /healthz`.
+
+[cols="1,2,3", options="header"]
+|===
+| Endpoint | Success Response | Failure Behavior
+
+| `/healthz`
+| HTTP 200, body: `ok`
+| HTTP 503 or connection refused if the process is not serving.
+|===
+
+The health endpoint verifies that the HTTP server is accepting connections.
+It does not check backend provider connectivity.
+This design ensures that the gateway remains available to serve cached responses and error messages even when the backend is temporarily unreachable.
+
+In the base Deployment, the same `/healthz` endpoint is used for all three probe types (startup, liveness, readiness).
+The probes differ in their timing and failure thresholds, as described in the xref:operations:deployment.adoc#_health_probes[Deployment] page.
+
+=== Interpreting Probe Failures
+
+**Startup probe failures** during initial Pod creation typically indicate that the gateway is still connecting to external services (PostgreSQL, MCP servers).
+The startup probe allows up to 60 seconds before marking the Pod as failed.
+
+**Liveness probe failures** indicate the gateway process has become unresponsive.
+Kubernetes will restart the container.
+Check the container logs from the previous instance:
+
+[source,bash]
+----
+kubectl logs deployment/antwort --previous
+----
+
+**Readiness probe failures** remove the Pod from the Service endpoint pool without restarting it.
+This usually indicates a transient condition.
+The Pod will be added back once the readiness probe succeeds again.

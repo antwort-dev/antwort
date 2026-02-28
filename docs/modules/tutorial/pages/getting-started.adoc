@@ -1,1 +1,267 @@
-= getting-started
+= Getting Started
+:navtitle: Getting Started
+
+In this tutorial, we deploy Antwort to a Kubernetes cluster and send our first request to the OpenResponses API.
+By the end, you will have a running gateway that accepts natural-language prompts and returns structured responses from a backing LLM.
+
+Think of Antwort as a reverse proxy for language models, much like an API gateway sits in front of microservices.
+It receives requests in the OpenAI Responses API format, forwards them to a configured LLM backend, and returns the result in a standardized envelope.
+
+== Prerequisites
+
+Before we begin, ensure the following are in place:
+
+* A Kubernetes cluster (minikube, kind, or OpenShift) with `kubectl` or `oc` configured
+* The shared LLM backend deployed and running in the `llm-serving` namespace (see the link:https://github.com/rhuss/antwort/tree/main/quickstarts/shared/llm-backend[shared/llm-backend quickstart] for setup instructions)
+* `curl` and `jq` installed locally for testing
+
+The LLM backend provides a vLLM inference server with Qwen 2.5 7B Instruct.
+All quickstarts connect to it via the internal Service URL `http://llm-predictor.llm-serving.svc.cluster.local:8080`.
+
+== Deploying Antwort
+
+We use the `01-minimal` quickstart manifests, which configure Antwort with in-memory storage and no authentication.
+This is the simplest possible deployment, suitable for exploring the API.
+
+[source,bash]
+----
+# Create the namespace
+kubectl create namespace antwort
+
+# Deploy Antwort using Kustomize
+kubectl apply -k quickstarts/01-minimal/ -n antwort
+
+# Wait for the Pod to become ready
+kubectl rollout status deployment/antwort -n antwort --timeout=60s
+----
+
+Once the rollout completes, Antwort is running as a single Pod behind a ClusterIP Service on port 8080.
+
+=== What Gets Deployed
+
+[cols="1,3",options="header"]
+|===
+| Component | Description
+
+| Antwort Pod
+| The OpenResponses gateway (1 replica)
+
+| ConfigMap
+| Contains `config.yaml` with backend URL, model name, and in-memory storage settings
+
+| Service
+| ClusterIP on port 8080 for cluster-internal access
+|===
+
+=== Accessing the API
+
+To reach Antwort from your local machine, set up a port-forward:
+
+[source,bash]
+----
+kubectl port-forward -n antwort svc/antwort 8080:8080 &
+export URL=http://localhost:8080
+----
+
+On OpenShift, you can alternatively deploy with the OpenShift overlay to create a Route for external access:
+
+[source,bash]
+----
+kubectl apply -k quickstarts/01-minimal/openshift/ -n antwort
+ROUTE=$(kubectl get route antwort -n antwort -o jsonpath='{.spec.host}')
+export URL=https://$ROUTE
+----
+
+== Verifying the Health Endpoint
+
+Before sending any requests, we confirm that the gateway is healthy:
+
+[source,bash]
+----
+curl -s "$URL/healthz"
+----
+
+The response should be a simple `ok`.
+This endpoint is used by Kubernetes liveness and readiness probes.
+If you see a connection error, verify that the port-forward is active and the Pod is in `Running` state.
+
+== Sending Your First Request
+
+Now we send a simple text completion request to the Responses API.
+The request body follows the OpenAI Responses API format: we provide a `model`, an `input` array of messages, and receive a structured response.
+
+[source,bash]
+----
+curl -s -X POST "$URL/v1/responses" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "/mnt/models",
+    "input": [
+      {
+        "type": "message",
+        "role": "user",
+        "content": [{"type": "input_text", "text": "What is the capital of France? Answer in one sentence."}]
+      }
+    ]
+  }' | jq .
+----
+
+=== Understanding the Response
+
+The response is a JSON object with several important fields:
+
+[source,json]
+----
+{
+  "id": "resp_abc123",
+  "object": "response",
+  "status": "completed",
+  "output": [
+    {
+      "id": "item_def456",
+      "type": "message",
+      "role": "assistant",
+      "status": "completed",
+      "content": [
+        {
+          "type": "output_text",
+          "text": "The capital of France is Paris."
+        }
+      ]
+    }
+  ],
+  "usage": {
+    "input_tokens": 25,
+    "output_tokens": 10,
+    "total_tokens": 35
+  }
+}
+----
+
+Let us walk through the key fields:
+
+`id`:: A unique identifier for this response, prefixed with `resp_`.
+We can use this ID to retrieve the response later (when persistence is enabled).
+
+`status`:: Indicates whether the response completed successfully.
+The value `completed` means the LLM produced a final answer.
+Other possible values include `in_progress`, `cancelled`, and `requires_action` (for tool calling).
+
+`output`:: An array of output items.
+Each item has a `type` field.
+For a simple text completion, we get a single `message` item with role `assistant`.
+The message's `content` array contains `output_text` parts with the actual text.
+
+`usage`:: Token counts for the request.
+This is useful for monitoring costs and understanding model utilization.
+
+We can extract just the answer text using `jq`:
+
+[source,bash]
+----
+curl -s -X POST "$URL/v1/responses" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "/mnt/models",
+    "input": [
+      {
+        "type": "message",
+        "role": "user",
+        "content": [{"type": "input_text", "text": "What is the capital of France? Answer in one sentence."}]
+      }
+    ]
+  }' | jq '{status: .status, answer: .output[0].content[0].text}'
+----
+
+== Streaming Responses
+
+For longer responses, streaming provides a better user experience by delivering tokens as they are generated rather than waiting for the full completion.
+Enable streaming by setting `"stream": true` in the request body:
+
+[source,bash]
+----
+curl -s -N -X POST "$URL/v1/responses" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "/mnt/models",
+    "stream": true,
+    "input": [
+      {
+        "type": "message",
+        "role": "user",
+        "content": [{"type": "input_text", "text": "Count from 1 to 5."}]
+      }
+    ]
+  }'
+----
+
+The response arrives as Server-Sent Events (SSE).
+Each event has a `type` field indicating its purpose:
+
+* `response.created` and `response.in_progress` signal the start of processing
+* `response.output_text.delta` events deliver incremental text chunks
+* `response.output_text.done` marks the end of a text segment
+* `response.completed` signals that the full response is ready
+
+This event-driven model is similar to how WebSocket-based systems push updates, but it uses standard HTTP with SSE for broader compatibility.
+
+== Checking Metrics
+
+Antwort exposes Prometheus-compatible metrics at the `/metrics` endpoint:
+
+[source,bash]
+----
+curl -s "$URL/metrics" | grep antwort_requests_total
+----
+
+Even in this minimal setup, the metrics endpoint is active.
+We will connect it to Prometheus and Grafana when we move to a production configuration in xref:going-production.adoc[].
+
+== Understanding the Configuration
+
+The minimal deployment uses the following configuration, stored in a ConfigMap:
+
+[source,yaml]
+----
+server:
+  port: 8080
+engine:
+  provider: vllm
+  backend_url: http://llm-predictor.llm-serving.svc.cluster.local:8080
+  default_model: /mnt/models
+storage:
+  type: memory
+auth:
+  type: none
+----
+
+`engine.provider`:: The backend type.
+We use `vllm` here because the shared LLM backend runs vLLM.
+Antwort translates between the Responses API format and the vLLM Chat Completions API.
+
+`engine.backend_url`:: The cluster-internal URL of the LLM inference server.
+This follows the standard Kubernetes DNS pattern: `<service>.<namespace>.svc.cluster.local:<port>`.
+
+`storage.type`:: Set to `memory` for simplicity.
+Responses are stored in-process and lost when the Pod restarts.
+For durable storage, we switch to PostgreSQL in xref:going-production.adoc[].
+
+`auth.type`:: Set to `none`, meaning all requests are accepted without authentication.
+We add JWT-based authentication in xref:going-production.adoc[].
+
+== Cleanup
+
+When you are finished experimenting, remove the deployment:
+
+[source,bash]
+----
+kubectl delete namespace antwort
+----
+
+== Next Steps
+
+Now that we have a running Antwort instance and understand the request/response lifecycle, we are ready to explore more advanced features:
+
+* xref:first-tools.adoc[] - Connect external tools via MCP and explore the agentic loop
+* xref:code-execution.adoc[] - Add a Python sandbox for code execution
+* xref:going-production.adoc[] - Add PostgreSQL, authentication, and monitoring for production use

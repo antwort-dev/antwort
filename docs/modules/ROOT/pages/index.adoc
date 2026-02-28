@@ -1,22 +1,63 @@
-= Antwort Documentation
+= Antwort
 
-Antwort is the open-source OpenResponses API implementation for production.
-It runs AI agents server-side on Kubernetes with sandboxed code execution, multi-tenant isolation, and full API compatibility with any OpenAI SDK.
+Antwort is an open-source OpenResponses API gateway that runs on Kubernetes.
+It translates between the https://github.com/openai/openai-openapi[Responses API] and LLM inference backends such as vLLM, LiteLLM, or any OpenAI-compatible endpoint.
+Any application built with the OpenAI SDK can point at an Antwort instance and work without modification.
 
-== Getting Started
+== Why Antwort?
 
-Start with the xref:getting-started.adoc[Quickstart Guide] to deploy Antwort on your Kubernetes cluster.
+Most LLM backends expose the Chat Completions API, a stateless protocol designed for single-turn conversations.
+The Responses API, by contrast, is purpose-built for agentic applications: it supports multi-turn tool calling, conversation chaining, and structured streaming events out of the box.
+Antwort bridges that gap.
+It accepts Responses API requests from your application, translates them into the protocol your backend understands, and handles the orchestration that makes agentic loops work.
 
-== Key Features
+Think of Antwort as a reverse proxy with intelligence.
+Where a traditional proxy forwards bytes, Antwort manages the full lifecycle of a multi-turn agent conversation, executing tools, feeding results back to the model, and streaming structured events to the client.
 
-* **OpenResponses API**: Full compliance with the OpenResponses specification. Any OpenAI SDK works.
-* **Agentic Loop**: Multi-turn reasoning with concurrent tool execution.
-* **Multi-Provider**: vLLM, LiteLLM, Ollama, or any OpenAI-compatible endpoint.
-* **MCP Tools**: Model Context Protocol integration for external tool servers.
-* **Multi-Tenant Auth**: JWT/OIDC and API key authentication with tenant isolation.
-* **Conversation Memory**: PostgreSQL-backed persistence with response chaining.
-* **Observability**: Prometheus metrics with OpenTelemetry GenAI conventions.
+== Key Capabilities
 
-== Architecture
+*OpenResponses API compliance*::
+Full implementation of the Responses API, including `POST /v1/responses`, response retrieval, deletion, input item listing, and model enumeration.
+Any OpenAI SDK (Python, TypeScript, Go, Java) works as a client.
 
-See the xref:architecture.adoc[Architecture Overview] for how requests flow through the system.
+*Streaming (SSE)*::
+Real-time Server-Sent Events with the complete event lifecycle: `response.created`, output item deltas, content part events, function call argument streaming, reasoning deltas, and terminal events.
+
+*Agentic loop with multi-turn tool calling*::
+The engine orchestrates multi-turn conversations automatically.
+When the model generates a `function_call`, Antwort executes the tool, feeds the result back, and continues the loop until a final answer is produced or a termination condition is met.
+Both concurrent and sequential tool execution are supported.
+
+*Built-in tools*::
+Code interpreter (sandboxed execution via Kubernetes Pods), web search, and file search are available as built-in tool types.
+Register them once, and they are available to every request that includes them in the `tools` array.
+
+*MCP integration*::
+Model Context Protocol (MCP) tool servers can be connected to Antwort.
+Tools are discovered automatically and merged into the request's tool list, allowing the model to call MCP-hosted functions alongside built-in and user-defined tools.
+
+*Multi-tenant authentication*::
+API key and JWT/OIDC authentication with tenant isolation.
+Each tenant's responses are stored separately, and cross-tenant access is prevented at the storage layer.
+
+*Conversation persistence*::
+Optional PostgreSQL-backed storage with `previous_response_id` chaining.
+In-memory storage is available for development and testing.
+
+*Multi-provider support*::
+Pluggable provider architecture supporting vLLM (Chat Completions translation), LiteLLM, Responses API passthrough, and any OpenAI-compatible backend.
+
+*Structured output*::
+JSON Schema constraints via `text.format` are translated to the backend's `response_format` parameter, enabling type-safe structured responses.
+
+*Observability*::
+Prometheus metrics following OpenTelemetry GenAI semantic conventions.
+Latency histograms, token counters, and tool execution metrics are exposed on the standard `/metrics` endpoint.
+
+== Where to Go Next
+
+* xref:architecture.adoc[Architecture] provides a deep dive into the request flow, component layers, and extension points.
+* xref:api-reference.adoc[API Reference] documents the complete wire format, including request schemas, response schemas, SSE event types, and error codes.
+* xref:quickstarts:index.adoc[Quickstarts] walk through deploying Antwort on Kubernetes, from a minimal single-Pod setup to production configurations with PostgreSQL and multi-tenant auth.
+* xref:extensions:index.adoc[Extensions] explains how to implement custom providers, tool executors, authenticators, and storage backends.
+* xref:operations:index.adoc[Operations] covers production deployment, monitoring, and troubleshooting.

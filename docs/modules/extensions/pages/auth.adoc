@@ -1,1 +1,244 @@
-= auth
+= Custom Authentication
+
+Antwort uses a three-outcome voting model for authentication.
+Each `Authenticator` examines request credentials and returns one of three decisions: Yes (valid), No (invalid), or Abstain (not my concern).
+An `AuthChain` evaluates authenticators in order and stops on the first definitive vote.
+
+This design allows multiple authentication schemes to coexist.
+For example, a chain can accept both API keys and JWT tokens: the API key authenticator abstains on Bearer JWT tokens, the JWT authenticator abstains on API keys, and whichever recognizes the credential type returns the definitive decision.
+
+== The Authenticator Interface
+
+The `Authenticator` interface is defined in `pkg/auth/auth.go`:
+
+[source,go]
+----
+type Authenticator interface {
+    Authenticate(ctx context.Context, r *http.Request) AuthResult
+}
+----
+
+A single method receives the HTTP request and returns an `AuthResult`.
+The implementation inspects request headers (typically `Authorization`), validates credentials, and returns its vote.
+
+== Three-Outcome Voting: AuthDecision
+
+[source,go]
+----
+type AuthDecision int
+
+const (
+    Yes     AuthDecision = iota // Credentials valid; chain stops
+    No                          // Credentials invalid; chain stops
+    Abstain                     // Cannot handle this credential type; chain continues
+)
+----
+
+The three outcomes serve distinct purposes:
+
+Yes:: The authenticator recognized and validated the credentials.
+The chain stops immediately and the associated `Identity` is used for the remainder of the request.
+
+No:: The authenticator recognized the credential type but validation failed (for example, an expired token or incorrect API key).
+The chain stops and the request is rejected with a 401 status.
+
+Abstain:: The authenticator does not handle this credential type.
+For instance, an API key authenticator should abstain when it sees a JWT Bearer token.
+The chain continues to the next authenticator.
+
+This pattern is similar to a chain-of-responsibility in object-oriented design, but with an explicit "pass" option that distinguishes "I do not know" from "I reject."
+
+== AuthResult
+
+[source,go]
+----
+type AuthResult struct {
+    Decision AuthDecision
+    Identity *Identity  // populated only when Decision == Yes
+    Err      error      // populated only when Decision == No
+}
+----
+
+When returning `Yes`, the `Identity` field must be populated.
+When returning `No`, the `Err` field should describe the failure reason.
+When returning `Abstain`, both fields should be zero-valued.
+
+== Identity
+
+The `Identity` struct represents an authenticated caller:
+
+[source,go]
+----
+type Identity struct {
+    Subject     string            // Unique identifier (required, non-empty)
+    ServiceTier string            // Determines rate limits and priority
+    Scopes      []string          // Authorization scopes granted
+    Metadata    map[string]string // Auth-provider-specific data
+}
+----
+
+Subject:: A unique, stable identifier for the caller.
+This appears in log messages and is used for audit trails.
+
+ServiceTier:: Categorizes the caller for rate limiting and priority routing (for example, `"default"`, `"premium"`, `"internal"`).
+
+Scopes:: A list of authorization scopes.
+Reserved for future fine-grained access control.
+
+Metadata:: A string map for provider-specific data.
+The key `"tenant_id"` has special meaning: when present, the auth middleware calls `storage.SetTenant()` to inject it into the context, enabling multi-tenant storage scoping.
+
+The `TenantID()` helper method extracts the tenant identifier:
+
+[source,go]
+----
+func (id *Identity) TenantID() string {
+    if id == nil || id.Metadata == nil {
+        return ""
+    }
+    return id.Metadata["tenant_id"]
+}
+----
+
+== AuthChain
+
+The `AuthChain` evaluates authenticators left to right:
+
+[source,go]
+----
+type AuthChain struct {
+    Authenticators  []Authenticator
+    DefaultDecision AuthDecision
+}
+----
+
+[source,go]
+----
+func (c *AuthChain) Authenticate(ctx context.Context, r *http.Request) AuthResult {
+    for _, authn := range c.Authenticators {
+        result := authn.Authenticate(ctx, r)
+        if result.Decision != Abstain {
+            return result
+        }
+    }
+
+    // All abstained: use default.
+    if c.DefaultDecision == Yes {
+        return AuthResult{
+            Decision: Yes,
+            Identity: &Identity{Subject: "anonymous", ServiceTier: "default"},
+        }
+    }
+    return AuthResult{Decision: No, Err: ErrUnauthenticated}
+}
+----
+
+The `DefaultDecision` field controls behavior when all authenticators abstain:
+
+* Set to `Yes` for development (NoOp behavior), where unauthenticated requests are accepted as "anonymous."
+* Set to `No` for production, where unauthenticated requests are rejected.
+
+== Middleware Integration
+
+The auth middleware in `pkg/auth/middleware.go` wraps the HTTP handler chain.
+It performs the following steps:
+
+. **Bypass check**: Requests to endpoints in the bypass list (such as `/healthz`, `/readyz`, `/metrics`) skip authentication entirely.
+. **Chain evaluation**: The middleware calls `chain.Authenticate(ctx, r)`.
+. **Rejection**: If the decision is `No`, the middleware returns a 401 response with a JSON error body.
+. **Identity injection**: If the decision is `Yes`, the middleware stores the `Identity` in the context via `auth.SetIdentity()`.
+. **Tenant propagation**: If the identity contains a `tenant_id` in its metadata, the middleware calls `storage.SetTenant()` to inject the tenant into the context.
+. **Continuation**: The enriched context is passed to the next handler.
+
+Downstream handlers retrieve the identity via `auth.IdentityFromContext(ctx)`:
+
+[source,go]
+----
+func IdentityFromContext(ctx context.Context) *Identity {
+    if v, ok := ctx.Value(identityKey{}).(*Identity); ok {
+        return v
+    }
+    return nil
+}
+----
+
+== Sentinel Errors
+
+The auth package defines three sentinel errors:
+
+[source,go]
+----
+var (
+    ErrUnauthenticated = errors.New("authentication required")
+    ErrForbidden       = errors.New("access denied")
+    ErrTooManyRequests = errors.New("rate limit exceeded")
+)
+----
+
+Use `ErrUnauthenticated` as the `Err` field when returning a `No` decision due to missing or unrecognized credentials.
+
+== Reference Implementations
+
+Antwort ships with three authenticator implementations:
+
+=== noop (Always Yes)
+
+Located in `pkg/auth/noop/noop.go`.
+
+Always returns `Yes` with an anonymous identity.
+Used as a default voter in development and for testing.
+
+[source,go]
+----
+func (a *Authenticator) Authenticate(_ context.Context, _ *http.Request) auth.AuthResult {
+    return auth.AuthResult{
+        Decision: auth.Yes,
+        Identity: &auth.Identity{Subject: "anonymous", ServiceTier: "default"},
+    }
+}
+----
+
+=== apikey (Bearer Token)
+
+Located in `pkg/auth/apikey/`.
+
+Validates `Authorization: Bearer <key>` headers against a configured list of API keys.
+Each key maps to a pre-defined `Identity` with subject, service tier, and optional tenant ID.
+
+Returns `Yes` if the key matches, `No` if the Authorization header is present but the key is invalid, and `Abstain` if no Authorization header is present or if the scheme is not Bearer.
+
+=== jwt (JWKS Validation)
+
+Located in `pkg/auth/jwt/`.
+
+Validates JWT Bearer tokens by fetching public keys from a JWKS endpoint.
+Supports configurable claims for issuer, audience, user identity, tenant, and scopes.
+
+Configuration:
+
+[source,yaml]
+----
+auth:
+  type: jwt
+  jwt:
+    issuer: "https://auth.example.com/"
+    audience: "antwort-api"
+    jwks_url: "https://auth.example.com/.well-known/jwks.json"
+    user_claim: "sub"
+    tenant_claim: "org_id"
+    scopes_claim: "scope"
+----
+
+== Writing a Custom Authenticator
+
+To implement a custom authenticator:
+
+. Create a new package under `pkg/auth/yourmethod/`.
+. Implement the `Authenticator` interface.
+. Return `Abstain` when the request does not contain credentials relevant to your scheme.
+. Return `No` with a descriptive `Err` when credentials are present but invalid.
+. Return `Yes` with a fully populated `Identity` (including a non-empty `Subject`) when credentials are valid.
+. Add the authenticator to the chain in `buildAuthChain()` in `cmd/server/main.go`.
+
+When implementing the `Authenticate` method, avoid blocking operations that could delay all incoming requests.
+For schemes that require network calls (such as token introspection), consider caching validated results.

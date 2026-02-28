@@ -1,10 +1,313 @@
-= Architecture Overview
+= Architecture
 
-This page describes the internal architecture of Antwort, including the request lifecycle, component interactions, and data flow.
-You will learn how a client request enters the transport layer, passes through the engine's agentic loop, interacts with LLM providers and tool executors, and returns a response.
+Antwort follows a layered architecture where each layer has a single responsibility: accepting HTTP requests, orchestrating logic, translating protocols, and persisting state.
+This separation mirrors the classic Model-View-Controller pattern, adapted for an API gateway that sits between client applications and LLM inference backends.
 
-[NOTE]
-====
-This page is under construction.
-Content is coming soon.
-====
+== Request Flow
+
+The following diagram shows the path a request takes through the system.
+
+[source,text]
+----
+                        ┌─────────────────────────────────────────────┐
+                        │              Antwort Gateway                │
+                        │                                             │
+  ┌──────────┐          │  ┌───────────┐   ┌────────┐   ┌──────────┐ │          ┌─────────┐
+  │  Client   │──HTTP──▶│  │ Transport │──▶│ Engine │──▶│ Provider │─│──HTTP──▶│   LLM   │
+  │ (OpenAI   │         │  │   Layer   │   │        │   │  Layer   │ │         │ Backend │
+  │   SDK)    │◀──SSE───│  │           │◀──│        │◀──│          │◀│─────────│ (vLLM)  │
+  └──────────┘          │  └───────────┘   └───┬────┘   └──────────┘ │         └─────────┘
+                        │                      │                     │
+                        │                 ┌────▼────┐                │
+                        │                 │  Tools  │                │
+                        │                 │Executors│                │
+                        │                 └────┬────┘                │
+                        │                      │                     │
+                        │               ┌──────▼──────┐              │
+                        │               │   Storage   │              │
+                        │               │  (optional) │              │
+                        │               └─────────────┘              │
+                        └─────────────────────────────────────────────┘
+----
+
+1. The *client* sends a `POST /v1/responses` request using any OpenAI SDK.
+2. The *transport layer* validates the HTTP request, decodes JSON, and creates a `ResponseWriter` for either streaming (SSE) or non-streaming (JSON) output.
+3. The *engine* validates the request, merges MCP-discovered tools, loads conversation history if `previous_response_id` is set, and delegates to the provider.
+4. The *provider* translates the Responses API request into the backend's native protocol (for example, Chat Completions for vLLM) and returns the result.
+5. The engine processes the provider's response. If tool calls are present and executors are registered, it enters the *agentic loop*.
+6. Results flow back through the engine to the transport layer, which serializes them as JSON or SSE events.
+
+== Transport Layer
+
+The transport layer is the HTTP boundary of the system.
+It is responsible for accepting requests, enforcing size limits, routing to handlers, and serializing responses in the correct wire format.
+
+The central type is the `Adapter` (in `pkg/transport/http/adapter.go`), which registers routes on Go 1.22's `http.ServeMux` using method+pattern routing:
+
+* `POST /v1/responses` -- create a new response (streaming or non-streaming)
+* `GET /v1/responses/\{id\}` -- retrieve a stored response
+* `DELETE /v1/responses/\{id\}` -- delete a response or cancel an in-flight stream
+* `GET /v1/responses/\{id\}/input_items` -- list input items for a response
+* `GET /v1/responses` -- list stored responses (paginated)
+
+=== Middleware Chain
+
+The transport layer applies middleware to every request before it reaches the engine.
+Middleware is composed using the `transport.Chain` function, which wraps the `ResponseCreator` interface in a decorator chain (analogous to Java's Servlet Filters or Spring's `HandlerInterceptor` chain).
+
+Three middleware components are applied by default:
+
+* *Recovery* -- catches panics in downstream handlers and converts them to `500` error responses.
+* *Request ID* -- generates or propagates `X-Request-ID` headers for request correlation across logs and distributed tracing.
+* *Logging* -- emits structured log entries (via `log/slog`) with request method, path, duration, and status.
+
+Additional middleware (such as authentication) can be added by passing extra `transport.Middleware` functions when constructing the server.
+
+=== SSE Streaming
+
+When the client sets `"stream": true`, the transport layer switches from JSON to Server-Sent Events.
+The `sseResponseWriter` (in `pkg/transport/http/sse.go`) manages the SSE lifecycle:
+
+1. On the first `WriteEvent` call, it sets `Content-Type: text/event-stream`, `Cache-Control: no-cache`, and `Connection: keep-alive`.
+2. Each event is written in standard SSE format: `event: {type}\ndata: {json}\n\n`.
+3. Every event is flushed immediately to prevent buffering delays.
+4. After a terminal event (`response.completed`, `response.failed`, `response.cancelled`, `response.incomplete`, or `response.requires_action`), it sends `data: [DONE]\n\n` and marks the writer as completed.
+
+The `WriteEvent` and `WriteResponse` methods are mutually exclusive on a single writer instance: once streaming has started, a non-streaming response cannot be written, and vice versa.
+
+== Engine
+
+The engine (in `pkg/engine/engine.go`) is the orchestration core of the system.
+It implements the `transport.ResponseCreator` interface, which is the single contract between the transport layer and the business logic.
+
+When a request arrives, the engine performs these steps in order:
+
+1. *Model defaulting* -- if the request omits `model`, the engine applies the configured default model.
+2. *Capability validation* -- the engine checks the provider's declared capabilities (streaming, tool calling, vision, reasoning) against the request's requirements and rejects unsupported combinations early.
+3. *MCP tool merging* -- if MCP executors are registered, the engine discovers their tools and merges them into the request's `tools` array. Explicit tools in the request take precedence over MCP-discovered tools with the same name.
+4. *Request translation* -- the engine translates the Responses API request into a `ProviderRequest`, which is the protocol-agnostic intermediate representation.
+5. *Conversation history* -- if `previous_response_id` is set and a store is configured, the engine loads the full conversation chain and prepends history messages to the provider request.
+6. *Dispatch* -- the engine routes to one of four code paths based on the request's `stream` flag and whether the agentic loop is needed.
+
+=== Four Execution Paths
+
+The engine selects the appropriate path based on two conditions: whether the request is streaming and whether the agentic loop should be activated.
+The agentic loop is activated when executors are registered, tools are present in the request, and `tool_choice` is not `"none"`.
+
+[cols="1,1,2"]
+|===
+| Streaming | Agentic | Method
+
+| No
+| No
+| `handleNonStreaming` -- single provider call, JSON response
+
+| Yes
+| No
+| `handleStreaming` -- single provider stream, SSE events
+
+| No
+| Yes
+| `runAgenticLoop` -- multi-turn provider calls, JSON response
+
+| Yes
+| Yes
+| `runAgenticLoopStreaming` -- multi-turn provider streams, SSE events
+|===
+
+== Agentic Loop
+
+The agentic loop is the mechanism that makes multi-turn tool calling work.
+It is conceptually similar to a command pattern with a feedback loop: the model proposes actions (tool calls), the engine executes them, and the results are fed back to the model for the next iteration.
+
+=== Non-Streaming Agentic Loop
+
+The non-streaming loop (in `pkg/engine/loop.go`, method `runAgenticLoop`) operates as follows:
+
+1. Call `provider.Complete` to get a response from the LLM.
+2. Inspect the response for `function_call` items.
+3. If no tool calls are present, the loop terminates. The accumulated output items and cumulative usage are assembled into a final `Response` and written to the client.
+4. If tool calls are present, check whether all tools have registered executors. If any tool call has no matching executor, the response status is set to `requires_action` and returned to the client for client-side handling.
+5. Filter tool calls against the request's `allowed_tools` list.
+6. Execute tools (concurrently or sequentially, based on `parallel_tool_calls`).
+7. Convert tool results into `function_call_output` items and append them to the output.
+8. Build the next-turn conversation: append an assistant message containing the tool calls, followed by tool-role messages with the results.
+9. Loop back to step 1.
+
+The loop terminates when one of three conditions is met:
+
+* The model produces a final answer (no tool calls in the response).
+* The maximum number of turns is reached (configured server-side, overridable per-request via `max_tool_calls`).
+* The context is cancelled (client disconnect or timeout).
+
+=== Streaming Agentic Loop
+
+The streaming variant (`runAgenticLoopStreaming`) follows the same logic but emits SSE events throughout the process.
+The `response.created` and `response.in_progress` events are emitted once at the start.
+Each turn streams text deltas, function call argument deltas, and tool lifecycle events (for example, `response.mcp_call.in_progress`, `response.web_search_call.searching`) to the client in real time.
+The terminal event (`response.completed`, `response.incomplete`, or `response.requires_action`) is emitted once at the end.
+
+=== Tool Execution
+
+Tool execution is delegated to registered `ToolExecutor` implementations.
+The engine maintains a list of executors and dispatches each tool call to the first executor whose `CanExecute` method returns `true` for the tool name.
+
+Three kinds of executors are distinguished:
+
+* *Function* executors handle user-defined function tools. These are registered via the `FunctionRegistry` and execute Go functions directly.
+* *Builtin* executors handle built-in tool types (`code_interpreter`, `web_search_preview`, `file_search`). Their function definitions are collected by the engine and passed to the provider via `ProviderRequest.BuiltinToolDefs` so the provider can expand the tool stubs before forwarding to the backend.
+* *MCP* executors handle tools discovered from Model Context Protocol servers. They forward tool calls to the MCP server over the MCP protocol and return the result.
+
+When `parallel_tool_calls` is `true` (the default), multiple tool calls from a single turn are executed concurrently using goroutines.
+When set to `false`, they are executed sequentially.
+
+== Provider Layer
+
+The provider layer abstracts the LLM inference backend behind the `provider.Provider` interface (in `pkg/provider/provider.go`).
+Each provider adapter handles its own backend protocol internally, translating between the engine's `ProviderRequest`/`ProviderResponse` types and the backend's native API.
+
+The `Provider` interface defines five methods:
+
+* `Name()` -- returns a string identifier (for example, `"vllm"`, `"litellm"`, `"responses"`).
+* `Capabilities()` -- declares what features the backend supports (streaming, tool calling, vision, reasoning).
+* `Complete(ctx, req)` -- performs non-streaming inference and returns a `ProviderResponse`.
+* `Stream(ctx, req)` -- performs streaming inference and returns a channel of `ProviderEvent` values.
+* `ListModels(ctx)` -- returns available models from the backend.
+
+=== Available Providers
+
+Antwort ships with three provider adapters:
+
+[cols="1,2,2"]
+|===
+| Provider | Backend Protocol | Use Case
+
+| `vllm`
+| Chat Completions API
+| vLLM, Ollama, or any OpenAI-compatible inference server
+
+| `litellm`
+| Chat Completions API (via LiteLLM proxy)
+| LiteLLM proxy for multi-model routing
+
+| `responses`
+| Responses API
+| Passthrough to an upstream Responses API server (for example, OpenAI)
+|===
+
+The `vllm` and `litellm` providers share a common `openaicompat` package that handles Chat Completions request/response translation, including streaming SSE parsing and error mapping.
+
+=== Provider Events
+
+During streaming, the provider emits events on a Go channel.
+These events are typed using `ProviderEventType` constants:
+
+* `ProviderEventTextDelta` -- incremental text content
+* `ProviderEventTextDone` -- text content complete
+* `ProviderEventToolCallDelta` -- incremental tool call arguments
+* `ProviderEventToolCallDone` -- tool call complete
+* `ProviderEventReasoningDelta` -- incremental reasoning content
+* `ProviderEventReasoningDone` -- reasoning content complete
+* `ProviderEventDone` -- stream finished (carries final usage)
+* `ProviderEventError` -- stream error
+
+The engine's `mapProviderEvent` function translates these into the OpenResponses SSE event types that the client expects.
+
+== Streaming Event Lifecycle
+
+A streaming response follows a well-defined event sequence.
+The events are emitted in this order for a simple text response:
+
+[source,text]
+----
+response.created              → Full response snapshot (status: in_progress)
+response.in_progress          → Full response snapshot
+response.output_item.added    → Output item skeleton (type: message)
+response.content_part.added   → Content part skeleton (type: output_text)
+response.output_text.delta    → Incremental text chunk (repeated)
+response.output_text.done     → Final accumulated text
+response.content_part.done    → Completed content part
+response.output_item.done     → Completed output item
+response.completed            → Final response with output and usage
+[DONE]
+----
+
+For responses that include tool calls, additional events are interleaved:
+
+[source,text]
+----
+response.output_item.added         → function_call item
+response.function_call_arguments.delta  → Incremental arguments (repeated)
+response.function_call_arguments.done   → Final arguments
+response.output_item.done          → Completed function_call item
+----
+
+For built-in and MCP tools, lifecycle events indicate execution progress:
+
+[source,text]
+----
+response.mcp_call.in_progress           → MCP tool execution started
+response.mcp_call.completed             → MCP tool execution finished
+response.web_search_call.in_progress    → Web search started
+response.web_search_call.searching      → Search in progress
+response.web_search_call.completed      → Search complete
+response.code_interpreter_call.in_progress    → Code execution started
+response.code_interpreter_call.interpreting   → Code running
+response.code_interpreter_call.completed      → Code execution finished
+----
+
+When the model produces reasoning output (with `reasoning.effort` configured), reasoning events appear before text events:
+
+[source,text]
+----
+response.reasoning.delta      → Incremental reasoning content (repeated)
+response.reasoning.done       → Reasoning complete
+----
+
+== Storage
+
+Storage is optional.
+When no store is configured, Antwort operates in stateless mode: responses are returned to the client and discarded.
+This is suitable for simple use cases where conversation history is managed client-side.
+
+When a `ResponseStore` is configured, Antwort persists responses and supports:
+
+* *Response retrieval* via `GET /v1/responses/\{id\}`
+* *Response deletion* via `DELETE /v1/responses/\{id\}` (soft delete)
+* *Response listing* via `GET /v1/responses` with cursor-based pagination
+* *Input item listing* via `GET /v1/responses/\{id\}/input_items`
+* *Conversation chaining* via `previous_response_id`, which reconstructs the full conversation history from the chain of stored responses
+
+Two storage implementations are provided:
+
+* *In-memory* -- suitable for development and testing. State is lost on restart.
+* *PostgreSQL* -- production-grade persistence using `pgx/v5`. Supports multi-tenant isolation, where each tenant's data is separated at the query level.
+
+The `store` field in the request controls whether a response is persisted.
+It defaults to `true` when a store is configured.
+Setting `"store": false` skips persistence for that request.
+
+== Extension Points
+
+Antwort is designed to be extended through Go interfaces.
+The four primary extension points are:
+
+[cols="1,2"]
+|===
+| Interface | Purpose
+
+| `provider.Provider`
+| Add support for a new LLM backend protocol
+
+| `transport.ResponseStore`
+| Implement a custom storage backend (Redis, DynamoDB, etc.)
+
+| `transport.Middleware`
+| Add cross-cutting concerns (authentication, rate limiting, tracing)
+
+| `tools.ToolExecutor`
+| Register custom tool execution logic
+|===
+
+Each interface is defined in its respective package and can be implemented independently.
+The xref:extensions:index.adoc[Extensions] module provides detailed guidance on implementing each one.

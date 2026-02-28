@@ -1,10 +1,924 @@
 = API Reference
 
-This page provides the complete API reference for Antwort's OpenResponses endpoints.
-You will find request and response schemas, endpoint descriptions, error codes, and compatibility notes for the OpenAI SDK.
+This page documents the complete wire format for Antwort's OpenResponses API.
+All endpoints, request schemas, response schemas, SSE event types, and error codes are covered here.
+The API is compatible with the OpenAI Responses API specification, so any OpenAI SDK can be used as a client without modification.
 
-[NOTE]
-====
-This page is under construction.
-Content is coming soon.
-====
+== Endpoints
+
+[cols="1,2,3"]
+|===
+| Method | Path | Description
+
+| `POST`
+| `/v1/responses`
+| Create a new response (streaming or non-streaming)
+
+| `GET`
+| `/v1/responses/\{id\}`
+| Retrieve a stored response by ID
+
+| `DELETE`
+| `/v1/responses/\{id\}`
+| Delete a stored response or cancel an in-flight stream
+
+| `GET`
+| `/v1/responses/\{id\}/input_items`
+| List input items for a stored response
+
+| `GET`
+| `/v1/responses`
+| List stored responses (paginated)
+
+| `GET`
+| `/v1/models`
+| List available models from the configured provider
+
+| `GET`
+| `/healthz`
+| Liveness probe (always returns 200)
+
+| `GET`
+| `/readyz`
+| Readiness probe (checks provider and store connectivity)
+|===
+
+== POST /v1/responses
+
+Creates a new response.
+When `stream` is `true`, the response is delivered as Server-Sent Events.
+When `stream` is `false` (the default), a single JSON response is returned.
+
+=== Request Schema
+
+[source,json]
+----
+{
+  "model": "string",
+  "input": [ ... ],
+  "instructions": "string",
+  "tools": [ ... ],
+  "tool_choice": "auto" | "required" | "none" | { "type": "function", "name": "..." },
+  "allowed_tools": ["string"],
+  "stream": false,
+  "stream_options": { "include_usage": false },
+  "store": true,
+  "previous_response_id": "string",
+  "truncation": "disabled",
+  "service_tier": "default",
+  "max_output_tokens": null,
+  "temperature": null,
+  "top_p": null,
+  "frequency_penalty": null,
+  "presence_penalty": null,
+  "top_logprobs": null,
+  "parallel_tool_calls": true,
+  "max_tool_calls": null,
+  "metadata": {},
+  "user": "string",
+  "reasoning": { "effort": "medium", "summary": null },
+  "text": { "format": { "type": "text" } },
+  "include": ["usage", "reasoning"]
+}
+----
+
+=== Request Fields
+
+[cols="2,1,1,4"]
+|===
+| Field | Type | Required | Description
+
+| `model`
+| string
+| Yes (or server default)
+| The model to use for generation. If omitted, the server's configured default model is used.
+
+| `input`
+| array of Items
+| Yes
+| The conversation input. Each element is an Item (see <<item-types>>).
+
+| `instructions`
+| string
+| No
+| System-level instructions prepended to the conversation.
+
+| `tools`
+| array of ToolDefinition
+| No
+| Tool definitions available to the model (see <<tool-definitions>>).
+
+| `tool_choice`
+| string or object
+| No
+| Controls tool selection. Values: `"auto"` (default), `"required"`, `"none"`, or `{"type": "function", "name": "..."}`.
+
+| `allowed_tools`
+| array of string
+| No
+| Restricts which tools the server will execute. Tool calls not in this list are rejected with an error result.
+
+| `stream`
+| boolean
+| No
+| When `true`, the response is delivered as SSE events. Default: `false`.
+
+| `stream_options`
+| object
+| No
+| Streaming configuration. Set `include_usage` to `true` to receive usage data in the terminal streaming event.
+
+| `store`
+| boolean
+| No
+| Whether to persist the response. Default: `true` when a store is configured.
+
+| `previous_response_id`
+| string
+| No
+| Links this request to a previous response for multi-turn conversation chaining.
+
+| `truncation`
+| string
+| No
+| Truncation strategy. Default: `"disabled"`.
+
+| `service_tier`
+| string
+| No
+| Service tier for routing. Default: `"default"`.
+
+| `max_output_tokens`
+| integer
+| No
+| Maximum number of output tokens. When `null`, no limit is applied.
+
+| `temperature`
+| float
+| No
+| Sampling temperature (0.0 to 2.0).
+
+| `top_p`
+| float
+| No
+| Nucleus sampling parameter.
+
+| `frequency_penalty`
+| float
+| No
+| Frequency penalty (-2.0 to 2.0).
+
+| `presence_penalty`
+| float
+| No
+| Presence penalty (-2.0 to 2.0).
+
+| `top_logprobs`
+| integer
+| No
+| Number of top log probabilities to return per token.
+
+| `parallel_tool_calls`
+| boolean
+| No
+| Whether to execute multiple tool calls concurrently. Default: `true`.
+
+| `max_tool_calls`
+| integer
+| No
+| Maximum number of agentic loop turns. Overrides the server-side maximum when lower.
+
+| `metadata`
+| object
+| No
+| Arbitrary key-value pairs echoed in the response.
+
+| `user`
+| string
+| No
+| An identifier for the end user, used for abuse monitoring.
+
+| `reasoning`
+| object
+| No
+| Reasoning configuration. `effort` controls reasoning depth (`"low"`, `"medium"`, `"high"`). `summary` controls whether a summary is included.
+
+| `text`
+| object
+| No
+| Text generation configuration. `format.type` can be `"text"` (default) or `"json_schema"` (for structured output).
+
+| `include`
+| array of string
+| No
+| Controls which optional sections are included in the response. Values: `"usage"`, `"reasoning"`.
+|===
+
+[[item-types]]
+=== Input Item Types
+
+Input items use a flat wire format where type-specific fields appear at the top level of the JSON object.
+
+==== Message Item
+
+[source,json]
+----
+{
+  "type": "message",
+  "role": "user",
+  "content": [
+    { "type": "input_text", "text": "Hello, world!" }
+  ]
+}
+----
+
+The `role` field accepts `"user"`, `"assistant"`, or `"system"`.
+Content parts can be `input_text`, `input_image` (with `url` or `data` and `media_type`), `input_audio`, or `input_video`.
+
+==== Function Call Output Item
+
+[source,json]
+----
+{
+  "type": "function_call_output",
+  "call_id": "call_abc123",
+  "output": "{\"result\": 42}"
+}
+----
+
+Used to provide the result of a client-side function call back to the model in a subsequent request.
+
+[[tool-definitions]]
+=== Tool Definitions
+
+[source,json]
+----
+{
+  "type": "function",
+  "name": "get_weather",
+  "description": "Get current weather for a location",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "location": { "type": "string" }
+    },
+    "required": ["location"]
+  },
+  "strict": false
+}
+----
+
+Built-in tool types (`code_interpreter`, `web_search_preview`, `file_search`) use the same structure but with their respective type names.
+The server expands them into function definitions before forwarding to the backend.
+
+=== Response Schema
+
+[source,json]
+----
+{
+  "id": "resp_abc123",
+  "object": "response",
+  "created_at": 1709000000,
+  "completed_at": null,
+  "status": "completed",
+  "incomplete_details": null,
+  "model": "meta-llama/Llama-3.1-8B-Instruct",
+  "previous_response_id": null,
+  "instructions": null,
+  "output": [ ... ],
+  "error": null,
+  "tools": [],
+  "tool_choice": "auto",
+  "truncation": "disabled",
+  "parallel_tool_calls": true,
+  "text": { "format": { "type": "text" } },
+  "top_p": 0.0,
+  "presence_penalty": 0.0,
+  "frequency_penalty": 0.0,
+  "top_logprobs": 0,
+  "temperature": 0.0,
+  "reasoning": null,
+  "usage": {
+    "input_tokens": 25,
+    "output_tokens": 50,
+    "total_tokens": 75,
+    "input_tokens_details": { "cached_tokens": 0 },
+    "output_tokens_details": { "reasoning_tokens": 0 }
+  },
+  "max_output_tokens": null,
+  "max_tool_calls": null,
+  "store": true,
+  "background": false,
+  "service_tier": "default",
+  "metadata": {},
+  "user": "",
+  "safety_identifier": null,
+  "prompt_cache_key": null
+}
+----
+
+=== Response Fields
+
+[cols="2,1,4"]
+|===
+| Field | Type | Description
+
+| `id`
+| string
+| Unique response identifier (prefixed with `resp_`).
+
+| `object`
+| string
+| Always `"response"`.
+
+| `created_at`
+| integer
+| Unix timestamp of response creation.
+
+| `completed_at`
+| integer or null
+| Unix timestamp of response completion.
+
+| `status`
+| string
+| Response status (see <<response-statuses>>).
+
+| `incomplete_details`
+| object or null
+| Present when `status` is `"incomplete"`. Contains `reason` (for example, `"max_output_tokens"`).
+
+| `model`
+| string
+| The model that produced the response. May differ from the requested model if the backend resolves aliases.
+
+| `previous_response_id`
+| string or null
+| ID of the previous response in a conversation chain.
+
+| `instructions`
+| string or null
+| The system instructions used for this response.
+
+| `output`
+| array of Items
+| The model's output items (see <<output-item-types>>).
+
+| `error`
+| object or null
+| Present when `status` is `"failed"`. Contains `type`, `message`, and optional `code` and `param`.
+
+| `tools`
+| array
+| The tool definitions that were available for this response.
+
+| `tool_choice`
+| string or object
+| The tool selection strategy used.
+
+| `usage`
+| object or null
+| Token usage breakdown. Omitted in streaming unless `stream_options.include_usage` is `true`.
+
+| `store`
+| boolean
+| Whether this response was persisted.
+
+| `metadata`
+| object
+| The metadata passed in the request.
+|===
+
+[[response-statuses]]
+=== Response Statuses
+
+[cols="1,3"]
+|===
+| Status | Description
+
+| `queued`
+| The response is queued for processing.
+
+| `in_progress`
+| The response is being generated.
+
+| `completed`
+| The response completed successfully.
+
+| `incomplete`
+| The response was truncated (for example, by `max_output_tokens`).
+
+| `failed`
+| The response failed due to an error.
+
+| `cancelled`
+| The response was cancelled (by client disconnect or `DELETE` request).
+
+| `requires_action`
+| The model made tool calls that have no server-side executor. The client must provide results.
+|===
+
+[[output-item-types]]
+=== Output Item Types
+
+Output items use the same flat wire format as input items.
+
+==== Message Item (Assistant)
+
+[source,json]
+----
+{
+  "id": "item_abc123",
+  "type": "message",
+  "status": "completed",
+  "role": "assistant",
+  "content": [
+    {
+      "type": "output_text",
+      "text": "The answer is 42.",
+      "annotations": [],
+      "logprobs": []
+    }
+  ]
+}
+----
+
+==== Function Call Item
+
+[source,json]
+----
+{
+  "id": "item_def456",
+  "type": "function_call",
+  "status": "completed",
+  "call_id": "call_xyz789",
+  "name": "get_weather",
+  "arguments": "{\"location\": \"Berlin\"}"
+}
+----
+
+==== Function Call Output Item
+
+[source,json]
+----
+{
+  "id": "item_ghi012",
+  "type": "function_call_output",
+  "status": "completed",
+  "call_id": "call_xyz789",
+  "output": "{\"temperature\": 18, \"unit\": \"celsius\"}"
+}
+----
+
+==== Reasoning Item
+
+[source,json]
+----
+{
+  "id": "item_jkl345",
+  "type": "reasoning",
+  "status": "completed",
+  "content": "Let me think about this step by step...",
+  "summary": "Analyzing the problem"
+}
+----
+
+==== Code Interpreter Call Item
+
+[source,json]
+----
+{
+  "id": "item_mno678",
+  "type": "code_interpreter_call",
+  "status": "completed",
+  "code_interpreter": {
+    "code": "print(2 + 2)",
+    "outputs": [
+      { "type": "logs", "logs": "4" }
+    ]
+  }
+}
+----
+
+== GET /v1/responses/\{id\}
+
+Retrieves a previously stored response by its ID.
+Requires a configured `ResponseStore`.
+
+=== Response
+
+Returns the full `Response` object (same schema as the `POST` response).
+
+=== Errors
+
+* `400` -- malformed response ID
+* `404` -- response not found
+* `501` -- no store configured
+
+== DELETE /v1/responses/\{id\}
+
+Deletes a stored response or cancels an in-flight streaming response.
+
+If the response ID matches an active stream, the stream is cancelled and a `response.cancelled` event is emitted.
+Otherwise, the response is soft-deleted from the store.
+
+=== Response
+
+`204 No Content` on success.
+
+=== Errors
+
+* `400` -- malformed response ID
+* `404` -- response not found
+* `501` -- no store configured (and no active stream with this ID)
+
+== GET /v1/responses/\{id\}/input_items
+
+Returns the input items associated with a stored response, supporting cursor-based pagination.
+
+=== Query Parameters
+
+[cols="1,1,3"]
+|===
+| Parameter | Type | Description
+
+| `limit`
+| integer
+| Maximum number of items to return. Default: 20, max: 100.
+
+| `after`
+| string
+| Cursor for forward pagination (return items after this ID).
+
+| `before`
+| string
+| Cursor for backward pagination (return items before this ID).
+
+| `order`
+| string
+| Sort order: `"asc"` or `"desc"` (default: `"desc"`).
+|===
+
+=== Response
+
+[source,json]
+----
+{
+  "object": "list",
+  "data": [ ... ],
+  "has_more": false,
+  "first_id": "item_abc",
+  "last_id": "item_xyz"
+}
+----
+
+== GET /v1/responses
+
+Lists stored responses with cursor-based pagination.
+Supports filtering by model.
+
+=== Query Parameters
+
+[cols="1,1,3"]
+|===
+| Parameter | Type | Description
+
+| `limit`
+| integer
+| Maximum number of responses to return.
+
+| `after`
+| string
+| Cursor for forward pagination.
+
+| `before`
+| string
+| Cursor for backward pagination.
+
+| `model`
+| string
+| Filter responses by model name.
+
+| `order`
+| string
+| Sort order: `"asc"` or `"desc"` (default: `"desc"`).
+|===
+
+=== Response
+
+[source,json]
+----
+{
+  "object": "list",
+  "data": [ ... ],
+  "has_more": true,
+  "first_id": "resp_abc",
+  "last_id": "resp_xyz"
+}
+----
+
+== GET /v1/models
+
+Returns the list of models available from the configured provider backend.
+
+=== Response
+
+[source,json]
+----
+{
+  "object": "list",
+  "data": [
+    { "id": "meta-llama/Llama-3.1-8B-Instruct", "object": "model", "owned_by": "vllm" }
+  ]
+}
+----
+
+== SSE Event Types
+
+When `stream` is `true`, the server emits Server-Sent Events using the `text/event-stream` content type.
+Each event has the format:
+
+[source,text]
+----
+event: {event_type}
+data: {json_payload}
+
+----
+
+The stream is terminated with:
+
+[source,text]
+----
+data: [DONE]
+
+----
+
+=== Response Lifecycle Events
+
+These events track the overall lifecycle of the response.
+Each carries a `response` field containing the full response snapshot at that point in time.
+
+[cols="2,3"]
+|===
+| Event Type | Description
+
+| `response.created`
+| The response has been created. Status is `in_progress`. Output is empty.
+
+| `response.in_progress`
+| The response is being processed. Emitted immediately after `response.created`.
+
+| `response.completed`
+| The response completed successfully. Contains the final output, usage, and status.
+
+| `response.failed`
+| The response failed. The `error` field in the response contains details.
+
+| `response.cancelled`
+| The response was cancelled (client disconnect or `DELETE` on the response ID).
+
+| `response.incomplete`
+| The response was truncated, typically due to `max_output_tokens`.
+
+| `response.requires_action`
+| The model made tool calls that require client-side execution.
+|===
+
+=== Output Item Events
+
+These events track individual output items within the response.
+
+[cols="2,3"]
+|===
+| Event Type | Payload Fields
+
+| `response.output_item.added`
+| `output_index`, `item` (skeleton with `status: in_progress`)
+
+| `response.output_item.done`
+| `output_index`, `item` (completed item with full content)
+|===
+
+=== Content Part Events
+
+These events track content parts within an output item.
+
+[cols="2,3"]
+|===
+| Event Type | Payload Fields
+
+| `response.content_part.added`
+| `item_id`, `output_index`, `content_index`, `part` (skeleton)
+
+| `response.content_part.done`
+| `item_id`, `output_index`, `content_index`, `part` (with final text)
+|===
+
+=== Text Delta Events
+
+[cols="2,3"]
+|===
+| Event Type | Payload Fields
+
+| `response.output_text.delta`
+| `item_id`, `output_index`, `content_index`, `delta` (incremental text), `logprobs`
+
+| `response.output_text.done`
+| `item_id`, `output_index`, `content_index`, `text` (accumulated text), `logprobs`
+|===
+
+=== Function Call Events
+
+[cols="2,3"]
+|===
+| Event Type | Payload Fields
+
+| `response.function_call_arguments.delta`
+| `item_id`, `output_index`, `delta` (incremental arguments)
+
+| `response.function_call_arguments.done`
+| `item_id`, `output_index`, `arguments` (complete arguments JSON)
+|===
+
+=== Reasoning Events
+
+[cols="2,3"]
+|===
+| Event Type | Payload Fields
+
+| `response.reasoning.delta`
+| `item_id`, `output_index`, `content_index`, `delta` (incremental reasoning text)
+
+| `response.reasoning.done`
+| `item_id`, `output_index`, `content_index`
+|===
+
+=== Refusal Events
+
+[cols="2,3"]
+|===
+| Event Type | Payload Fields
+
+| `response.refusal.delta`
+| `item_id`, `output_index`, `content_index`, `delta`
+
+| `response.refusal.done`
+| `item_id`, `output_index`, `content_index`
+|===
+
+=== Tool Lifecycle Events
+
+These events are emitted during the agentic loop when built-in or MCP tools are executed.
+
+[cols="2,3"]
+|===
+| Event Type | Description
+
+| `response.mcp_call.in_progress`
+| MCP tool execution has started.
+
+| `response.mcp_call.completed`
+| MCP tool execution completed successfully.
+
+| `response.mcp_call.failed`
+| MCP tool execution failed.
+
+| `response.file_search_call.in_progress`
+| File search tool execution has started.
+
+| `response.file_search_call.searching`
+| File search is actively searching.
+
+| `response.file_search_call.completed`
+| File search completed.
+
+| `response.web_search_call.in_progress`
+| Web search tool execution has started.
+
+| `response.web_search_call.searching`
+| Web search is actively searching.
+
+| `response.web_search_call.completed`
+| Web search completed.
+
+| `response.code_interpreter_call.in_progress`
+| Code interpreter execution has started.
+
+| `response.code_interpreter_call.interpreting`
+| Code is being executed.
+
+| `response.code_interpreter_call.completed`
+| Code execution completed.
+|===
+
+=== Error Event
+
+[cols="2,3"]
+|===
+| Event Type | Payload Fields
+
+| `error`
+| `error` object with `type`, `message`, `code`, `param`
+|===
+
+=== Common Fields
+
+All streaming events include these fields:
+
+[cols="1,1,3"]
+|===
+| Field | Type | Description
+
+| `type`
+| string
+| The event type (one of the values listed above).
+
+| `sequence_number`
+| integer
+| Monotonically increasing sequence number for ordering events within a response.
+|===
+
+== Error Format
+
+All error responses follow a consistent JSON structure.
+For non-streaming responses, errors are returned as the response body with an appropriate HTTP status code.
+For streaming responses that have already started, errors are delivered as a `response.failed` event.
+
+[source,json]
+----
+{
+  "error": {
+    "type": "invalid_request",
+    "message": "model is required",
+    "param": "model",
+    "code": ""
+  }
+}
+----
+
+=== Error Types
+
+[cols="1,1,3"]
+|===
+| Type | HTTP Status | Description
+
+| `invalid_request`
+| 400
+| The request is malformed or missing required fields.
+
+| `not_found`
+| 404
+| The requested resource (response ID) does not exist.
+
+| `server_error`
+| 500
+| An internal error occurred in the gateway or provider.
+
+| `model_error`
+| 502
+| The LLM backend returned an error.
+
+| `too_many_requests`
+| 429
+| Rate limit exceeded.
+|===
+
+== Health Endpoints
+
+=== GET /healthz
+
+Liveness probe.
+Returns `200 OK` unconditionally.
+Used by Kubernetes liveness probes to detect whether the process is running.
+
+=== GET /readyz
+
+Readiness probe.
+Returns `200 OK` when the server is ready to accept traffic.
+Checks provider connectivity and, if configured, storage backend health.
+Returns `503 Service Unavailable` when the server is not ready.
+
+== Structured Output
+
+When `text.format.type` is set to `"json_schema"`, the request must also include `text.format.name`, `text.format.schema` (a JSON Schema object), and optionally `text.format.strict`.
+These fields are translated to the backend's `response_format` parameter, constraining the model to produce output conforming to the specified schema.
+
+[source,json]
+----
+{
+  "text": {
+    "format": {
+      "type": "json_schema",
+      "name": "weather_response",
+      "strict": true,
+      "schema": {
+        "type": "object",
+        "properties": {
+          "temperature": { "type": "number" },
+          "unit": { "type": "string", "enum": ["celsius", "fahrenheit"] }
+        },
+        "required": ["temperature", "unit"]
+      }
+    }
+  }
+}
+----

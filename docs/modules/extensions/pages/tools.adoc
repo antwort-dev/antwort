@@ -1,1 +1,266 @@
-= tools
+= Custom Tools
+
+A `FunctionProvider` contributes server-side tools that the Antwort engine executes within the agentic loop.
+Unlike client-executed function tools (where the model produces a `function_call` and the client handles execution), built-in tools run on the gateway itself, enabling capabilities like code execution, web search, and file search without client-side infrastructure.
+
+This page documents the `FunctionProvider` interface, the tool execution contract, route registration, metrics integration, and the relationship between built-in providers and external MCP servers.
+
+== The FunctionProvider Interface
+
+The `FunctionProvider` interface is defined in `pkg/tools/registry/provider.go`:
+
+[source,go]
+----
+type FunctionProvider interface {
+    Name() string
+    Tools() []api.ToolDefinition
+    CanExecute(name string) bool
+    Execute(ctx context.Context, call tools.ToolCall) (*tools.ToolResult, error)
+    Routes() []Route
+    Collectors() []prometheus.Collector
+    Close() error
+}
+----
+
+Each provider is a self-contained unit that declares its tools, handles execution, and optionally exposes HTTP endpoints and Prometheus metrics.
+
+=== Name
+
+[source,go]
+----
+Name() string
+----
+
+Returns a unique identifier for the provider (for example, `"code_interpreter"`, `"web_search"`, `"file_search"`).
+This value is used in log messages, metrics labels, and for conflict resolution when two providers offer a tool with the same name.
+
+=== Tools
+
+[source,go]
+----
+Tools() []api.ToolDefinition
+----
+
+Returns the tool definitions this provider contributes.
+Each `api.ToolDefinition` describes a tool that the model can invoke, including its name, description, and parameter schema.
+
+The engine collects tool definitions from all registered providers and includes them in the `ProviderRequest.BuiltinToolDefs` field.
+Provider adapters then expand built-in tool stubs into these concrete function definitions before forwarding to the backend.
+
+=== CanExecute
+
+[source,go]
+----
+CanExecute(name string) bool
+----
+
+Reports whether this provider handles the named tool.
+The `FunctionRegistry` uses this method to build a tool-to-provider mapping at registration time.
+At execution time, the registry uses its internal map for O(1) dispatch.
+
+=== Execute
+
+[source,go]
+----
+Execute(ctx context.Context, call tools.ToolCall) (*tools.ToolResult, error)
+----
+
+Runs a tool call and returns the result.
+The `ToolCall` struct carries the call ID, tool name, and JSON-encoded arguments:
+
+[source,go]
+----
+type ToolCall struct {
+    ID        string // Unique call identifier from the model
+    Name      string // Tool function name
+    Arguments string // JSON-encoded arguments
+}
+----
+
+The `ToolResult` struct carries the output:
+
+[source,go]
+----
+type ToolResult struct {
+    CallID  string // Matches the originating ToolCall.ID
+    Output  string // Tool output content (text)
+    IsError bool   // Indicates the output is an error message
+}
+----
+
+When a tool execution fails gracefully (for example, invalid input), set `IsError` to `true` and put the error description in `Output`.
+The engine feeds this back to the model as a tool result, allowing it to recover.
+
+Return a non-nil error only for infrastructure-level failures where the agentic loop should stop.
+
+The registry wraps each `Execute` call with panic recovery and metrics recording, so provider implementations do not need to handle these concerns.
+
+=== Routes
+
+[source,go]
+----
+Routes() []Route
+----
+
+Returns HTTP endpoints that this provider exposes.
+These routes are mounted under the `/builtin/` path prefix and serve purposes such as health checks, webhooks, and management APIs.
+
+[source,go]
+----
+type Route struct {
+    Method  string           // HTTP method (e.g., "GET", "POST"); empty = any method
+    Pattern string           // URL pattern (e.g., "/sandbox/health")
+    Handler http.HandlerFunc // Handler function
+}
+----
+
+For example, the code_interpreter provider exposes a `/sandbox/health` endpoint for monitoring sandbox pod availability.
+
+The registry wraps each route handler with metrics middleware that records request counts and latency per provider, method, and path.
+
+Return an empty slice if your provider does not need HTTP endpoints.
+
+=== Collectors
+
+[source,go]
+----
+Collectors() []prometheus.Collector
+----
+
+Returns Prometheus collectors for provider-specific metrics.
+The registry registers these collectors when the provider is added, making custom metrics available at the `/metrics` endpoint.
+
+For example, a code_interpreter provider might expose metrics for sandbox pod pool size, queue depth, or execution timeouts.
+
+Return an empty slice if your provider does not define custom metrics.
+
+=== Close
+
+[source,go]
+----
+Close() error
+----
+
+Releases resources held by the provider (for example, sandbox pod connections, HTTP clients, background goroutines).
+Called during server shutdown.
+The registry calls `Close` on all registered providers.
+
+== The FunctionRegistry
+
+The `FunctionRegistry` in `pkg/tools/registry/registry.go` aggregates providers and implements the `tools.ToolExecutor` interface consumed by the engine.
+
+Registration follows a first-come, first-served policy.
+If two providers offer a tool with the same name, the first registered provider wins and a warning is logged.
+
+The registry provides:
+
+* **Tool dispatch**: Routes `Execute` calls to the correct provider by tool name.
+* **Metrics**: Records execution counts, latency, and status (success, error, tool_error, panic) per provider and tool.
+* **Panic recovery**: Catches panics in provider `Execute` methods, returning a tool error result instead of crashing the server.
+* **Merged HTTP handler**: Combines all provider routes into a single `http.Handler` that can be mounted in the server's mux.
+* **Tool discovery**: Collects tool definitions from all providers via `DiscoveredTools()`.
+
+=== Built-in Metrics
+
+The registry automatically records four metric families:
+
+[cols="1,2",options="header"]
+|===
+| Metric | Description
+
+| `antwort_builtin_tool_executions_total`
+| Counter of tool executions, labeled by provider, tool name, and status.
+
+| `antwort_builtin_tool_duration_seconds`
+| Histogram of execution duration, labeled by provider and tool name.
+
+| `antwort_builtin_api_requests_total`
+| Counter of HTTP requests to provider routes, labeled by provider, method, path, and status.
+
+| `antwort_builtin_api_duration_seconds`
+| Histogram of HTTP request duration for provider routes.
+|===
+
+== MCP vs Built-In Providers
+
+Antwort supports two mechanisms for server-side tool execution:
+
+Built-in providers (FunctionProvider):: Tools that run inside the gateway process.
+They are compiled into the server binary and registered via the `FunctionRegistry`.
+This model is appropriate for tools that need direct access to infrastructure (like Kubernetes sandbox pods) or that benefit from low-latency in-process execution.
+
+MCP servers (Model Context Protocol):: External tool servers that communicate over SSE or stdio transport.
+The engine connects to them at startup and routes tool calls over the network.
+This model is appropriate for tools that are maintained independently, run in separate processes, or are shared across multiple services.
+
+Both mechanisms implement the `tools.ToolExecutor` interface, so the engine dispatches tool calls uniformly regardless of how the tool is hosted.
+The engine evaluates executors in registration order: MCP executors are registered first, then the `FunctionRegistry`.
+
+== Registration
+
+Function providers are registered in `createFunctionRegistry()` in `cmd/server/main.go`.
+The function iterates over the `providers` configuration section and instantiates each enabled provider:
+
+[source,go]
+----
+func createFunctionRegistry(cfg *config.Config) *registry.FunctionRegistry {
+    reg := registry.New()
+
+    for name, provCfg := range cfg.Providers {
+        if !provCfg.Enabled {
+            continue
+        }
+        switch name {
+        case "web_search":
+            provider, err := websearch.New(provCfg.Settings)
+            // ...
+            reg.Register(provider)
+        case "file_search":
+            provider, err := filesearch.New(provCfg.Settings)
+            // ...
+            reg.Register(provider)
+        case "code_interpreter":
+            provider, err := codeinterpreter.New(provCfg.Settings)
+            // ...
+            reg.Register(provider)
+        }
+    }
+    return reg
+}
+----
+
+To add a custom provider:
+
+. Create a new package under `pkg/tools/builtins/yourtool/`.
+. Implement the `FunctionProvider` interface.
+. Add a case to the switch statement in `createFunctionRegistry()`.
+. Import the new package in `cmd/server/main.go`.
+. Add a configuration entry under `providers` to enable the tool.
+
+== Reference Implementations
+
+Antwort ships with three built-in function providers:
+
+=== code_interpreter
+
+Located in `pkg/tools/builtins/codeinterpreter/`.
+
+Executes Python code in isolated Kubernetes sandbox Pods.
+The provider acquires sandbox Pods from a pool (managed via `SandboxClaim` custom resources), sends code to a sandbox server running inside the Pod, and returns the execution output.
+
+Exposes routes for sandbox health monitoring.
+Defines custom Prometheus collectors for sandbox pool metrics.
+
+=== web_search
+
+Located in `pkg/tools/builtins/websearch/`.
+
+Performs web searches via a SearXNG backend.
+Translates search queries into SearXNG API calls and formats results as tool output.
+
+=== file_search
+
+Located in `pkg/tools/builtins/filesearch/`.
+
+Provides vector-based document search using a Qdrant backend and an embedding service.
+Supports operations for uploading documents, building vector indices, and performing semantic search queries.

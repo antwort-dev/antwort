@@ -1,1 +1,273 @@
-= providers
+= Custom Providers
+
+A Provider adapts an LLM inference backend to the Antwort gateway.
+Whether your backend speaks the Chat Completions protocol, a proprietary API, or the Responses API natively, the Provider interface abstracts these differences behind a uniform contract.
+
+This page documents the `Provider` interface, its supporting types, and the translation pattern that converts between Antwort's internal representation and the backend's wire format.
+
+== The Provider Interface
+
+The `Provider` interface is defined in `pkg/provider/provider.go`:
+
+[source,go]
+----
+type Provider interface {
+    Name() string
+    Capabilities() ProviderCapabilities
+    Complete(ctx context.Context, req *ProviderRequest) (*ProviderResponse, error)
+    Stream(ctx context.Context, req *ProviderRequest) (<-chan ProviderEvent, error)
+    ListModels(ctx context.Context) ([]ModelInfo, error)
+    Close() error
+}
+----
+
+This design is similar to a strategy pattern: the engine holds a single `Provider` and delegates all inference calls through it.
+Implementations must be safe for concurrent use by multiple goroutines.
+
+=== Name
+
+[source,go]
+----
+Name() string
+----
+
+Returns a unique identifier for the provider, such as `"vllm"`, `"litellm"`, or `"vllm-responses"`.
+This value appears in log messages and metrics labels.
+
+=== Capabilities
+
+[source,go]
+----
+Capabilities() ProviderCapabilities
+----
+
+Returns a `ProviderCapabilities` struct declaring what features the backend supports.
+The engine uses this for early request validation, rejecting requests that require unsupported features before making any backend call.
+
+[source,go]
+----
+type ProviderCapabilities struct {
+    Streaming       bool     // Supports streaming responses
+    ToolCalling     bool     // Supports function/tool calls
+    Vision          bool     // Supports image inputs
+    Audio           bool     // Supports audio inputs
+    Reasoning       bool     // Can produce reasoning items
+    MaxContextWindow int     // Maximum token count (0 = unknown/unlimited)
+    SupportedModels []string // Models this provider can serve (empty = ask ListModels)
+    Extensions      []string // Provider-specific extension types supported
+}
+----
+
+=== Complete
+
+[source,go]
+----
+Complete(ctx context.Context, req *ProviderRequest) (*ProviderResponse, error)
+----
+
+Performs non-streaming inference.
+The provider translates the `ProviderRequest` into its backend's wire format, sends the request, and translates the response back into a `ProviderResponse`.
+
+The context carries cancellation signals and deadline information.
+Implementations should respect context cancellation and return promptly when the client disconnects.
+
+=== Stream
+
+[source,go]
+----
+Stream(ctx context.Context, req *ProviderRequest) (<-chan ProviderEvent, error)
+----
+
+Performs streaming inference.
+Returns a receive-only channel of `ProviderEvent` values.
+The provider is responsible for closing this channel when the stream completes or encounters an error.
+
+The caller reads events from the channel until it is closed.
+The final event should be of type `ProviderEventDone` (or `ProviderEventError` if the stream failed).
+
+=== ListModels
+
+[source,go]
+----
+ListModels(ctx context.Context) ([]ModelInfo, error)
+----
+
+Returns the list of models available from the backend.
+The engine uses this for the `/v1/models` endpoint.
+
+[source,go]
+----
+type ModelInfo struct {
+    ID      string `json:"id"`
+    Object  string `json:"object,omitempty"`
+    OwnedBy string `json:"owned_by,omitempty"`
+}
+----
+
+=== Close
+
+[source,go]
+----
+Close() error
+----
+
+Releases provider resources such as HTTP clients and connection pools.
+Called during server shutdown.
+
+== ProviderRequest
+
+The `ProviderRequest` struct in `pkg/provider/types.go` carries all information the provider needs for inference, stripped of transport and storage concerns:
+
+[source,go]
+----
+type ProviderRequest struct {
+    Model            string            `json:"model"`
+    Messages         []ProviderMessage `json:"messages"`
+    Tools            []ProviderTool    `json:"tools,omitempty"`
+    ToolChoice       *api.ToolChoice   `json:"tool_choice,omitempty"`
+    Temperature      *float64          `json:"temperature,omitempty"`
+    TopP             *float64          `json:"top_p,omitempty"`
+    MaxTokens        *int              `json:"max_tokens,omitempty"`
+    Stop             []string          `json:"stop,omitempty"`
+    Stream           bool              `json:"stream,omitempty"`
+    FrequencyPenalty *float64          `json:"frequency_penalty,omitempty"`
+    PresencePenalty  *float64          `json:"presence_penalty,omitempty"`
+    TopLogprobs      *int              `json:"top_logprobs,omitempty"`
+    User             string            `json:"user,omitempty"`
+    ResponseFormat   *api.TextConfig   `json:"-"`
+    BuiltinToolDefs  []ProviderTool    `json:"-"`
+    Extra            map[string]any    `json:"-"`
+}
+----
+
+Notable fields:
+
+* `Messages` contains the conversation history, already translated from the Responses API's item format into provider-facing messages.
+* `Tools` contains function definitions that the model may call.
+* `BuiltinToolDefs` holds function definitions for built-in tool types (code_interpreter, file_search, web_search_preview), populated by the engine from registered FunctionProviders. Provider adapters use these to expand built-in tool stubs into concrete function definitions before forwarding to the backend.
+* `ResponseFormat` carries structured output constraints from the Responses API's `text.format` field.
+* `Extra` holds provider-specific parameters that do not map to standard fields.
+
+== ProviderResponse
+
+[source,go]
+----
+type ProviderResponse struct {
+    Items  []api.Item         `json:"items"`
+    Usage  api.Usage          `json:"usage"`
+    Model  string             `json:"model"`
+    Status api.ResponseStatus `json:"status"`
+}
+----
+
+The provider must translate its backend's native response into Antwort `api.Item` values.
+The engine consumes these items directly.
+
+== Streaming Events
+
+For streaming, the provider emits `ProviderEvent` values through the channel returned by `Stream()`:
+
+[source,go]
+----
+type ProviderEvent struct {
+    Type          ProviderEventType
+    Delta         string
+    ToolCallIndex int
+    ToolCallID    string
+    FunctionName  string
+    Item          *api.Item
+    Usage         *api.Usage
+    Err           error
+}
+----
+
+The `ProviderEventType` enum defines the event categories:
+
+[cols="1,3",options="header"]
+|===
+| Type | Description
+
+| `ProviderEventTextDelta`
+| Incremental text content.
+
+| `ProviderEventTextDone`
+| Text content is complete.
+
+| `ProviderEventToolCallDelta`
+| Incremental tool call arguments (with `ToolCallIndex`, `ToolCallID`, `FunctionName`).
+
+| `ProviderEventToolCallDone`
+| A tool call is complete.
+
+| `ProviderEventReasoningDelta`
+| Incremental reasoning content.
+
+| `ProviderEventReasoningDone`
+| Reasoning content is complete.
+
+| `ProviderEventDone`
+| The stream has finished. `Usage` is populated on this event.
+
+| `ProviderEventError`
+| The stream encountered an error. `Err` is populated.
+|===
+
+== The Translation Pattern
+
+Each provider adapter implements a `Translator` interface to convert between the OpenResponses API types and the provider's wire format:
+
+[source,go]
+----
+type Translator interface {
+    TranslateRequest(ctx context.Context, req *api.CreateResponseRequest) (*ProviderRequest, error)
+    TranslateResponse(ctx context.Context, resp *ProviderResponse) ([]api.Item, *api.Usage, error)
+}
+----
+
+The engine calls `TranslateRequest` to convert an incoming API request into a `ProviderRequest` before passing it to `Complete()` or `Stream()`.
+After inference, `TranslateResponse` converts the provider's output back into API items.
+
+This two-stage translation isolates the backend wire format entirely within the adapter package.
+The engine and transport layers never see backend-specific types.
+
+== Registration
+
+Providers are registered in the `createProvider()` function in `cmd/server/main.go`.
+The function uses a switch statement on `cfg.Engine.Provider`:
+
+[source,go]
+----
+func createProvider(cfg *config.Config) (provider.Provider, error) {
+    switch cfg.Engine.Provider {
+    case "vllm", "":
+        return vllm.New(vllm.Config{
+            BaseURL: cfg.Engine.BackendURL,
+            APIKey:  cfg.Engine.APIKey,
+            Timeout: cfg.Server.WriteTimeout,
+        })
+    case "litellm":
+        return litellm.New(litellm.Config{...})
+    case "vllm-responses":
+        return responses.New(responses.Config{...})
+    default:
+        return nil, fmt.Errorf("unknown provider type %q", cfg.Engine.Provider)
+    }
+}
+----
+
+To add a custom provider:
+
+. Create a new package under `pkg/provider/yourbackend/`.
+. Implement the `Provider` interface.
+. Add a case to the switch statement in `createProvider()`.
+. Import the new package in `cmd/server/main.go`.
+
+== Reference Implementations
+
+Antwort ships with three provider adapters:
+
+vllm (Chat Completions):: The default provider. Translates Responses API requests into the Chat Completions protocol used by vLLM, llama.cpp, and other OpenAI-compatible backends. Located in `pkg/provider/vllm/`.
+
+litellm:: Connects to a LiteLLM proxy, which itself supports 100+ model providers. Uses the same Chat Completions wire format as the vLLM adapter but connects to a LiteLLM instance. Located in `pkg/provider/litellm/`.
+
+vllm-responses (Responses API proxy):: Forwards requests in native Responses API format to a backend that already speaks the Responses API (such as OpenAI directly or a vLLM instance with Responses API support). Located in `pkg/provider/responses/`.

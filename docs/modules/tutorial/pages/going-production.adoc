@@ -1,1 +1,344 @@
-= going-production
+= Going to Production
+:navtitle: Going to Production
+
+In the previous tutorials, we used in-memory storage, no authentication, and no monitoring.
+That setup is suitable for exploration, but a production deployment requires durability, security, and observability.
+In this tutorial, we walk through the key additions that harden Antwort for real-world use.
+
+== Adding PostgreSQL for Persistence
+
+With in-memory storage, every response is lost when the Pod restarts.
+PostgreSQL provides durable storage, ensuring that responses survive restarts and can be retrieved by ID at any time.
+
+The `02-production` quickstart deploys PostgreSQL as a StatefulSet alongside Antwort:
+
+[source,bash]
+----
+# Create the namespace
+kubectl create namespace antwort
+
+# Deploy Antwort, PostgreSQL, Prometheus, and Grafana
+kubectl apply -k quickstarts/02-production/base/ -n antwort
+
+# Wait for PostgreSQL
+kubectl rollout status statefulset/postgres -n antwort --timeout=120s
+
+# Wait for Antwort
+kubectl rollout status deployment/antwort -n antwort --timeout=60s
+
+# Wait for the monitoring stack
+kubectl rollout status deployment/prometheus -n antwort --timeout=60s
+kubectl rollout status deployment/grafana -n antwort --timeout=60s
+----
+
+=== Storage Configuration
+
+The storage section in `config.yaml` switches from `memory` to `postgres`:
+
+[source,yaml]
+----
+storage:
+  type: postgres
+  postgres:
+    dsn_file: /run/secrets/postgres/dsn
+    migrate_on_start: true
+----
+
+`storage.type`:: Set to `postgres` to use PostgreSQL as the storage backend.
+
+`storage.postgres.dsn_file`:: Path to a file containing the PostgreSQL connection string (DSN).
+The file is mounted from a Kubernetes Secret, keeping credentials out of the ConfigMap.
+
+`storage.postgres.migrate_on_start`:: When `true`, Antwort automatically creates or updates the database schema on startup.
+This simplifies initial deployment and version upgrades.
+
+=== Verifying Persistence
+
+To confirm that responses survive Pod restarts, we create a response, note its ID, delete the Pod, and retrieve the response from the new Pod:
+
+[source,bash]
+----
+# Set up port-forward
+kubectl port-forward -n antwort svc/antwort 8080:8080 &
+export URL=http://localhost:8080
+
+# Create a response and capture the ID
+RESPONSE=$(curl -s -X POST "$URL/v1/responses" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "/mnt/models",
+    "input": [
+      {
+        "type": "message",
+        "role": "user",
+        "content": [{"type": "input_text", "text": "What is the capital of France?"}]
+      }
+    ]
+  }')
+
+RESPONSE_ID=$(echo "$RESPONSE" | jq -r '.id')
+echo "Response ID: $RESPONSE_ID"
+
+# Delete the Pod (Kubernetes creates a new one automatically)
+POD=$(kubectl get pod -n antwort -l app.kubernetes.io/name=antwort -o jsonpath='{.items[0].metadata.name}')
+kubectl delete pod -n antwort "$POD"
+kubectl rollout status deployment/antwort -n antwort --timeout=60s
+
+# Re-establish port-forward
+kubectl port-forward -n antwort svc/antwort 8080:8080 &
+
+# Retrieve the response by ID (proves PostgreSQL persistence)
+curl -s "$URL/v1/responses/$RESPONSE_ID" | jq '{id: .id, status: .status, answer: .output[0].content[0].text}'
+----
+
+The response is fully intact despite the Pod restart, because it was stored in PostgreSQL rather than in-process memory.
+
+== Adding JWT Authentication
+
+Without authentication, anyone with network access to the Service can send requests and read responses.
+The `03-multi-user` quickstart adds Keycloak as an identity provider and configures Antwort to validate JWT tokens on every request.
+
+=== Authentication Configuration
+
+The `auth` section changes from `none` to `jwt`:
+
+[source,yaml]
+----
+auth:
+  type: jwt
+  jwt:
+    issuer: http://keycloak:8080/realms/antwort
+    audience: antwort-gateway
+    jwks_url: http://keycloak:8080/realms/antwort/protocol/openid-connect/certs
+    user_claim: sub
+    tenant_claim: tenant_id
+    scopes_claim: scope
+----
+
+[cols="1,3",options="header"]
+|===
+| Field | Description
+
+| `issuer`
+| Expected JWT issuer claim. Must match the Keycloak realm URL.
+
+| `audience`
+| Expected `aud` claim. Must match the Keycloak client configuration.
+
+| `jwks_url`
+| Endpoint for fetching the public keys used to verify JWT signatures.
+
+| `user_claim`
+| The JWT claim that identifies the user (typically `sub`).
+
+| `tenant_claim`
+| The JWT claim used for tenant isolation. Each tenant can only access its own responses.
+
+| `scopes_claim`
+| The JWT claim for authorization scopes.
+|===
+
+=== Tenant Isolation
+
+The `tenant_claim` setting enables multi-tenant isolation.
+When a user creates a response, Antwort tags it with the tenant ID from the JWT.
+Subsequent retrieval requests filter by tenant, ensuring that users in one tenant cannot access responses created by another.
+
+The quickstart includes two pre-configured users:
+
+[cols="1,1,1,1",options="header"]
+|===
+| User | Password | Tenant | Role
+
+| alice
+| alice123
+| tenant-alice
+| standard
+
+| bob
+| bob123
+| tenant-bob
+| premium
+|===
+
+To test, deploy the multi-user quickstart and obtain tokens:
+
+[source,bash]
+----
+# Deploy
+kubectl apply -k quickstarts/03-multi-user/base/ -n antwort
+kubectl rollout status deployment/keycloak -n antwort --timeout=180s
+kubectl rollout status deployment/antwort -n antwort --timeout=60s
+
+# Port-forward
+kubectl port-forward -n antwort svc/antwort 8080:8080 &
+kubectl port-forward -n antwort svc/keycloak 8081:8080 &
+
+export ANTWORT_URL=http://localhost:8080
+export KEYCLOAK_URL=http://localhost:8081
+
+# Get Alice's token
+ALICE_TOKEN=$(curl -s -X POST \
+  "$KEYCLOAK_URL/realms/antwort/protocol/openid-connect/token" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=password" \
+  -d "client_id=antwort-cli" \
+  -d "username=alice" \
+  -d "password=alice123" | jq -r '.access_token')
+
+# Create a response as Alice
+ALICE_RESPONSE=$(curl -s -X POST "$ANTWORT_URL/v1/responses" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ALICE_TOKEN" \
+  -d '{
+    "model": "/mnt/models",
+    "input": [
+      {
+        "type": "message",
+        "role": "user",
+        "content": [{"type": "input_text", "text": "What is the capital of France?"}]
+      }
+    ]
+  }')
+
+ALICE_RESPONSE_ID=$(echo "$ALICE_RESPONSE" | jq -r '.id')
+
+# Get Bob's token
+BOB_TOKEN=$(curl -s -X POST \
+  "$KEYCLOAK_URL/realms/antwort/protocol/openid-connect/token" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=password" \
+  -d "client_id=antwort-cli" \
+  -d "username=bob" \
+  -d "password=bob123" | jq -r '.access_token')
+
+# Bob cannot access Alice's response (returns 404)
+curl -s -o /dev/null -w "HTTP status: %{http_code}\n" \
+  "$ANTWORT_URL/v1/responses/$ALICE_RESPONSE_ID" \
+  -H "Authorization: Bearer $BOB_TOKEN"
+----
+
+Requests without a valid Bearer token receive a `401 Unauthorized` response.
+
+== Enabling Prometheus Metrics and Grafana
+
+The `02-production` quickstart also deploys Prometheus and Grafana with a pre-built Antwort dashboard.
+
+=== Accessing Grafana
+
+[source,bash]
+----
+kubectl port-forward -n antwort svc/grafana 3000:3000 &
+----
+
+Open http://localhost:3000 in your browser.
+Anonymous access is enabled for viewing.
+Navigate to **Dashboards** and open **Antwort - OpenResponses Gateway**.
+
+The dashboard includes the following panels:
+
+[cols="1,2",options="header"]
+|===
+| Panel | Metric
+
+| Request Rate
+| `antwort_requests_total`
+
+| Request Duration
+| `antwort_request_duration_seconds` (p50/p95/p99)
+
+| Provider Latency
+| `antwort_provider_latency_seconds` (p50/p95/p99)
+
+| Active Streaming
+| `antwort_streaming_connections_active`
+
+| Token Usage
+| `gen_ai_client_token_usage`
+
+| Error Rate
+| 5xx / total ratio
+|===
+
+=== Metrics Configuration
+
+Metrics are enabled in the `observability` section:
+
+[source,yaml]
+----
+observability:
+  metrics:
+    enabled: true
+    path: /metrics
+----
+
+Prometheus scrapes the `/metrics` endpoint at a configurable interval (15 seconds by default in the quickstart).
+For details on all available metrics and alerting rules, see xref:operations:monitoring.adoc[].
+
+== OpenShift Deployment
+
+On OpenShift, the quickstarts provide overlay directories that add Routes for external access.
+Routes provide edge TLS termination, so clients connect over HTTPS without additional certificate management.
+
+[source,bash]
+----
+# Production quickstart with OpenShift Routes
+kubectl apply -k quickstarts/02-production/openshift/ -n antwort
+
+# Get the route URLs
+ANTWORT_ROUTE=$(kubectl get route antwort -n antwort -o jsonpath='{.spec.host}')
+GRAFANA_ROUTE=$(kubectl get route grafana -n antwort -o jsonpath='{.spec.host}')
+echo "Antwort: https://$ANTWORT_ROUTE"
+echo "Grafana: https://$GRAFANA_ROUTE"
+----
+
+The multi-user quickstart similarly provides an OpenShift overlay with Routes for both Antwort and Keycloak.
+
+== Putting It All Together
+
+A production Antwort deployment typically combines several of these capabilities.
+Here is a summary of what changes between a minimal development setup and a hardened production configuration:
+
+[cols="1,2,2",options="header"]
+|===
+| Concern | Development | Production
+
+| Storage
+| `type: memory`
+| `type: postgres` with Secret-mounted DSN
+
+| Authentication
+| `type: none`
+| `type: jwt` with Keycloak (or any OIDC provider)
+
+| Monitoring
+| Metrics endpoint only
+| Prometheus scraping + Grafana dashboard
+
+| Access
+| `kubectl port-forward`
+| Route (OpenShift) or Ingress (vanilla Kubernetes)
+
+| Tools
+| Optional MCP servers
+| MCP servers + code interpreter as needed
+|===
+
+For the full list of configuration options, see xref:reference:configuration.adoc[].
+
+== Cleanup
+
+[source,bash]
+----
+kubectl delete namespace antwort
+----
+
+This removes all deployed components, including the PostgreSQL PVC and stored data.
+Keycloak's embedded H2 database is ephemeral and is lost with the Pod.
+
+== Further Reading
+
+* xref:reference:configuration.adoc[] - Complete configuration reference
+* xref:operations:monitoring.adoc[] - Detailed metrics and alerting documentation
+* xref:operations:deployment.adoc[] - Advanced deployment patterns
+* xref:operations:security.adoc[] - Security hardening guide

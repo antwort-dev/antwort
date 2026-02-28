@@ -1,1 +1,339 @@
-= deployment
+= Deployment
+:navtitle: Deployment
+
+Antwort is designed for Kubernetes-native deployment using Kustomize.
+The project ships a base layer of manifests and environment-specific overlays for development, production, and OpenShift.
+This page covers manifest structure, security hardening, health probes, scaling, and container image configuration.
+
+== Kustomize Structure
+
+The deployment manifests follow the standard Kustomize base-plus-overlay pattern.
+
+[source,text]
+----
+deploy/kubernetes/
+  base/
+    kustomization.yaml
+    serviceaccount.yaml
+    configmap.yaml
+    deployment.yaml
+    service.yaml
+  overlays/
+    dev/
+      kustomization.yaml
+    production/
+      kustomization.yaml
+      hpa.yaml
+      pdb.yaml
+    openshift/
+      kustomization.yaml
+      route.yaml
+      deployment-patch.yaml
+      postgres/
+----
+
+The base layer provides the core resources that every environment needs.
+Overlays customize the base for specific deployment targets without duplicating manifests.
+
+=== Deploying with Kustomize
+
+To deploy the base configuration:
+
+[source,bash]
+----
+kustomize build deploy/kubernetes/base | kubectl apply -f -
+----
+
+To deploy with an overlay:
+
+[source,bash]
+----
+kustomize build deploy/kubernetes/overlays/production | kubectl apply -f -
+----
+
+== Base Manifests
+
+=== Deployment
+
+The base Deployment runs a single replica of the antwort container.
+
+[source,yaml]
+----
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: antwort
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: antwort
+  template:
+    spec:
+      serviceAccountName: antwort
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: antwort
+          image: ghcr.io/rhuss/antwort:latest
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: antwort-config
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+----
+
+Configuration is injected through the `antwort-config` ConfigMap.
+All `ANTWORT_*` environment variables are mapped to the corresponding YAML config fields.
+
+=== Service
+
+The base Service exposes the gateway on port 8080 within the cluster.
+
+[source,yaml]
+----
+apiVersion: v1
+kind: Service
+metadata:
+  name: antwort
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+  selector:
+    app.kubernetes.io/name: antwort
+----
+
+=== ConfigMap
+
+The base ConfigMap sets sensible defaults for development.
+
+[source,yaml]
+----
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: antwort-config
+data:
+  ANTWORT_PORT: "8080"
+  ANTWORT_PROVIDER: "vllm"
+  ANTWORT_BACKEND_URL: "http://vllm:8000"
+  ANTWORT_STORAGE: "memory"
+  ANTWORT_STORAGE_SIZE: "10000"
+  ANTWORT_AUTH_TYPE: "none"
+----
+
+You must update `ANTWORT_BACKEND_URL` to point to your actual LLM backend.
+Set `ANTWORT_MODEL` if your backend requires a specific model name.
+
+== Container Security
+
+The base Deployment enforces a locked-down security posture following Kubernetes Pod security best practices.
+
+**Pod-level security context:**
+
+* `runAsNonRoot: true` prevents the container from running as UID 0.
+* `seccompProfile.type: RuntimeDefault` applies the default syscall filter.
+
+**Container-level security context:**
+
+* `allowPrivilegeEscalation: false` blocks `setuid` binaries and privilege escalation.
+* `readOnlyRootFilesystem: true` makes the root filesystem immutable.
+* `capabilities.drop: [ALL]` removes all Linux capabilities.
+
+These settings satisfy the Kubernetes `restricted` Pod Security Standard and work on OpenShift without requiring a custom SecurityContextConstraints resource.
+The default `restricted-v2` SCC on OpenShift 4.x is compatible with this configuration.
+
+== Health Probes
+
+The gateway exposes a single health endpoint at `/healthz` that returns HTTP 200 with the body `ok`.
+This endpoint is excluded from authentication middleware.
+
+The base Deployment configures three probe types:
+
+[cols="1,2,2", options="header"]
+|===
+| Probe | Configuration | Purpose
+
+| **Startup**
+| `GET /healthz`, failureThreshold: 30, period: 2s
+| Allows up to 60 seconds for initial startup. The other probes do not run until the startup probe succeeds.
+
+| **Liveness**
+| `GET /healthz`, initialDelay: 5s, period: 10s, timeout: 3s
+| Restarts the container if the process becomes unresponsive.
+
+| **Readiness**
+| `GET /healthz`, initialDelay: 3s, period: 5s, timeout: 3s
+| Removes the Pod from the Service endpoint pool if it cannot serve traffic.
+|===
+
+The startup probe is configured with a generous failure threshold because the gateway connects to backend services (LLM providers, MCP servers, PostgreSQL) during initialization.
+
+== Image Registry
+
+The default image is `ghcr.io/rhuss/antwort:latest`, hosted on GitHub Container Registry.
+
+For environments with pull rate limits (such as OpenShift clusters pulling from Docker Hub), the OpenShift overlay remaps to `quay.io/rhuss/antwort`:
+
+[source,yaml]
+----
+images:
+  - name: ghcr.io/rhuss/antwort
+    newName: quay.io/rhuss/antwort
+----
+
+To pin a specific version, use a Kustomize image override:
+
+[source,yaml]
+----
+images:
+  - name: ghcr.io/rhuss/antwort
+    newTag: v0.5.0
+----
+
+== Resource Recommendations
+
+The following table summarizes resource settings across deployment targets.
+
+[cols="2,1,1,1,1", options="header"]
+|===
+| Target | CPU Request | Memory Request | Memory Limit | Replicas
+
+| Development
+| 100m
+| 128Mi
+| 512Mi
+| 1
+
+| Production
+| 200m
+| 256Mi
+| 1Gi
+| 2+
+|===
+
+Antwort is a stateless proxy that translates between the Responses API and backend Chat Completions API.
+Memory usage scales primarily with the number of concurrent streaming connections and the size of in-memory response storage.
+For deployments with PostgreSQL storage, the in-memory footprint is lower.
+
+== Production Overlay
+
+The production overlay increases resources, sets two replicas, and adds autoscaling with disruption budgets.
+
+=== HorizontalPodAutoscaler
+
+[source,yaml]
+----
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: antwort
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: antwort
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+----
+
+The autoscaler targets 70% CPU utilization across replicas.
+Because antwort is stateless, horizontal scaling works without session affinity.
+If you use in-memory storage, each replica maintains an independent store.
+For shared state across replicas, configure PostgreSQL storage.
+
+=== PodDisruptionBudget
+
+[source,yaml]
+----
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: antwort
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: antwort
+----
+
+The PodDisruptionBudget ensures that at least one replica remains available during voluntary disruptions such as node drains and cluster upgrades.
+
+== OpenShift Overlay
+
+The OpenShift overlay extends the base with platform-specific resources.
+
+=== Route
+
+The overlay creates a Route with edge TLS termination.
+The OpenShift router handles TLS, and traffic between the router and the antwort Service is unencrypted within the cluster network.
+
+[source,yaml]
+----
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: antwort
+spec:
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  to:
+    kind: Service
+    name: antwort
+  port:
+    targetPort: http
+----
+
+=== PostgreSQL
+
+The OpenShift overlay includes a PostgreSQL StatefulSet with persistent storage.
+It patches the ConfigMap to switch storage to `postgres` and mounts the DSN as a file from a Secret.
+
+[source,yaml]
+----
+# ConfigMap patch
+data:
+  ANTWORT_STORAGE: "postgres"
+  ANTWORT_STORAGE_DSN_FILE: "/run/secrets/postgres/dsn"
+  ANTWORT_STORAGE_MIGRATE: "true"
+----
+
+The Deployment patch mounts the Secret as a volume:
+
+[source,yaml]
+----
+volumes:
+  - name: postgres-credentials
+    secret:
+      secretName: postgres-credentials
+      items:
+        - key: dsn
+          path: dsn
+----
+
+This pattern keeps credentials out of environment variables and ConfigMaps, using the `_file` suffix convention described in the xref:reference:configuration.adoc[Configuration Guide].
+
+=== SecurityContextConstraints
+
+The antwort container runs with the default `restricted-v2` SCC on OpenShift 4.x.
+No custom SCC is required because the container security context (non-root, read-only filesystem, all capabilities dropped) satisfies the restricted policy.

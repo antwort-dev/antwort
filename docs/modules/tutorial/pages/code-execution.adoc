@@ -1,1 +1,231 @@
-= code-execution
+= Code Execution
+:navtitle: Code Execution
+
+In this tutorial, we add a code interpreter to Antwort, enabling the LLM to write and execute Python code during response generation.
+The code runs in an isolated sandbox server deployed as a separate Pod, keeping execution safely separated from the gateway itself.
+
+== What Is the Sandbox Server?
+
+The sandbox server is a lightweight HTTP service that accepts Python code, executes it in an isolated environment, and returns the output.
+Think of it as a remote REPL that the LLM can invoke programmatically through the agentic loop.
+
+Unlike MCP tools (which we explored in xref:first-tools.adoc[]), the code interpreter is a _built-in tool_.
+It is registered as a function provider within Antwort rather than discovered from an external MCP server.
+The key difference is that built-in tools are tightly integrated with the engine and have their own output item types (`code_interpreter_call` and `code_interpreter_call_output`) rather than the generic `mcp_call` items.
+
+The sandbox server supports:
+
+* Executing arbitrary Python code with stdout/stderr capture
+* Installing Python packages at runtime (via pip)
+* Configurable execution timeouts
+* Concurrent execution of multiple code snippets
+
+== Deploying Antwort with Code Interpreter
+
+We use the `05-code-interpreter` quickstart, which deploys Antwort alongside a sandbox server Pod:
+
+[source,bash]
+----
+# Create the namespace
+kubectl create namespace antwort
+
+# Deploy Antwort and the sandbox server
+kubectl apply -k quickstarts/05-code-interpreter/base/ -n antwort
+
+# Wait for the sandbox server
+kubectl rollout status deployment/sandbox-server -n antwort --timeout=60s
+
+# Wait for Antwort
+kubectl rollout status deployment/antwort -n antwort --timeout=60s
+----
+
+Set up the port-forward:
+
+[source,bash]
+----
+kubectl port-forward -n antwort svc/antwort 8080:8080 &
+export URL=http://localhost:8080
+----
+
+=== What Gets Deployed
+
+[cols="1,3",options="header"]
+|===
+| Component | Description
+
+| Antwort Pod
+| OpenResponses gateway with code interpreter enabled (1 replica)
+
+| Sandbox server Pod
+| Python execution sandbox (1 replica)
+
+| ConfigMaps
+| Antwort configuration with code interpreter provider settings
+
+| Services
+| ClusterIP for both Antwort (8080) and sandbox-server (8080)
+|===
+
+== Code Interpreter Configuration
+
+The code interpreter is enabled through the `providers` section in Antwort's configuration:
+
+[source,yaml]
+----
+providers:
+  code_interpreter:
+    enabled: true
+    settings:
+      sandbox_url: "http://sandbox-server:8080"
+      execution_timeout: 60
+----
+
+`providers.code_interpreter.enabled`:: Activates the code interpreter function provider.
+When enabled, Antwort registers a `code_interpreter` tool that the LLM can invoke.
+
+`providers.code_interpreter.settings.sandbox_url`:: The URL of the sandbox server within the cluster.
+Antwort sends code execution requests to this endpoint.
+
+`providers.code_interpreter.settings.execution_timeout`:: Maximum execution time in seconds for each code snippet.
+This prevents runaway scripts from consuming resources indefinitely.
+
+== Running a Computation
+
+Let us send a request that benefits from code execution.
+The LLM will recognize that the task requires computation, generate Python code, send it to the sandbox, and incorporate the result into its answer.
+
+[source,bash]
+----
+curl -s -X POST "$URL/v1/responses" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "/mnt/models",
+    "input": [
+      {
+        "type": "message",
+        "role": "user",
+        "content": [{"type": "input_text", "text": "Calculate the first 20 Fibonacci numbers using Python."}]
+      }
+    ]
+  }' | jq '{status: .status, output: [.output[] | select(.type == "code_interpreter_call" or .type == "code_interpreter_call_output" or .type == "message") | {type: .type, content: (if .type == "message" then .content[0].text elif .type == "code_interpreter_call" then {code: .code} elif .type == "code_interpreter_call_output" then {output: .output} else . end)}]}'
+----
+
+=== Understanding the Output Items
+
+The response contains code interpreter-specific output items:
+
+[source,json]
+----
+{
+  "status": "completed",
+  "output": [
+    {
+      "type": "code_interpreter_call",
+      "content": {
+        "code": "fib = [0, 1]\nfor i in range(18):\n    fib.append(fib[-1] + fib[-2])\nprint(fib)"
+      }
+    },
+    {
+      "type": "code_interpreter_call_output",
+      "content": {
+        "output": "[0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 377, 610, 987, 1597, 2584, 4181]"
+      }
+    },
+    {
+      "type": "message",
+      "content": "The first 20 Fibonacci numbers are ..."
+    }
+  ]
+}
+----
+
+`code_interpreter_call`:: Contains the Python code that the LLM generated.
+The `code` field holds the actual script.
+This transparency allows clients and auditing systems to inspect exactly what code was executed.
+
+`code_interpreter_call_output`:: The execution result from the sandbox server.
+The `output` field contains the captured stdout.
+If the code produces errors, they appear in the output as well.
+
+`message`:: The LLM's final answer, which incorporates the execution result into a natural-language response.
+
+== Installing Packages
+
+The sandbox supports installing Python packages at runtime, which enables the LLM to use libraries like NumPy, pandas, or any other pip-installable package:
+
+[source,bash]
+----
+curl -s -X POST "$URL/v1/responses" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "/mnt/models",
+    "input": [
+      {
+        "type": "message",
+        "role": "user",
+        "content": [{"type": "input_text", "text": "Use numpy to calculate the standard deviation of [1, 2, 3, 4, 5]."}]
+      }
+    ]
+  }' | jq '{status: .status, output: [.output[] | select(.type == "code_interpreter_call" or .type == "code_interpreter_call_output" or .type == "message") | {type: .type, content: (if .type == "message" then .content[0].text elif .type == "code_interpreter_call" then {code: .code} elif .type == "code_interpreter_call_output" then {output: .output} else . end)}]}'
+----
+
+The generated code will typically include an `import numpy` statement.
+The sandbox installs the package automatically if it is not already present.
+
+== Data Analysis Example
+
+For a more complex scenario, we ask the LLM to generate and analyze data:
+
+[source,bash]
+----
+curl -s -X POST "$URL/v1/responses" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "/mnt/models",
+    "input": [
+      {
+        "type": "message",
+        "role": "user",
+        "content": [{"type": "input_text", "text": "Write a Python script that generates a list of 10 random numbers between 1 and 100, then finds the min, max, and average."}]
+      }
+    ]
+  }' | jq '{status: .status, output: [.output[] | select(.type == "code_interpreter_call" or .type == "code_interpreter_call_output" or .type == "message") | {type: .type, content: (if .type == "message" then .content[0].text elif .type == "code_interpreter_call" then {code: .code} elif .type == "code_interpreter_call_output" then {output: .output} else . end)}]}'
+----
+
+The agentic loop may execute multiple turns if the LLM decides it needs additional computation.
+The `engine.max_turns` setting (defaulting to 10 in this quickstart) controls the maximum number of iterations.
+
+== SandboxClaim for Production
+
+The standalone sandbox server works well for development and testing.
+For production environments with stronger isolation requirements, Antwort supports the https://github.com/sigs-k8s/agent-sandbox[agent-sandbox] Kubernetes operator.
+
+The operator manages sandbox lifecycle through custom resources.
+Instead of pointing Antwort at a static URL, you configure it to create `SandboxClaim` resources that provision isolated sandbox Pods on demand:
+
+[source,yaml]
+----
+providers:
+  code_interpreter:
+    enabled: true
+    settings:
+      sandbox_type: sandboxclaim
+      namespace: antwort
+----
+
+Each code execution request gets its own sandbox Pod, which is automatically cleaned up after use.
+The operator provides resource quotas, network isolation, and automatic cleanup, making it suitable for multi-tenant environments.
+
+Refer to the https://github.com/sigs-k8s/agent-sandbox[agent-sandbox documentation] for operator installation and `SandboxTemplate` configuration.
+
+== Cleanup
+
+[source,bash]
+----
+kubectl delete namespace antwort
+----
+
+== Next Steps
+
+* xref:going-production.adoc[] - Add PostgreSQL persistence, JWT authentication, and Prometheus monitoring
+* xref:first-tools.adoc[] - If you have not yet explored MCP tools, go back and add external tool calling

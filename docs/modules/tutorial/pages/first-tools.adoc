@@ -1,1 +1,240 @@
-= first-tools
+= Adding Tools
+:navtitle: Adding Tools
+
+In this tutorial, we extend Antwort with external tools via the Model Context Protocol (MCP).
+We deploy an MCP test server alongside Antwort and observe how the agentic loop automatically discovers tools, invokes them when the LLM requests it, and feeds the results back to produce a final answer.
+
+== What Is the Agentic Loop?
+
+Before we deploy anything, it is worth understanding the core mechanism that makes tool calling work.
+
+In a simple completion request (as we saw in xref:getting-started.adoc[]), the flow is linear: the client sends a prompt, the LLM generates text, and Antwort returns it.
+With tools, the flow becomes a loop.
+
+The agentic loop operates as follows:
+
+. The client sends a request to Antwort.
+. Antwort forwards the prompt (along with available tool definitions) to the LLM.
+. The LLM either produces a final text answer or requests one or more tool calls.
+. If tool calls are requested, Antwort executes them (via MCP servers, built-in providers, or other executors).
+. The tool results are appended to the conversation, and Antwort sends the updated context back to the LLM.
+. Steps 3-5 repeat until the LLM produces a final answer or a maximum turn limit is reached.
+
+This pattern is analogous to the Command pattern in object-oriented design: the LLM acts as the invoker, tool definitions are the command interfaces, and MCP servers are the receivers that carry out the actual work.
+Antwort orchestrates the entire cycle, keeping the client unaware of the intermediate tool invocations (unless it inspects the output items).
+
+The `engine.max_turns` configuration setting controls how many iterations the loop can execute before returning an `incomplete` status.
+This prevents runaway loops when the LLM repeatedly requests tools without converging on an answer.
+
+== What Is MCP?
+
+The Model Context Protocol (MCP) is an open standard for connecting LLMs to external tools and data sources.
+An MCP server exposes a set of tools (each with a name, description, and parameter schema) over a transport protocol.
+Antwort supports the Streamable HTTP transport, which means MCP servers are accessible via standard HTTP endpoints within the cluster.
+
+When Antwort starts, it connects to all configured MCP servers and discovers their available tools.
+These tool definitions are then included in every LLM request, allowing the model to decide when and how to use them.
+
+== Deploying Antwort with MCP Tools
+
+We use the `04-mcp-tools` quickstart, which deploys both Antwort and an MCP test server.
+The test server provides two simple tools: `get_time` (returns the current server time) and `echo` (returns whatever text you send it).
+
+[source,bash]
+----
+# Create the namespace
+kubectl create namespace antwort
+
+# Deploy Antwort and the MCP test server
+kubectl apply -k quickstarts/04-mcp-tools/base/ -n antwort
+
+# Wait for the MCP test server
+kubectl rollout status deployment/mcp-test-server -n antwort --timeout=60s
+
+# Wait for Antwort
+kubectl rollout status deployment/antwort -n antwort --timeout=60s
+----
+
+Set up the port-forward for local access:
+
+[source,bash]
+----
+kubectl port-forward -n antwort svc/antwort 8080:8080 &
+export URL=http://localhost:8080
+----
+
+=== What Gets Deployed
+
+[cols="1,3",options="header"]
+|===
+| Component | Description
+
+| Antwort Pod
+| OpenResponses gateway with MCP configuration (1 replica)
+
+| MCP test server Pod
+| MCP server providing `get_time` and `echo` tools (1 replica)
+
+| ConfigMaps
+| Antwort configuration including MCP server connection
+
+| Services
+| ClusterIP for both Antwort (8080) and mcp-test-server (8080)
+|===
+
+== MCP Configuration
+
+The key addition in this quickstart is the `mcp` section in Antwort's configuration:
+
+[source,yaml]
+----
+mcp:
+  servers:
+    - name: test-tools
+      transport: streamable-http
+      url: http://mcp-test-server:8080/mcp
+----
+
+Each entry in the `mcp.servers` list defines a connection to an MCP server.
+The `name` field becomes the `server_label` in output items, allowing clients to identify which server handled a tool call.
+The `transport` field specifies the protocol (Streamable HTTP in this case), and the `url` points to the MCP endpoint within the cluster.
+
+== Triggering a Tool Call
+
+Let us send a request that the LLM cannot answer from its training data alone: the current time.
+The LLM will recognize that the `get_time` tool is available and request its invocation.
+
+[source,bash]
+----
+curl -s -X POST "$URL/v1/responses" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "/mnt/models",
+    "input": [
+      {
+        "type": "message",
+        "role": "user",
+        "content": [{"type": "input_text", "text": "What time is it? Use the get_time tool."}]
+      }
+    ]
+  }' | jq '{status: .status, output: [.output[] | {type: .type, content: (if .type == "message" then .content[0].text elif .type == "mcp_call" then {name: .name, server: .server_label} elif .type == "mcp_call_output" then {output: .output} else . end)}]}'
+----
+
+=== Understanding the Output Items
+
+The response now contains multiple output items, reflecting each step of the agentic loop:
+
+[source,json]
+----
+{
+  "status": "completed",
+  "output": [
+    {
+      "type": "mcp_call",
+      "content": { "name": "get_time", "server": "test-tools" }
+    },
+    {
+      "type": "mcp_call_output",
+      "content": { "output": "2025-06-15T14:30:00Z" }
+    },
+    {
+      "type": "message",
+      "content": "The current time is 2:30 PM UTC."
+    }
+  ]
+}
+----
+
+Let us examine each item type:
+
+`mcp_call`:: Represents the LLM's request to invoke an MCP tool.
+The `name` field identifies the tool, and `server_label` tells us which MCP server provides it.
+This item also contains the `arguments` the LLM passed to the tool.
+
+`mcp_call_output`:: The result returned by the MCP server after executing the tool.
+The `output` field contains the tool's response as a string.
+
+`message`:: The LLM's final answer, incorporating the tool result.
+The model has taken the raw timestamp from `get_time` and formatted it into a human-readable response.
+
+This sequence of items provides full transparency into the agentic loop's execution.
+Clients that only care about the final answer can filter for `type: "message"`, while observability tools can inspect the full chain of tool invocations.
+
+== Testing the Echo Tool
+
+The `echo` tool demonstrates argument passing.
+It accepts a `text` parameter and returns it verbatim:
+
+[source,bash]
+----
+curl -s -X POST "$URL/v1/responses" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "/mnt/models",
+    "input": [
+      {
+        "type": "message",
+        "role": "user",
+        "content": [{"type": "input_text", "text": "Use the echo tool to echo back the phrase: Hello from MCP!"}]
+      }
+    ]
+  }' | jq '{status: .status, output: [.output[] | {type: .type, content: (if .type == "message" then .content[0].text elif .type == "mcp_call" then {name: .name, server: .server_label, arguments: .arguments} elif .type == "mcp_call_output" then {output: .output} else . end)}]}'
+----
+
+In the response, you will see the `mcp_call` item includes `arguments` with the text the LLM chose to send, and the `mcp_call_output` contains the echoed result.
+
+== Streaming with Tool Calls
+
+Tool calls also work with streaming enabled.
+The key difference is that you receive lifecycle events for each tool invocation as they happen:
+
+[source,bash]
+----
+curl -s -N -X POST "$URL/v1/responses" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "/mnt/models",
+    "stream": true,
+    "input": [
+      {
+        "type": "message",
+        "role": "user",
+        "content": [{"type": "input_text", "text": "What time is it right now? Use the get_time tool to find out."}]
+      }
+    ]
+  }'
+----
+
+The SSE event stream includes tool-specific lifecycle events:
+
+* `response.mcp_call.in_progress` signals that an MCP tool call has started
+* `response.mcp_call.completed` indicates the tool call finished successfully
+* `response.mcp_call_output.done` delivers the tool result
+* The usual `response.output_text.delta` events follow with the LLM's final answer
+
+These events allow clients to show real-time progress indicators during tool execution, similar to how a build system reports individual task completions.
+
+== How It Works Internally
+
+When Antwort receives a request, the engine performs the following steps:
+
+. *Tool discovery*: On startup, Antwort connects to each configured MCP server and retrieves the list of available tools with their schemas.
+. *Request augmentation*: The tool definitions are injected into the LLM request as function definitions in the Chat Completions format that vLLM understands.
+. *Response parsing*: If the LLM's response contains `tool_calls` (in the Chat Completions format), the engine extracts them and maps each call to the appropriate executor.
+. *Tool execution*: For MCP tools, the engine sends the call to the originating MCP server via Streamable HTTP. Multiple tool calls can execute in parallel when `parallel_tool_calls` is enabled.
+. *Result injection*: The tool results are formatted as tool-role messages and appended to the conversation history. The engine then sends the updated conversation back to the LLM for the next turn.
+
+This architecture means that adding a new tool is purely a configuration change: deploy a new MCP server, add its URL to the `mcp.servers` list, and restart Antwort.
+No code changes are required.
+
+== Cleanup
+
+[source,bash]
+----
+kubectl delete namespace antwort
+----
+
+== Next Steps
+
+* xref:code-execution.adoc[] - Add a Python sandbox for inline code execution (a built-in tool, not MCP)
+* xref:going-production.adoc[] - Harden the deployment with PostgreSQL, JWT authentication, and monitoring

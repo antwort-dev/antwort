@@ -1,1 +1,91 @@
-= index
+= Quickstarts
+:description: Hands-on guides for deploying antwort on Kubernetes, from minimal setup to advanced gateway architectures.
+
+The quickstarts walk you through deploying antwort on Kubernetes in progressively more capable configurations.
+Each quickstart builds on concepts from the previous one, but can also be deployed independently.
+
+All quickstarts share a common LLM backend (vLLM with Qwen 2.5 7B Instruct) deployed in a separate namespace.
+Deploy the shared backend first, then work through the quickstarts at your own pace.
+
+== Progression
+
+[cols="1,3,2,1",options="header"]
+|===
+| Quickstart | Description | Key Features | Time
+
+| xref:qs-01-minimal.adoc[01: Minimal]
+| Simplest possible deployment with in-memory storage and no authentication.
+| Basic API, streaming, structured output, reasoning
+| 5 min
+
+| xref:qs-02-production.adoc[02: Production]
+| Adds PostgreSQL persistence, Prometheus metrics, and a Grafana dashboard.
+| Durable storage, observability, pod-restart survival
+| 5 min
+
+| xref:qs-03-multi-user.adoc[03: Multi-User]
+| Adds Keycloak for JWT authentication and tenant isolation.
+| JWT auth, per-tenant data isolation, OIDC
+| 10 min
+
+| xref:qs-04-mcp-tools.adoc[04: MCP Tools]
+| Deploys an MCP test server to demonstrate agentic tool calling.
+| MCP Streamable HTTP, `get_time` and `echo` tools, agentic loop
+| 5 min
+
+| xref:qs-05-code-interpreter.adoc[05: Code Interpreter]
+| Adds a Python sandbox server for LLM-driven code execution.
+| Sandbox code execution, package installation, data analysis
+| 5 min
+
+| xref:qs-06-responses-proxy.adoc[06: Responses Proxy]
+| Two-tier proxy chain demonstrating gateway architecture patterns.
+| `vllm-responses` provider, proxy chaining, cluster-internal routing
+| 5 min
+|===
+
+== Prerequisites
+
+All quickstarts require:
+
+* A Kubernetes cluster (vanilla Kubernetes, OpenShift, or ROSA)
+* `kubectl` or `oc` CLI configured
+* The shared LLM backend deployed in the `llm-serving` namespace
+
+=== Shared LLM Backend
+
+Deploy the vLLM backend that all quickstarts connect to:
+
+[source,bash]
+----
+# Create namespace
+kubectl create namespace llm-serving
+
+# Deploy vLLM with Qwen 2.5 7B
+kubectl apply -k quickstarts/shared/llm-backend/ -n llm-serving
+
+# Wait for model download (2-3 minutes)
+kubectl wait --for=condition=complete job/download-model -n llm-serving --timeout=300s
+
+# Wait for vLLM to start (1-2 minutes after download)
+kubectl rollout status deployment/llm-predictor -n llm-serving --timeout=300s
+----
+
+The LLM backend is accessible to all quickstarts at `http://llm-predictor.llm-serving.svc.cluster.local:8080`.
+
+== Cleanup
+
+Each quickstart deploys into the `antwort` namespace.
+To remove a quickstart, delete the namespace:
+
+[source,bash]
+----
+kubectl delete namespace antwort
+----
+
+To remove the shared LLM backend:
+
+[source,bash]
+----
+kubectl delete namespace llm-serving
+----

@@ -1,1 +1,201 @@
-= environment-variables
+= Environment Variables
+:navtitle: Environment Variables
+
+Antwort supports environment variable overrides for all commonly used configuration settings.
+This page documents every `ANTWORT_*` environment variable, its mapping to the corresponding config file key, and the override precedence rules.
+
+== Override Precedence
+
+Configuration values are resolved in this order (later sources override earlier ones):
+
+. **Built-in defaults** (compiled into the binary)
+. **YAML config file** (`config.yaml` or path specified via `--config` / `ANTWORT_CONFIG`)
+. **Environment variables** (`ANTWORT_*` prefix)
+
+Environment variables always take precedence over values in the config file.
+This makes it straightforward to customize a shared config file per environment using Kubernetes Deployment manifests or container runtime flags.
+
+== Environment Variable Reference
+
+[cols="3,3,2"]
+|===
+| Environment Variable | Config Key | Notes
+
+| `ANTWORT_CONFIG`
+| _(file discovery)_
+| Path to the YAML config file. Overrides the default discovery order.
+
+| `ANTWORT_PORT`
+| `server.port`
+| Parsed as an integer.
+
+| `ANTWORT_PROVIDER`
+| `engine.provider`
+| `vllm`, `litellm`, or `vllm-responses`.
+
+| `ANTWORT_BACKEND_URL`
+| `engine.backend_url`
+| Base URL of the inference backend.
+
+| `ANTWORT_API_KEY`
+| `engine.api_key`
+| API key for the inference backend.
+
+| `ANTWORT_MODEL`
+| `engine.default_model`
+| Default model name.
+
+| `ANTWORT_STORAGE`
+| `storage.type`
+| `memory` or `postgres`.
+
+| `ANTWORT_STORAGE_SIZE`
+| `storage.max_size`
+| Parsed as an integer. Memory store capacity.
+
+| `ANTWORT_STORAGE_DSN`
+| `storage.postgres.dsn`
+| PostgreSQL connection string.
+
+| `ANTWORT_STORAGE_DSN_FILE`
+| `storage.postgres.dsn_file`
+| Path to a file containing the PostgreSQL DSN.
+
+| `ANTWORT_STORAGE_MIGRATE`
+| `storage.postgres.migrate_on_start`
+| Set to `true` to enable. Any other value is ignored.
+
+| `ANTWORT_AUTH_TYPE`
+| `auth.type`
+| `none`, `apikey`, `jwt`, or `chain`.
+
+| `ANTWORT_API_KEYS`
+| `auth.api_keys`
+| JSON-encoded array. See <<json-encoded-variables>>.
+
+| `ANTWORT_MCP_SERVERS`
+| `mcp.servers`
+| JSON-encoded array. See <<json-encoded-variables>>.
+|===
+
+[[json-encoded-variables]]
+== JSON-Encoded Variables
+
+Some configuration sections contain structured data (lists of objects) that cannot be expressed as a single string.
+These environment variables accept a JSON-encoded value.
+
+=== `ANTWORT_API_KEYS`
+
+A JSON array of API key entries.
+Each object in the array corresponds to an entry in the `auth.api_keys` list.
+
+[source,bash]
+----
+export ANTWORT_API_KEYS='[
+  {"key": "sk-key-1", "subject": "alice", "tenant_id": "org-1", "service_tier": "standard"},
+  {"key": "sk-key-2", "subject": "bob", "tenant_id": "org-2", "service_tier": "premium"}
+]'
+----
+
+Supported fields per entry:
+
+* `key` (string): The API key value.
+* `key_file` (string): File path to read the key from.
+* `subject` (string): Subject identifier.
+* `tenant_id` (string): Tenant identifier.
+* `service_tier` (string): Service tier label.
+
+=== `ANTWORT_MCP_SERVERS`
+
+A JSON array of MCP server connection configurations.
+Each object in the array corresponds to an entry in the `mcp.servers` list.
+
+[source,bash]
+----
+export ANTWORT_MCP_SERVERS='[
+  {
+    "name": "my-tools",
+    "transport": "streamable-http",
+    "url": "http://mcp-server:3000/mcp",
+    "headers": {"X-API-Key": "tok-123"},
+    "auth": {"type": "static"}
+  }
+]'
+----
+
+Supported fields per entry:
+
+* `name` (string): Unique server name.
+* `transport` (string): `sse` or `streamable-http`.
+* `url` (string): Server endpoint URL.
+* `headers` (object): Additional HTTP headers.
+* `auth` (object): Auth configuration with `type`, `token_url`, `client_id`, `client_id_file`, `client_secret`, `client_secret_file`, and `scopes` fields.
+
+== Kubernetes Deployment Examples
+
+=== Simple env var configuration
+
+The most common pattern is to set a few key variables in the Deployment manifest and rely on defaults for everything else:
+
+[source,yaml]
+----
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: antwort
+spec:
+  template:
+    spec:
+      containers:
+        - name: antwort
+          image: ghcr.io/rhuss/antwort:latest
+          env:
+            - name: ANTWORT_BACKEND_URL
+              value: "http://vllm:8000"
+            - name: ANTWORT_MODEL
+              value: "meta-llama/Llama-3.1-8B-Instruct"
+            - name: ANTWORT_PORT
+              value: "8080"
+----
+
+=== Using Secrets for sensitive values
+
+For production deployments, reference Kubernetes Secrets rather than embedding credentials in the manifest:
+
+[source,yaml]
+----
+env:
+  - name: ANTWORT_BACKEND_URL
+    value: "http://vllm:8000"
+  - name: ANTWORT_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: antwort-secrets
+        key: backend-api-key
+  - name: ANTWORT_STORAGE
+    value: "postgres"
+  - name: ANTWORT_STORAGE_DSN
+    valueFrom:
+      secretKeyRef:
+        name: antwort-secrets
+        key: postgres-dsn
+----
+
+=== JSON-encoded env vars from ConfigMaps
+
+For complex configurations like API keys or MCP servers, store the JSON in a ConfigMap:
+
+[source,yaml]
+----
+env:
+  - name: ANTWORT_API_KEYS
+    valueFrom:
+      configMapKeyRef:
+        name: antwort-config
+        key: api-keys-json
+  - name: ANTWORT_MCP_SERVERS
+    valueFrom:
+      configMapKeyRef:
+        name: antwort-config
+        key: mcp-servers-json
+----

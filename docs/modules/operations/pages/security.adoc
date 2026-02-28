@@ -1,1 +1,335 @@
-= security
+= Security
+:navtitle: Security
+
+Antwort supports multiple authentication methods, TLS termination through Kubernetes infrastructure, and multi-tenant isolation.
+This page covers how to configure each mechanism and combine them for production deployments.
+
+== Authentication Overview
+
+Authentication is controlled by the `auth` configuration section.
+The gateway supports four modes:
+
+[cols="1,3", options="header"]
+|===
+| `auth.type` | Behavior
+
+| `none`
+| No authentication. All requests are allowed with an anonymous identity. This is the default.
+
+| `apikey`
+| API key validation via Bearer tokens, compared against a static key store.
+
+| `jwt`
+| JWT/OIDC validation using RSA signatures verified against a JWKS endpoint.
+
+| `chain`
+| Evaluates multiple authenticators in sequence using three-outcome voting.
+|===
+
+The `/healthz`, `/readyz`, and `/metrics` endpoints are always excluded from authentication.
+
+== API Key Authentication
+
+API key authentication validates Bearer tokens against a list of configured keys.
+Keys are hashed with SHA-256 on startup, and comparison uses constant-time operations to prevent timing attacks.
+Plaintext keys are never stored in memory after initialization.
+
+=== Configuration
+
+[source,yaml]
+----
+auth:
+  type: apikey
+  api_keys:
+    - key: sk-alice-secret-key          # <1>
+      subject: alice                    # <2>
+      tenant_id: org-acme              # <3>
+      service_tier: premium            # <4>
+    - key_file: /run/secrets/bob-key   # <5>
+      subject: bob
+      tenant_id: org-widgets
+      service_tier: standard
+----
+<1> The raw API key. Clients send this as `Authorization: Bearer sk-alice-secret-key`.
+<2> A unique identifier for the caller, used in logging and storage scoping.
+<3> Tenant identifier for multi-tenant isolation.
+<4> Service tier for rate limiting.
+<5> The `key_file` variant reads the key from a mounted file, keeping it out of the config.
+
+=== Using Kubernetes Secrets
+
+For production deployments, store API keys in Kubernetes Secrets and mount them as files.
+
+[source,yaml]
+----
+apiVersion: v1
+kind: Secret
+metadata:
+  name: antwort-api-keys
+type: Opaque
+stringData:
+  alice-key: "sk-alice-secret-key"
+  bob-key: "sk-bob-secret-key"
+----
+
+Mount the Secret in the Deployment:
+
+[source,yaml]
+----
+containers:
+  - name: antwort
+    volumeMounts:
+      - name: api-keys
+        mountPath: /run/secrets/api-keys
+        readOnly: true
+volumes:
+  - name: api-keys
+    secret:
+      secretName: antwort-api-keys
+----
+
+Then reference the files in the config:
+
+[source,yaml]
+----
+auth:
+  type: apikey
+  api_keys:
+    - key_file: /run/secrets/api-keys/alice-key
+      subject: alice
+      tenant_id: org-acme
+    - key_file: /run/secrets/api-keys/bob-key
+      subject: bob
+      tenant_id: org-widgets
+----
+
+== JWT/OIDC Authentication
+
+JWT authentication validates Bearer tokens as signed JWTs.
+The gateway fetches signing keys from a JWKS (JSON Web Key Set) endpoint and supports RSA signatures (RS256, RS384, RS512).
+
+=== Configuration
+
+[source,yaml]
+----
+auth:
+  type: jwt
+  jwt:
+    jwks_url: https://idp.example.com/.well-known/jwks.json  # <1>
+    issuer: https://idp.example.com                           # <2>
+    audience: antwort-gateway                                 # <3>
+    user_claim: sub                                           # <4>
+    tenant_claim: tenant_id                                   # <5>
+    scopes_claim: scope                                       # <6>
+----
+<1> URL to the JWKS endpoint where RSA public keys are published. Required.
+<2> Expected `iss` claim value. If set, tokens with a different issuer are rejected.
+<3> Expected `aud` claim value. If set, tokens without this audience are rejected.
+<4> JWT claim used as the identity subject. Default: `sub`.
+<5> JWT claim used for the `tenant_id` metadata. Default: `tenant_id`.
+<6> JWT claim used for authorization scopes. Can be a space-separated string or a JSON array. Default: `scope`.
+
+=== JWKS Caching
+
+The gateway caches JWKS keys in memory with a configurable TTL (default: 1 hour).
+When a token presents a key ID (`kid`) that is not in the cache, the gateway re-fetches the JWKS endpoint.
+This allows key rotation without gateway restarts.
+
+=== Claim Mapping
+
+The JWT authenticator extracts identity fields from configurable claims:
+
+[cols="2,2,2", options="header"]
+|===
+| Identity Field | Config Key | Default Claim
+
+| `Subject`
+| `user_claim`
+| `sub`
+
+| `Metadata["tenant_id"]`
+| `tenant_claim`
+| `tenant_id`
+
+| `Scopes`
+| `scopes_claim`
+| `scope`
+|===
+
+The `scope` claim supports two formats: a space-separated string (`"read write admin"`) or a JSON array (`["read", "write", "admin"]`).
+
+== Auth Chain
+
+When `auth.type` is set to `chain`, the gateway evaluates both the API key and JWT authenticators in sequence.
+Each authenticator returns one of three outcomes:
+
+* **Yes**: credentials are valid. The chain stops and the identity is used.
+* **No**: credentials are present but invalid. The chain stops and the request is rejected.
+* **Abstain**: the authenticator does not recognize the credential type. The chain continues to the next authenticator.
+
+If all authenticators abstain, the request is rejected with HTTP 401.
+
+This design allows you to support multiple credential types simultaneously.
+For example, service accounts can authenticate with API keys while human users authenticate with JWT tokens from an identity provider.
+
+[source,yaml]
+----
+auth:
+  type: chain
+  api_keys:
+    - key_file: /run/secrets/service-key
+      subject: ci-pipeline
+      service_tier: internal
+  jwt:
+    jwks_url: https://idp.example.com/.well-known/jwks.json
+    issuer: https://idp.example.com
+    audience: antwort-gateway
+----
+
+== TLS Termination
+
+Antwort does not handle TLS directly.
+TLS is terminated at the Kubernetes infrastructure layer using one of the following approaches.
+
+=== Kubernetes Ingress
+
+[source,yaml]
+----
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: antwort
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  tls:
+    - hosts:
+        - api.example.com
+      secretName: antwort-tls
+  rules:
+    - host: api.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: antwort
+                port:
+                  number: 8080
+----
+
+=== OpenShift Route
+
+The OpenShift overlay includes a Route with edge TLS termination.
+The router handles TLS, and traffic within the cluster network is unencrypted.
+
+[source,yaml]
+----
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: antwort
+spec:
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  to:
+    kind: Service
+    name: antwort
+  port:
+    targetPort: http
+----
+
+The `insecureEdgeTerminationPolicy: Redirect` setting ensures that HTTP requests are redirected to HTTPS.
+
+== Secrets Management
+
+Antwort follows a convention where sensitive configuration fields support a `_file` suffix variant.
+When the `_file` field is set and the corresponding value field is empty, the gateway reads the file contents at startup and uses them as the value.
+
+The supported `_file` fields are:
+
+[cols="2,2", options="header"]
+|===
+| File Field | Populates
+
+| `engine.api_key_file`
+| `engine.api_key`
+
+| `storage.postgres.dsn_file`
+| `storage.postgres.dsn`
+
+| `auth.api_keys[].key_file`
+| `auth.api_keys[].key`
+
+| `mcp.servers[].auth.client_id_file`
+| `mcp.servers[].auth.client_id`
+
+| `mcp.servers[].auth.client_secret_file`
+| `mcp.servers[].auth.client_secret`
+|===
+
+This pattern works naturally with Kubernetes Secrets mounted as volumes.
+Files are read once at startup and trimmed of whitespace.
+
+We strongly recommend using `_file` fields in production rather than embedding secrets in ConfigMaps or environment variables.
+Environment variables appear in process listings and are often captured in crash dumps, while mounted files have restricted filesystem permissions.
+
+== Multi-Tenant Isolation
+
+Antwort supports multi-tenant deployments through the `tenant_id` metadata field on the authenticated identity.
+Tenant isolation works as follows:
+
+. Each API key entry or JWT claim includes a `tenant_id`.
+. The authentication middleware populates `Identity.Metadata["tenant_id"]` for every authenticated request.
+. The storage layer uses the tenant ID to scope response storage, ensuring that tenants cannot access each other's conversation history.
+
+[source,yaml]
+----
+auth:
+  type: apikey
+  api_keys:
+    - key_file: /run/secrets/tenant-a-key
+      subject: tenant-a-admin
+      tenant_id: tenant-a          # <1>
+      service_tier: standard
+    - key_file: /run/secrets/tenant-b-key
+      subject: tenant-b-admin
+      tenant_id: tenant-b          # <2>
+      service_tier: premium
+----
+<1> All requests with this key are scoped to `tenant-a` storage.
+<2> Requests with this key are scoped to `tenant-b` storage.
+
+With JWT authentication, the tenant claim is extracted automatically from the token.
+Configure the `tenant_claim` field to match the claim name used by your identity provider.
+
+== Rate Limiting
+
+Rate limiting is applied per authenticated identity based on the `service_tier` field.
+The in-process rate limiter uses a sliding-window algorithm that tracks requests per subject per minute.
+
+Tier configuration is defined per service tier:
+
+[cols="1,1,2", options="header"]
+|===
+| Tier | Requests per Minute | Description
+
+| `default`
+| Configurable
+| Applied when no tier is specified or the tier is unknown.
+
+| Custom tiers
+| Configurable
+| You can define arbitrary tier names with their own limits.
+|===
+
+When a request exceeds the rate limit, the gateway returns HTTP 429 (Too Many Requests) and increments the `antwort_ratelimit_rejected_total` metric with the tier label.
+
+The rate limiter fails open: if any internal error occurs during the rate limit check, the request is allowed.
+This design prioritizes availability over strict enforcement.
+
+For multi-replica deployments, each replica maintains its own rate limit counters.
+This means the effective rate limit per client is multiplied by the number of replicas.
+For strict per-client rate limiting across replicas, use an external rate limiter (such as an API gateway or service mesh).

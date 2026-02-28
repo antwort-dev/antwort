@@ -1,1 +1,317 @@
-= config-reference
+= Configuration Reference
+:navtitle: Configuration Reference
+
+This page provides a complete reference table of every configuration key supported by the Antwort gateway.
+For annotated examples and usage guidance, see xref:configuration.adoc[].
+
+== Reference Table
+
+[cols="3,1,1,2,4"]
+|===
+| Key | Type | Default | Env Var | Description
+
+5+h| Server
+
+| `server.port`
+| int
+| `8080`
+| `ANTWORT_PORT`
+| TCP port the HTTP server listens on.
+
+| `server.read_timeout`
+| duration
+| `30s`
+|
+| Maximum time to read the full request including headers and body.
+
+| `server.write_timeout`
+| duration
+| `120s`
+|
+| Maximum time to write a response. Must be large enough for streaming and long inference calls.
+
+5+h| Engine
+
+| `engine.provider`
+| string
+| `vllm`
+| `ANTWORT_PROVIDER`
+| Backend provider type: `vllm`, `litellm`, or `vllm-responses`.
+
+| `engine.backend_url`
+| string
+| _(required)_
+| `ANTWORT_BACKEND_URL`
+| Base URL of the inference backend (e.g., `http://vllm:8000`).
+
+| `engine.api_key`
+| string
+|
+| `ANTWORT_API_KEY`
+| API key for authenticating with the inference backend.
+
+| `engine.api_key_file`
+| string
+|
+|
+| File path to read `engine.api_key` from. Whitespace is trimmed.
+
+| `engine.default_model`
+| string
+|
+| `ANTWORT_MODEL`
+| Default model name when the request omits the `model` field.
+
+| `engine.max_turns`
+| int
+| `10`
+|
+| Maximum number of agentic loop turns before returning an incomplete response.
+
+5+h| Storage
+
+| `storage.type`
+| string
+| `memory`
+| `ANTWORT_STORAGE`
+| Storage backend: `memory` or `postgres`.
+
+| `storage.max_size`
+| int
+| `10000`
+| `ANTWORT_STORAGE_SIZE`
+| Maximum number of responses in the memory store. Only used when `storage.type` is `memory`.
+
+| `storage.postgres.dsn`
+| string
+|
+| `ANTWORT_STORAGE_DSN`
+| PostgreSQL connection string. Required when `storage.type` is `postgres` (or use `dsn_file`).
+
+| `storage.postgres.dsn_file`
+| string
+|
+| `ANTWORT_STORAGE_DSN_FILE`
+| File path to read `storage.postgres.dsn` from.
+
+| `storage.postgres.max_conns`
+| int32
+| `25`
+|
+| Maximum number of connections in the PostgreSQL pool.
+
+| `storage.postgres.migrate_on_start`
+| bool
+| `false`
+| `ANTWORT_STORAGE_MIGRATE`
+| Run database migrations automatically on startup.
+
+5+h| Auth
+
+| `auth.type`
+| string
+| `none`
+| `ANTWORT_AUTH_TYPE`
+| Authentication type: `none`, `apikey`, `jwt`, or `chain`.
+
+| `auth.api_keys`
+| list
+| `[]`
+| `ANTWORT_API_KEYS`
+| List of API key entries. Env var accepts a JSON array.
+
+| `auth.api_keys[].key`
+| string
+|
+|
+| The API key value. Clients send this as a Bearer token.
+
+| `auth.api_keys[].key_file`
+| string
+|
+|
+| File path to read the API key from.
+
+| `auth.api_keys[].subject`
+| string
+|
+|
+| Subject identifier for this key, used in logging and audit.
+
+| `auth.api_keys[].tenant_id`
+| string
+|
+|
+| Tenant identifier for multi-tenant data isolation.
+
+| `auth.api_keys[].service_tier`
+| string
+|
+|
+| Service tier label, echoed in responses.
+
+| `auth.jwt.issuer`
+| string
+|
+|
+| Expected `iss` claim in the JWT.
+
+| `auth.jwt.audience`
+| string
+|
+|
+| Expected `aud` claim in the JWT.
+
+| `auth.jwt.jwks_url`
+| string
+|
+|
+| URL to fetch the JSON Web Key Set for signature verification. Required when `auth.type` is `jwt` or `chain`.
+
+| `auth.jwt.user_claim`
+| string
+| `sub`
+|
+| JWT claim to use as the subject identifier.
+
+| `auth.jwt.tenant_claim`
+| string
+| `tenant_id`
+|
+| JWT claim to use as the tenant identifier.
+
+| `auth.jwt.scopes_claim`
+| string
+| `scope`
+|
+| JWT claim to use for authorization scopes.
+
+5+h| MCP
+
+| `mcp.servers`
+| list
+| `[]`
+| `ANTWORT_MCP_SERVERS`
+| List of MCP server connections. Env var accepts a JSON array.
+
+| `mcp.servers[].name`
+| string
+| _(required)_
+|
+| Unique name for this MCP server. Used in logging and tool routing.
+
+| `mcp.servers[].transport`
+| string
+|
+|
+| Transport protocol: `sse` or `streamable-http`.
+
+| `mcp.servers[].url`
+| string
+| _(required)_
+|
+| URL of the MCP server endpoint.
+
+| `mcp.servers[].headers`
+| map
+| `{}`
+|
+| Additional HTTP headers sent with every request to this server.
+
+| `mcp.servers[].auth.type`
+| string
+|
+|
+| MCP server auth type: `static` or `oauth_client_credentials`.
+
+| `mcp.servers[].auth.token_url`
+| string
+|
+|
+| OAuth token endpoint URL.
+
+| `mcp.servers[].auth.client_id`
+| string
+|
+|
+| OAuth client ID.
+
+| `mcp.servers[].auth.client_id_file`
+| string
+|
+|
+| File path to read the OAuth client ID from.
+
+| `mcp.servers[].auth.client_secret`
+| string
+|
+|
+| OAuth client secret.
+
+| `mcp.servers[].auth.client_secret_file`
+| string
+|
+|
+| File path to read the OAuth client secret from.
+
+| `mcp.servers[].auth.scopes`
+| list
+| `[]`
+|
+| OAuth scopes to request.
+
+5+h| Providers
+
+| `providers.<name>.enabled`
+| bool
+| `false`
+|
+| Enable the named built-in function provider (`web_search`, `file_search`, `code_interpreter`).
+
+| `providers.<name>.settings`
+| map
+| `{}`
+|
+| Provider-specific settings as key-value pairs.
+
+5+h| Observability
+
+| `observability.metrics.enabled`
+| bool
+| `true`
+|
+| Enable the Prometheus metrics endpoint.
+
+| `observability.metrics.path`
+| string
+| `/metrics`
+|
+| HTTP path for the Prometheus metrics endpoint.
+
+5+h| Logging
+
+| `logging.level`
+| string
+| `INFO`
+|
+| Log level: `ERROR`, `WARN`, `INFO`, `DEBUG`, or `TRACE`.
+
+| `logging.debug`
+| string
+|
+|
+| Comma-separated debug categories (e.g., `providers,engine`).
+
+|===
+
+== Validation Rules
+
+The gateway validates the configuration on startup and exits with an error if any rule is violated:
+
+* `engine.backend_url` must be non-empty.
+* `server.port` must be greater than zero.
+* `storage.type` must be `memory` or `postgres`.
+* When `storage.type` is `postgres`, either `storage.postgres.dsn` or `storage.postgres.dsn_file` must be set.
+* `auth.type` must be `none`, `apikey`, `jwt`, or `chain`.
+* When `auth.type` is `jwt` or `chain`, `auth.jwt.jwks_url` must be set.
+* `engine.provider` (if set) must be `vllm`, `litellm`, or `vllm-responses`.
