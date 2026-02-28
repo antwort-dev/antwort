@@ -108,6 +108,15 @@ Request-scoped data (request IDs, user identity, tracing context) propagates thr
 - Implementation is verified against the spec. All functional requirements must be traceable to test cases.
 - Specs are numbered in dependency order and developed sequentially.
 
+### Documentation
+
+- All user-facing documentation is written in AsciiDoc using the Antora static site generator.
+- Documentation content MUST be written using the `kubernetes-patterns` voice profile (`~/.claude/style/voices/kubernetes-patterns.yaml`) via the prose plugin.
+- The writing workflow for all documentation pages is: `prose:write` (or `prose:content-generator`) to create content, `prose:check` (or `prose:pre-validator`) to validate voice compliance, `prose:rewrite` (or `prose:humanizer`) to fix any AI-generated patterns detected.
+- AsciiDoc files follow semantic line breaks: one sentence per line. This produces clean git diffs and makes sentence length visible.
+- Kubernetes resource names are capitalized (Pod, Service, Deployment). Field names use monospace formatting (e.g., `spec.replicas`).
+- Cross-references between documentation modules use Antora xrefs to keep content interconnected.
+
 ### IX. Kubernetes-Native Execution
 
 Antwort is designed exclusively for Kubernetes. There is no standalone or local execution mode.
@@ -157,4 +166,4 @@ The engine handles both modes. Stateless mode is always available. Stateful feat
 - New specs must declare compliance with these principles. Deviations require explicit justification in the spec's Assumptions or Clarifications section.
 - Code reviews verify constitutional compliance. Non-compliant code is not merged.
 
-**Version**: 1.2.0 | **Ratified**: 2026-02-17 | **Last Amended**: 2026-02-26
+**Version**: 1.3.0 | **Ratified**: 2026-02-17 | **Last Amended**: 2026-02-28
