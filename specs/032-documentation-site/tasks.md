@@ -3,6 +3,15 @@
 **Input**: Design documents from `/specs/032-documentation-site/`
 **Prerequisites**: plan.md, spec.md, research.md
 
+## MANDATORY: Prose Plugin for Content Creation
+
+All AsciiDoc content pages (T009-T040) MUST be written using the prose plugin:
+- Use `prose:write` (or `prose:content-generator` skill) with voice profile `kubernetes-patterns`
+- After writing, run `prose:check` (or `prose:pre-validator` skill) to validate voice compliance
+- If check fails, use `prose:rewrite` (or `prose:humanizer` skill) to fix AI patterns
+- Voice profile location: `~/.claude/style/voices/kubernetes-patterns.yaml`
+- AsciiDoc convention: one sentence per line (semantic line breaks)
+
 ## Format: `[ID] [P?] [Story] Description`
 
 ## Phase 1: Infrastructure Setup
