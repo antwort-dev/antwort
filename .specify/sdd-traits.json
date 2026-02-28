@@ -2,7 +2,9 @@
   "version": 1,
   "traits": {
     "superpowers": true,
-    "beads": true
+    "beads": true,
+    "teams-vanilla": true,
+    "teams-spec": false
   },
-  "applied_at": "2026-02-25T06:39:32Z"
+  "applied_at": "2026-02-28T12:17:53Z"
 }
