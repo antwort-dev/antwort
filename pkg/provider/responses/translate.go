@@ -53,8 +53,11 @@ func translateRequest(req *provider.ProviderRequest) (*responsesRequest, error) 
 	}
 
 	// Translate response format.
-	if req.ResponseFormat != nil {
-		formatJSON, err := json.Marshal(req.ResponseFormat)
+	// ResponseFormat is *api.TextConfig which has a Format *api.TextFormat field.
+	// The wire format needs {"text": {"format": {<TextFormat fields>}}}, so we
+	// marshal only the inner Format field to avoid double-nesting.
+	if req.ResponseFormat != nil && req.ResponseFormat.Format != nil {
+		formatJSON, err := json.Marshal(req.ResponseFormat.Format)
 		if err == nil {
 			rr.Text = &responsesTextConfig{Format: formatJSON}
 		}

@@ -133,6 +133,48 @@ func TestTranslateRequest_Messages(t *testing.T) {
 	}
 }
 
+func TestTranslateRequest_ResponseFormat(t *testing.T) {
+	req := &provider.ProviderRequest{
+		Model: "test-model",
+		Messages: []provider.ProviderMessage{
+			{Role: "user", Content: "list 3 colors"},
+		},
+		ResponseFormat: &api.TextConfig{
+			Format: &api.TextFormat{
+				Type: "json_schema",
+				Name: "colors",
+				Schema: json.RawMessage(`{"type":"object","properties":{"colors":{"type":"array","items":{"type":"string"}}}}`),
+			},
+		},
+	}
+
+	rr, err := translateRequest(req)
+	if err != nil {
+		t.Fatalf("translateRequest: %v", err)
+	}
+
+	if rr.Text == nil {
+		t.Fatal("text config should not be nil")
+	}
+
+	// The wire format should be {"format": {"type":"json_schema", "name":"colors", "schema":{...}}}
+	// NOT double-nested {"format": {"format": {"type":"json_schema", ...}}}
+	var format map[string]any
+	if err := json.Unmarshal(rr.Text.Format, &format); err != nil {
+		t.Fatalf("unmarshal format: %v", err)
+	}
+
+	if format["type"] != "json_schema" {
+		t.Errorf("format.type = %v, want json_schema", format["type"])
+	}
+	if format["name"] != "colors" {
+		t.Errorf("format.name = %v, want colors", format["name"])
+	}
+	if _, hasNestedFormat := format["format"]; hasNestedFormat {
+		t.Error("format should NOT contain a nested 'format' key (double-nesting bug)")
+	}
+}
+
 func TestTranslateResponse_Message(t *testing.T) {
 	resp := &responsesResponse{
 		Model:  "test-model",
