@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: antwort-backend-config
+data:
+  config.yaml: |
+    server:
+      port: 8080
+
+    engine:
+      provider: vllm
+      backend_url: http://llm-predictor.llm-serving.svc.cluster.local:8080
+      default_model: /mnt/models
+      max_turns: 10
+
+    storage:
+      type: memory
+      max_size: 10000
+
+    auth:
+      type: none
+
+    observability:
+      metrics:
+        enabled: true
+        path: /metrics

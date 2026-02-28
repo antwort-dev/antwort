@@ -123,6 +123,86 @@ The dashboard includes panels for:
 | Token Usage | `gen_ai_client_token_usage` |
 | Error Rate | 5xx / total ratio |
 
+### Test Structured Output
+
+Request a response with a JSON schema to get structured output:
+
+```bash
+curl -s -X POST "$URL/v1/responses" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "/mnt/models",
+    "input": [
+      {
+        "type": "message",
+        "role": "user",
+        "content": [{"type": "input_text", "text": "List 3 programming languages with their year of creation"}]
+      }
+    ],
+    "text": {
+      "format": {
+        "type": "json_schema",
+        "name": "languages",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "languages": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {"type": "string"},
+                  "year": {"type": "integer"}
+                },
+                "required": ["name", "year"]
+              }
+            }
+          },
+          "required": ["languages"]
+        }
+      }
+    }
+  }' | jq '.output[] | select(.type == "message") | .content[0].text' -r | jq .
+```
+
+The `text.format` field constrains the model to produce valid JSON matching the schema. Expected output:
+
+```json
+{
+  "languages": [
+    {"name": "Python", "year": 1991},
+    {"name": "JavaScript", "year": 1995},
+    {"name": "Go", "year": 2009}
+  ]
+}
+```
+
+### Test Reasoning
+
+Request a response with reasoning to see the model's thought process:
+
+```bash
+curl -s -X POST "$URL/v1/responses" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "/mnt/models",
+    "input": [
+      {
+        "type": "message",
+        "role": "user",
+        "content": [{"type": "input_text", "text": "What is 15% of 240?"}]
+      }
+    ],
+    "reasoning": {"effort": "medium"}
+  }' | jq '{
+    output_types: [.output[].type],
+    reasoning: [.output[] | select(.type == "reasoning") | .summary[0].text],
+    answer: [.output[] | select(.type == "message") | .content[0].text]
+  }'
+```
+
+Reasoning output depends on model support. If the model does not support reasoning, the response will complete normally without reasoning items.
+
 ## What's Deployed
 
 | Component | Description |
@@ -168,7 +248,7 @@ The PostgreSQL credentials are stored in the `postgres-credentials` Secret. For 
 
 ## Next Steps
 
-- [04-mcp-tools](../04-mcp-tools/) - Add MCP server for agentic tool calling
+Ready for more? Continue to [Quickstart 03: Multi-User](../03-multi-user/) to add JWT authentication and tenant isolation.
 
 ## Cleanup
 

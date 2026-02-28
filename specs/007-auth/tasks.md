@@ -9,9 +9,9 @@
 
 **Purpose**: Define the authenticator interface, AuthResult, Identity, and AuthChain.
 
-- [ ] T001 (antwort-98a.1) Create `pkg/auth/doc.go` with package documentation. Create `pkg/auth/auth.go` with: AuthDecision enum (Yes/No/Abstain), AuthResult struct, Identity struct, Authenticator interface (single Authenticate method taking context and *http.Request), AuthChain struct with ordered authenticators and default voter. Implement AuthChain.Authenticate that evaluates in order, stops on Yes/No, uses default voter on all-abstain (FR-001, FR-002, FR-003, FR-004).
-- [ ] T002 (antwort-98a.2) Write AuthChain tests in `pkg/auth/auth_test.go`: first-yes stops chain, first-no stops chain, all-abstain uses default voter (reject), all-abstain with default-accept (NoOp), empty chain uses default voter. Test Identity subject validation (FR-001, FR-002, FR-003).
-- [ ] T003 (antwort-98a.3) [P] Create `pkg/auth/context.go` with IdentityFromContext and SetIdentity context helpers using private key type.
+- [x] T001 (antwort-98a.1) Create `pkg/auth/doc.go` with package documentation. Create `pkg/auth/auth.go` with: AuthDecision enum (Yes/No/Abstain), AuthResult struct, Identity struct, Authenticator interface (single Authenticate method taking context and *http.Request), AuthChain struct with ordered authenticators and default voter. Implement AuthChain.Authenticate that evaluates in order, stops on Yes/No, uses default voter on all-abstain (FR-001, FR-002, FR-003, FR-004).
+- [x] T002 (antwort-98a.2) Write AuthChain tests in `pkg/auth/auth_test.go`: first-yes stops chain, first-no stops chain, all-abstain uses default voter (reject), all-abstain with default-accept (NoOp), empty chain uses default voter. Test Identity subject validation (FR-001, FR-002, FR-003).
+- [x] T003 (antwort-98a.3) [P] Create `pkg/auth/context.go` with IdentityFromContext and SetIdentity context helpers using private key type.
 
 **Checkpoint**: Auth interface and chain voting ready.
 
@@ -21,7 +21,7 @@
 
 **Goal**: Development mode with no auth.
 
-- [ ] T004 (antwort-gy4.1) [US2] Implement NoOp authenticator in `pkg/auth/noop/noop.go`: always returns Yes with a default identity (subject "anonymous", tier "default"). Write test in `pkg/auth/noop/noop_test.go` (FR-018).
+- [x] T004 (antwort-gy4.1) [US2] Implement NoOp authenticator in `pkg/auth/noop/noop.go`: always returns Yes with a default identity (subject "anonymous", tier "default"). Write test in `pkg/auth/noop/noop_test.go` (FR-018).
 
 **Checkpoint**: NoOp authenticator works.
 
@@ -31,7 +31,7 @@
 
 **Goal**: Bearer token auth with static key store.
 
-- [ ] T005 (antwort-dep.1) [US1] Implement API key authenticator in `pkg/auth/apikey/apikey.go`: extract Bearer token from Authorization header, hash with SHA-256, look up in static key store using constant-time compare. Return Yes (valid), No (invalid token present), Abstain (no Bearer header). Write tests in `pkg/auth/apikey/apikey_test.go` covering valid key, invalid key, no header, tenant mapping (FR-010, FR-011, FR-012).
+- [x] T005 (antwort-dep.1) [US1] Implement API key authenticator in `pkg/auth/apikey/apikey.go`: extract Bearer token from Authorization header, hash with SHA-256, look up in static key store using constant-time compare. Return Yes (valid), No (invalid token present), Abstain (no Bearer header). Write tests in `pkg/auth/apikey/apikey_test.go` covering valid key, invalid key, no header, tenant mapping (FR-010, FR-011, FR-012).
 
 **Checkpoint**: API key auth works.
 
@@ -41,9 +41,9 @@
 
 **Goal**: Wire auth chain into transport, bypass infra endpoints, inject tenant.
 
-- [ ] T006 (antwort-1xg.1) [US3] [US6] Implement auth middleware in `pkg/auth/middleware.go`: HTTP middleware that checks bypass list first, runs AuthChain, extracts tenant from Identity.Metadata["tenant_id"], calls storage.SetTenant, sets Identity in context, logs decisions via slog. Return 401 for auth failures (FR-005, FR-006, FR-007, FR-008, FR-009, FR-026, FR-027).
-- [ ] T007 (antwort-1xg.2) [US3] [US6] Write middleware tests in `pkg/auth/middleware_test.go`: bypass endpoint passes without auth, valid credentials pass, invalid credentials return 401, tenant injected into context, no auth config = NoOp behavior. Test chain routing (API key handled, JWT handled, both abstain = reject).
-- [ ] T008 (antwort-1xg.3) [US3] Wire auth middleware into `cmd/server/main.go`: read ANTWORT_AUTH_TYPE env var, create appropriate authenticator(s), wrap HTTP handler with auth middleware. Support "none", "apikey", "jwt", "chain" types (FR-006).
+- [x] T006 (antwort-1xg.1) [US3] [US6] Implement auth middleware in `pkg/auth/middleware.go`: HTTP middleware that checks bypass list first, runs AuthChain, extracts tenant from Identity.Metadata["tenant_id"], calls storage.SetTenant, sets Identity in context, logs decisions via slog. Return 401 for auth failures (FR-005, FR-006, FR-007, FR-008, FR-009, FR-026, FR-027).
+- [x] T007 (antwort-1xg.2) [US3] [US6] Write middleware tests in `pkg/auth/middleware_test.go`: bypass endpoint passes without auth, valid credentials pass, invalid credentials return 401, tenant injected into context, no auth config = NoOp behavior. Test chain routing (API key handled, JWT handled, both abstain = reject).
+- [x] T008 (antwort-1xg.3) [US3] Wire auth middleware into `cmd/server/main.go`: read ANTWORT_AUTH_TYPE env var, create appropriate authenticator(s), wrap HTTP handler with auth middleware. Support "none", "apikey", "jwt", "chain" types (FR-006).
 
 **Checkpoint**: Auth middleware works end-to-end.
 
@@ -65,7 +65,7 @@
 **Goal**: Per-tier request rate limiting.
 
 - [ ] T011 (antwort-6mj.1) [US5] Implement in-process rate limiter in `pkg/auth/ratelimit.go`: sliding window counter per (subject, tier) using sync.Map. Configurable requests-per-minute per tier. Fail open on internal errors. Write tests in `pkg/auth/ratelimit_test.go` covering within-limit, over-limit, unknown tier (use default), nil limiter (FR-021, FR-022, FR-023, FR-024, FR-025).
-- [ ] T012 (antwort-6mj.2) [US5] Integrate rate limiter into auth middleware in `pkg/auth/middleware.go`: after successful authentication, check rate limit. Return 429 if exceeded.
+- [x] T012 (antwort-6mj.2) [US5] Integrate rate limiter into auth middleware in `pkg/auth/middleware.go`: after successful authentication, check rate limit. Return 429 if exceeded.
 
 **Checkpoint**: Rate limiting works.
 
@@ -73,9 +73,9 @@
 
 ## Phase 7: Polish
 
-- [ ] T013 (antwort-ggj.1) [P] Run `go vet ./...` and `go test ./...` across all packages.
-- [ ] T014 (antwort-ggj.2) [P] Verify conformance tests still pass with auth disabled (NoOp default).
-- [ ] T015 (antwort-ggj.3) Run `make conformance` to verify no regressions.
+- [x] T013 (antwort-ggj.1) [P] Run `go vet ./...` and `go test ./...` across all packages.
+- [x] T014 (antwort-ggj.2) [P] Verify conformance tests still pass with auth disabled (NoOp default).
+- [x] T015 (antwort-ggj.3) Run `make conformance` to verify no regressions.
 
 ---
 

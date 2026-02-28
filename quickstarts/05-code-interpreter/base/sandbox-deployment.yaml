@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sandbox-server
+  labels:
+    app.kubernetes.io/component: sandbox-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: sandbox-server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: sandbox-server
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: sandbox-server
+          image: quay.io/rhuss/antwort-sandbox:latest
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: SANDBOX_MODE
+              value: python
+            - name: SANDBOX_MAX_CONCURRENT
+              value: "3"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL

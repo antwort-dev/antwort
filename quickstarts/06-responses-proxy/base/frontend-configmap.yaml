@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: antwort-frontend-config
+data:
+  config.yaml: |
+    server:
+      port: 8080
+
+    engine:
+      provider: vllm-responses
+      backend_url: http://antwort-backend:8080
+      default_model: /mnt/models
+      max_turns: 10
+
+    storage:
+      type: memory
+      max_size: 10000
+
+    auth:
+      type: none
+
+    observability:
+      metrics:
+        enabled: true
+        path: /metrics

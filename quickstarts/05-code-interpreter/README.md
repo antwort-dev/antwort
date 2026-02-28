@@ -1,0 +1,227 @@
+# Quickstart 05: Code Interpreter (Sandbox Code Execution)
+
+Deploy antwort with a Python sandbox server that enables the LLM to write and execute Python code during response generation. The sandbox runs code in an isolated environment, supporting package installation and multi-turn computation.
+
+**Time to deploy**: 5 minutes (after LLM backend is running)
+
+## Prerequisites
+
+- [Shared LLM Backend](../shared/llm-backend/) deployed and running
+- `kubectl` or `oc` CLI configured
+
+## Deploy
+
+```bash
+# Create namespace
+kubectl create namespace antwort
+
+# Deploy antwort + sandbox server
+kubectl apply -k quickstarts/05-code-interpreter/base/ -n antwort
+
+# Wait for the sandbox server to be ready
+kubectl rollout status deployment/sandbox-server -n antwort --timeout=60s
+
+# Wait for antwort to be ready
+kubectl rollout status deployment/antwort -n antwort --timeout=60s
+```
+
+### OpenShift / ROSA
+
+For external access via Route:
+
+```bash
+# Apply with OpenShift overlay
+kubectl apply -k quickstarts/05-code-interpreter/openshift/ -n antwort
+
+# Get the route URL
+ROUTE=$(kubectl get route antwort -n antwort -o jsonpath='{.spec.host}')
+echo "Antwort URL: https://$ROUTE"
+```
+
+## Test
+
+### Setup Port-Forward
+
+```bash
+# Using port-forward (vanilla Kubernetes)
+kubectl port-forward -n antwort svc/antwort 8080:8080 &
+
+# Or using the Route URL (OpenShift)
+# export URL=https://$ROUTE
+
+export URL=http://localhost:8080
+```
+
+### Basic Computation
+
+Ask the LLM to perform a computation that triggers the code interpreter. The agentic loop will generate Python code, execute it in the sandbox, and include the result in the response.
+
+```bash
+curl -s -X POST "$URL/v1/responses" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "/mnt/models",
+    "input": [
+      {
+        "type": "message",
+        "role": "user",
+        "content": [{"type": "input_text", "text": "Calculate the first 20 Fibonacci numbers using Python."}]
+      }
+    ]
+  }' | jq '{status: .status, output: [.output[] | select(.type == "code_interpreter_call" or .type == "code_interpreter_call_output" or .type == "message") | {type: .type, content: (if .type == "message" then .content[0].text elif .type == "code_interpreter_call" then {code: .code} elif .type == "code_interpreter_call_output" then {output: .output} else . end)}]}'
+```
+
+Expected output should include the code execution and the final response:
+
+```json
+{
+  "status": "completed",
+  "output": [
+    {
+      "type": "code_interpreter_call",
+      "content": { "code": "fib = [0, 1]\nfor i in range(18):\n    fib.append(fib[-1] + fib[-2])\nprint(fib)" }
+    },
+    {
+      "type": "code_interpreter_call_output",
+      "content": { "output": "[0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 377, 610, 987, 1597, 2584, 4181]" }
+    },
+    {
+      "type": "message",
+      "content": "The first 20 Fibonacci numbers are ..."
+    }
+  ]
+}
+```
+
+### Package Installation
+
+The sandbox supports installing Python packages at runtime:
+
+```bash
+curl -s -X POST "$URL/v1/responses" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "/mnt/models",
+    "input": [
+      {
+        "type": "message",
+        "role": "user",
+        "content": [{"type": "input_text", "text": "Use numpy to calculate the standard deviation of [1, 2, 3, 4, 5]."}]
+      }
+    ]
+  }' | jq '{status: .status, output: [.output[] | select(.type == "code_interpreter_call" or .type == "code_interpreter_call_output" or .type == "message") | {type: .type, content: (if .type == "message" then .content[0].text elif .type == "code_interpreter_call" then {code: .code} elif .type == "code_interpreter_call_output" then {output: .output} else . end)}]}'
+```
+
+### Data Analysis
+
+Test with a more complex script that generates and analyzes data:
+
+```bash
+curl -s -X POST "$URL/v1/responses" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "/mnt/models",
+    "input": [
+      {
+        "type": "message",
+        "role": "user",
+        "content": [{"type": "input_text", "text": "Write a Python script that generates a list of 10 random numbers and finds the min, max, and average."}]
+      }
+    ]
+  }' | jq '{status: .status, output: [.output[] | select(.type == "code_interpreter_call" or .type == "code_interpreter_call_output" or .type == "message") | {type: .type, content: (if .type == "message" then .content[0].text elif .type == "code_interpreter_call" then {code: .code} elif .type == "code_interpreter_call_output" then {output: .output} else . end)}]}'
+```
+
+## Advanced: SandboxClaim (Production)
+
+For production environments, consider using the [agent-sandbox](https://github.com/sigs-k8s/agent-sandbox) operator instead of the standalone sandbox server. The operator manages sandbox lifecycle through Kubernetes custom resources:
+
+```yaml
+apiVersion: sandbox.agent.k8s.io/v1alpha1
+kind: SandboxClaim
+metadata:
+  name: python-sandbox
+spec:
+  runtime: python
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+  timeout: 300s
+```
+
+To use SandboxClaim with antwort, update the `providers.code_interpreter.settings` in the ConfigMap:
+
+```yaml
+providers:
+  code_interpreter:
+    enabled: true
+    settings:
+      sandbox_type: sandboxclaim
+      namespace: antwort
+```
+
+The operator provides automatic cleanup, resource quotas, and network isolation for sandbox Pods. See the [agent-sandbox documentation](https://github.com/sigs-k8s/agent-sandbox) for installation instructions.
+
+## What's Deployed
+
+| Component | Description |
+|-----------|-------------|
+| antwort | OpenResponses gateway with code interpreter enabled (1 pod) |
+| sandbox-server | Python sandbox server for code execution (1 pod) |
+| ConfigMap | Backend URL, model name, code interpreter config |
+| Services | ClusterIP for both antwort (8080) and sandbox-server (8080) |
+| Route (OpenShift) | Edge TLS for external access to antwort |
+
+## Configuration
+
+The `config.yaml` in the ConfigMap enables the code interpreter provider:
+
+```yaml
+server:
+  port: 8080
+
+engine:
+  provider: vllm
+  backend_url: http://llm-predictor.llm-serving.svc.cluster.local:8080
+  default_model: /mnt/models
+  max_turns: 10
+
+storage:
+  type: memory
+  max_size: 10000
+
+auth:
+  type: none
+
+observability:
+  metrics:
+    enabled: true
+    path: /metrics
+
+providers:
+  code_interpreter:
+    enabled: true
+    settings:
+      sandbox_url: "http://sandbox-server:8080"
+      execution_timeout: 60
+```
+
+The sandbox server image (`quay.io/rhuss/antwort-sandbox:latest`) supports these environment variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SANDBOX_MODE` | `python` | Sandbox runtime mode |
+| `SANDBOX_MAX_CONCURRENT` | `3` | Maximum concurrent executions |
+
+## Next Steps
+
+- [06-responses-proxy](../06-responses-proxy/) - Chain two antwort instances as a Responses API proxy
+- Combine with [02-production](../02-production/) for persistent storage and monitoring
+
+## Cleanup
+
+```bash
+kubectl delete namespace antwort
+```

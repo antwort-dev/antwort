@@ -8,9 +8,9 @@
 
 **Goal**: Config struct, YAML loading, env override, `_file` resolution.
 
-- [ ] T001 [US1] Create `pkg/config/config.go`: Config struct with sections (Server, Engine, Storage, Auth, MCP, Observability). Include compiled defaults. Add `_file` fields for all sensitive values (engine.api_key_file, storage.postgres.password_file, etc.) (FR-001, FR-006).
-- [ ] T002 [US1] [US2] Create `pkg/config/loader.go`: Load() function that discovers config file (FR-004, FR-005), parses YAML, applies env var overrides with ANTWORT_ prefix (FR-002, FR-003), resolves `_file` references (FR-006, FR-007), and returns the merged Config. Include backward compatibility mapping for existing env var names (FR-019).
-- [ ] T003 [US1] [US3] [US5] Write config loading tests in `pkg/config/config_test.go`: YAML loading, env override precedence, `_file` resolution, file discovery order, backward compatibility with old env vars, missing file error.
+- [x] T001 [US1] Create `pkg/config/config.go`: Config struct with sections (Server, Engine, Storage, Auth, MCP, Observability). Include compiled defaults. Add `_file` fields for all sensitive values (engine.api_key_file, storage.postgres.password_file, etc.) (FR-001, FR-006).
+- [x] T002 [US1] [US2] Create `pkg/config/loader.go`: Load() function that discovers config file (FR-004, FR-005), parses YAML, applies env var overrides with ANTWORT_ prefix (FR-002, FR-003), resolves `_file` references (FR-006, FR-007), and returns the merged Config. Include backward compatibility mapping for existing env var names (FR-019).
+- [x] T003 [US1] [US3] [US5] Write config loading tests in `pkg/config/config_test.go`: YAML loading, env override precedence, `_file` resolution, file discovery order, backward compatibility with old env vars, missing file error.
 
 **Checkpoint**: Config loads from file + env + secrets.
 
@@ -20,8 +20,8 @@
 
 **Goal**: Startup validation with clear error messages.
 
-- [ ] T004 [US1] Create `pkg/config/validate.go`: Validate() method on Config that checks required fields, type consistency, and cross-field dependencies. Return errors with field path (FR-009, FR-010, FR-011).
-- [ ] T005 [US1] Write validation tests: missing backend URL, invalid port, empty _file reference, type mismatch.
+- [x] T004 [US1] Create `pkg/config/validate.go`: Validate() method on Config that checks required fields, type consistency, and cross-field dependencies. Return errors with field path (FR-009, FR-010, FR-011).
+- [x] T005 [US1] Write validation tests: missing backend URL, invalid port, empty _file reference, type mismatch.
 
 **Checkpoint**: Invalid config fails fast with clear errors.
 
@@ -31,7 +31,7 @@
 
 **Goal**: Replace os.Getenv calls with config.Load().
 
-- [ ] T006 [US1] [US2] Refactor `cmd/server/main.go` to use config.Load() with --config flag (FR-017, FR-018). Replace all os.Getenv calls. Wire config sections to provider, store, auth, MCP executor creation. Verify conformance tests still pass.
+- [x] T006 [US1] [US2] Refactor `cmd/server/main.go` to use config.Load() with --config flag (FR-017, FR-018). Replace all os.Getenv calls. Wire config sections to provider, store, auth, MCP executor creation. Verify conformance tests still pass.
 
 **Checkpoint**: Server uses unified config. No more raw env vars.
 
@@ -51,9 +51,9 @@
 
 ## Phase 5: Polish
 
-- [ ] T010 [P] Run `go vet ./...` and `go test ./...` across all packages.
-- [ ] T011 [P] Run `make conformance` to verify no regressions.
-- [ ] T012 Create example `config.yaml` with all settings documented.
+- [x] T010 [P] Run `go vet ./...` and `go test ./...` across all packages.
+- [x] T011 [P] Run `make conformance` to verify no regressions.
+- [x] T012 Create example `config.yaml` with all settings documented.
 
 ---
 

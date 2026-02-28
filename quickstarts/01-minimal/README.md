@@ -101,6 +101,86 @@ curl -s "$URL/healthz"
 curl -s "$URL/metrics" | grep antwort_requests_total
 ```
 
+### Test Structured Output
+
+Request a response with a JSON schema to get structured output:
+
+```bash
+curl -s -X POST "$URL/v1/responses" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "/mnt/models",
+    "input": [
+      {
+        "type": "message",
+        "role": "user",
+        "content": [{"type": "input_text", "text": "List 3 programming languages with their year of creation"}]
+      }
+    ],
+    "text": {
+      "format": {
+        "type": "json_schema",
+        "name": "languages",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "languages": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {"type": "string"},
+                  "year": {"type": "integer"}
+                },
+                "required": ["name", "year"]
+              }
+            }
+          },
+          "required": ["languages"]
+        }
+      }
+    }
+  }' | jq '.output[] | select(.type == "message") | .content[0].text' -r | jq .
+```
+
+The `text.format` field constrains the model to produce valid JSON matching the schema. Expected output:
+
+```json
+{
+  "languages": [
+    {"name": "Python", "year": 1991},
+    {"name": "JavaScript", "year": 1995},
+    {"name": "Go", "year": 2009}
+  ]
+}
+```
+
+### Test Reasoning
+
+Request a response with reasoning to see the model's thought process:
+
+```bash
+curl -s -X POST "$URL/v1/responses" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "/mnt/models",
+    "input": [
+      {
+        "type": "message",
+        "role": "user",
+        "content": [{"type": "input_text", "text": "What is 15% of 240?"}]
+      }
+    ],
+    "reasoning": {"effort": "medium"}
+  }' | jq '{
+    output_types: [.output[].type],
+    reasoning: [.output[] | select(.type == "reasoning") | .summary[0].text],
+    answer: [.output[] | select(.type == "message") | .content[0].text]
+  }'
+```
+
+Reasoning output depends on model support. If the model does not support reasoning, the response will complete normally without reasoning items.
+
 ## What's Deployed
 
 | Component | Description |
@@ -129,8 +209,7 @@ auth:
 
 ## Next Steps
 
-- [02-production](../02-production/) - Add PostgreSQL persistence and Prometheus monitoring
-- [04-mcp-tools](../04-mcp-tools/) - Add MCP server for agentic tool calling
+Ready for more? Continue to [Quickstart 02: Production](../02-production/) to add PostgreSQL persistence and Prometheus monitoring.
 
 ## Cleanup
 
