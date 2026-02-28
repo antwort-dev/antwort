@@ -68,7 +68,7 @@ deploy-openshift:
 docs:
 	@command -v npx >/dev/null 2>&1 || { echo "Error: npx not found. Install Node.js 18+ from https://nodejs.org"; exit 1; }
 	@test -d docs/node_modules/@antora/lunr-extension || (cd docs && npm install --save-dev @antora/lunr-extension 2>/dev/null)
-	npx antora docs/antora-playbook.yml
+	cd docs && npx antora antora-playbook.yml
 
 # Build and serve documentation locally.
 docs-serve: docs
