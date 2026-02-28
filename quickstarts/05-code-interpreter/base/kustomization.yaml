@@ -10,5 +10,4 @@ resources:
   - sandbox-service.yaml
 
 commonLabels:
-  app.kubernetes.io/name: antwort
   app.kubernetes.io/part-of: antwort-code-interpreter
