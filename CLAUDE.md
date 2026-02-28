@@ -28,6 +28,7 @@ Auto-generated from all feature plans. Last updated: 2026-02-16
 - N/A (no persistence in this feature) (025-code-interpreter)
 - Go 1.22+ + Go standard library only for the new provider (consistent with existing providers). No new external dependencies. (030-responses-api-provider)
 - N/A (provider does not manage state) (030-responses-api-provider)
+- YAML (Kubernetes manifests), Markdown (READMEs), Bash (test commands) + Kustomize, kubectl/oc CLI, existing antwort container images (031-quickstart-updates)
 
 - Go 1.22+ + None (Go standard library only: `encoding/json`, `crypto/rand`, `errors`, `fmt`, `strings`, `regexp`) (001-core-protocol)
 
@@ -47,9 +48,9 @@ tests/
 Go 1.22+: Follow standard conventions
 
 ## Recent Changes
+- 031-quickstart-updates: Added YAML (Kubernetes manifests), Markdown (READMEs), Bash (test commands) + Kustomize, kubectl/oc CLI, existing antwort container images
 - 030-responses-api-provider: Added Go 1.22+ + Go standard library only for the new provider (consistent with existing providers). No new external dependencies.
 - 025-code-interpreter: Added Go 1.22+ + Go standard library for core. `sigs.k8s.io/controller-runtime` + `sigs.k8s.io/agent-sandbox` for SandboxClaim adapter (adapter package only).
-- 029-structured-output: Added Go 1.22+ (consistent with Specs 001-028) + Go standard library only (`encoding/json`)
 
 
 <!-- MANUAL ADDITIONS START -->
