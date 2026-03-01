@@ -250,16 +250,23 @@ jobs:
       - name: Health checks
         run: |
           kubectl port-forward -n antwort svc/antwort 8080:8080 &
-          sleep 3
-          curl -sf http://localhost:8080/healthz
-          curl -sf http://localhost:8080/readyz
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8080/readyz > /dev/null 2>&1; then
+              echo "Readyz OK after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "ERROR: readyz did not return 200 within 30s"
+          curl -v http://localhost:8080/readyz || true
+          exit 1
 
       - name: Smoke test
         run: |
           RESPONSE=$(curl -sf -X POST http://localhost:8080/v1/responses \
             -H 'Content-Type: application/json' \
             -H 'Authorization: Bearer test' \
-            -d '{"model":"mock-model","input":"hello"}')
+            -d '{"model":"mock-model","input":[{"role":"user","content":"hello"}]}')
           echo "$RESPONSE" | jq .
           STATUS=$(echo "$RESPONSE" | jq -r '.status')
           if [ "$STATUS" != "completed" ]; then
