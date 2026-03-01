@@ -144,7 +144,7 @@ A documentation contributor wants to build and preview the docs locally. They ru
 - **FR-010**: All documentation content MUST be written using the `kubernetes-patterns` voice profile via the prose plugin.
 - **FR-011**: All AsciiDoc files MUST follow semantic line breaks (one sentence per line).
 - **FR-012**: The project MUST include a `make docs` target that builds the Antora site locally.
-- **FR-013**: The Antora site MUST include search functionality via the @antora/lunr-extension.
+- **FR-013**: The documentation site MUST include full-text search via Pagefind, indexing both the Astro landing page and Antora docs. The search UI MUST be embedded in the docs navbar header with a results dropdown, styled for both light and dark modes.
 - **FR-014**: The developer module MUST include an architecture page with a visual request flow diagram showing the transport, engine, and provider layers.
 - **FR-015**: The reference module MUST include an API reference page documenting the Responses API wire format, SSE event types, and error codes.
 - **FR-016**: Cross-references (xrefs) MUST link between modules where concepts overlap (e.g., quickstart config sections linking to reference pages).
@@ -154,6 +154,7 @@ A documentation contributor wants to build and preview the docs locally. They ru
 - **FR-020**: The ROOT module MUST contain only the project overview page. Architecture and API reference pages MUST reside in the developer and reference modules respectively.
 - **FR-021**: The published documentation site MUST support light and dark mode via the countableSet/antora-ui bundle with a toggle button in the header. Theme preference MUST be stored in localStorage and shared with the main landing page.
 - **FR-022**: The documentation site MUST use the Inter font for body text, with a 15% larger font size for the main doc content area relative to the navigation sidebar.
+- **FR-023**: The documentation site MUST be automatically rebuilt and deployed when docs/ files change on the main branch, via a cross-repo dispatch from the antwort CI pipeline to the website publish workflow.
 
 ### Key Entities
 
@@ -186,12 +187,13 @@ A documentation contributor wants to build and preview the docs locally. They ru
 - Spec 012 (Configuration): provides the config system to document
 - Spec 031 (Quickstart Updates): provides the 05 and 06 quickstarts
 - Prose plugin with kubernetes-patterns voice profile
-- Antora and @antora/lunr-extension (installed via npx, no global install required)
+- Antora (installed via npx, no global install required)
+- Pagefind (run via npx after site build, generates static search index)
 
 ## Out of Scope
 
 - Landing page (Spec 018, separate Astro-based site)
 - API documentation auto-generation from Go source code
-- Hosting setup (GitHub Pages, Netlify, etc.)
+- Hosting setup beyond GitHub Pages (Netlify, Cloudflare, etc.)
 - Internationalization or translations
 - PDF export of documentation
