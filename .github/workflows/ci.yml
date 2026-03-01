@@ -282,3 +282,32 @@ jobs:
       - name: Cleanup
         if: always()
         run: kind delete cluster --name ci
+
+  # Trigger website rebuild when docs change on main
+  docs-deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check for docs changes
+        id: docs-check
+        run: |
+          if git diff --name-only HEAD~1 HEAD | grep -qE '^docs/'; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Trigger website rebuild
+        if: steps.docs-check.outputs.changed == 'true'
+        run: |
+          curl -sf -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.WEBSITE_DISPATCH_TOKEN }}" \
+            https://api.github.com/repos/antwort-dev/antwort-dev.github.io/dispatches \
+            -d '{"event_type":"docs-updated"}'
+          echo "Triggered website rebuild"
