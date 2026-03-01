@@ -3,7 +3,7 @@
 **Feature Branch**: `032-documentation-site`
 **Created**: 2026-02-28
 **Status**: Draft
-**Input**: Comprehensive AsciiDoc documentation site using Antora with six modules, written in the kubernetes-patterns voice via the prose plugin.
+**Input**: Comprehensive AsciiDoc documentation site using Antora with seven modules, organized by audience (platform engineers, application developers, extension developers). Uses the countableSet/antora-ui bundle with dark mode toggle and Inter font.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -39,20 +39,21 @@ A developer or operator needs to look up a specific configuration option to unde
 
 ---
 
-### User Story 3 - Extensions Guide: Building a Custom Provider (Priority: P2)
+### User Story 3 - Developer Guide: Architecture and Extensions (Priority: P2)
 
-A developer wants to add support for a new LLM backend. The extensions module explains the Provider interface, walks through the required methods (Complete, Stream, ListModels, Capabilities), shows the existing vLLM provider as a reference, and explains how to register the new provider.
+A developer wants to understand antwort's internal architecture or add support for a new LLM backend. The developer module consolidates architecture internals and extension interfaces in a single section. It explains the layered request flow, the Provider interface, required methods (Complete, Stream, ListModels, Capabilities), and how to register custom implementations.
 
-**Why this priority**: Extension points are what make antwort a platform rather than a product. Documenting them enables community contributions.
+**Why this priority**: Extension points are what make antwort a platform rather than a product. Grouping architecture and extension docs together gives contributors the full picture.
 
-**Independent Test**: A developer can read the providers extension guide and understand the interface contract well enough to sketch a new provider implementation without reading the source code.
+**Independent Test**: A developer can read the developer guide and understand both the internal architecture and the interface contracts well enough to sketch a new provider implementation without reading the source code.
 
 **Acceptance Scenarios**:
 
-1. **Given** a developer reads the provider extension guide, **When** they look for the interface definition, **Then** they find the complete method signatures with parameter and return types explained in prose.
-2. **Given** a developer reads the storage extension guide, **When** they look for the ResponseStore interface, **Then** they find the contract, tenant context propagation pattern, and a reference to the PostgreSQL adapter.
-3. **Given** a developer reads the auth extension guide, **When** they look for the Authenticator interface, **Then** they find the three-outcome voting model (Yes/No/Abstain) explained with the chain composition pattern.
-4. **Given** a developer reads the tools extension guide, **When** they look for the FunctionProvider interface, **Then** they find the registration pattern, route mounting, and Prometheus collector integration.
+1. **Given** a developer reads the architecture page in the developer module, **When** they look for the request flow, **Then** they find a visual diagram showing transport, engine, and provider layers.
+2. **Given** a developer reads the provider extension guide, **When** they look for the interface definition, **Then** they find the complete method signatures with parameter and return types explained in prose.
+3. **Given** a developer reads the storage extension guide, **When** they look for the ResponseStore interface, **Then** they find the contract, tenant context propagation pattern, and a reference to the PostgreSQL adapter.
+4. **Given** a developer reads the auth extension guide, **When** they look for the Authenticator interface, **Then** they find the three-outcome voting model (Yes/No/Abstain) explained with the chain composition pattern.
+5. **Given** a developer reads the tools extension guide, **When** they look for the FunctionProvider interface, **Then** they find the registration pattern, route mounting, and Prometheus collector integration.
 
 ---
 
@@ -88,7 +89,24 @@ An operator deploying antwort in production needs guidance on monitoring, troubl
 
 ---
 
-### User Story 6 - Documentation Build and Preview (Priority: P1)
+### User Story 6 - Client SDKs: Using Antwort from Application Code (Priority: P2)
+
+An application developer wants to use antwort from their code using the OpenAI SDK. The client module shows how to configure the SDK to point at an antwort instance, with examples for Python and TypeScript covering text responses, streaming, tool calling, conversation chaining, structured output, and reasoning.
+
+**Why this priority**: Antwort's value proposition is OpenAI SDK compatibility. Without client-side documentation, application developers cannot discover or use this compatibility.
+
+**Independent Test**: A developer with a running antwort instance can follow the Python or TypeScript SDK page and successfully send requests, stream responses, and use tool calling.
+
+**Acceptance Scenarios**:
+
+1. **Given** a developer reads the client overview, **When** they look for supported SDKs, **Then** they find a table listing Python, TypeScript, Go, Java, and .NET with install commands.
+2. **Given** a developer reads the Python SDK page, **When** they follow the examples, **Then** they can send a text request, stream a response, and chain conversations using `previous_response_id`.
+3. **Given** a developer reads the patterns page, **When** they look for server-side vs client-side tools, **Then** they find clear explanations of both execution models with code examples.
+4. **Given** a developer encounters an error, **When** they check the client troubleshooting page, **Then** they find guidance for common issues (connection errors, 401, model not found).
+
+---
+
+### User Story 7 - Documentation Build and Preview (Priority: P1)
 
 A documentation contributor wants to build and preview the docs locally. They run a single command (`make docs`) and get a local preview with search functionality.
 
@@ -115,23 +133,27 @@ A documentation contributor wants to build and preview the docs locally. They ru
 ### Functional Requirements
 
 - **FR-001**: The documentation site MUST use Antora as the static site generator with an antora-playbook.yml.
-- **FR-002**: The documentation MUST be organized into six Antora modules: ROOT, tutorial, reference, extensions, quickstarts, and operations.
+- **FR-002**: The documentation MUST be organized into seven Antora modules: ROOT, tutorial, client, quickstarts, operations, reference, and developer. The modules are ordered by audience: platform engineers (tutorial, quickstarts, operations), application developers (client), then extension developers (developer).
 - **FR-003**: Each module MUST have its own nav.adoc defining the navigation structure for that module.
 - **FR-004**: The tutorial module MUST include pages for getting-started, first-tools, code-execution, and going-production.
 - **FR-005**: The reference module MUST include an annotated configuration page with YAML examples and callouts for every configuration section.
 - **FR-006**: The reference module MUST include a configuration reference table listing every config key with its type, default value, environment variable, and description.
-- **FR-007**: The extensions module MUST document the Provider, ResponseStore, Authenticator, and FunctionProvider interfaces with prose explanations of each method.
+- **FR-007**: The developer module (formerly extensions) MUST document the Provider, ResponseStore, Authenticator, and FunctionProvider interfaces with prose explanations of each method.
 - **FR-008**: The quickstarts module MUST contain all six quickstarts (01-06) converted from Markdown to AsciiDoc format.
 - **FR-009**: The operations module MUST include pages for monitoring, deployment, troubleshooting, and security.
 - **FR-010**: All documentation content MUST be written using the `kubernetes-patterns` voice profile via the prose plugin.
 - **FR-011**: All AsciiDoc files MUST follow semantic line breaks (one sentence per line).
 - **FR-012**: The project MUST include a `make docs` target that builds the Antora site locally.
 - **FR-013**: The Antora site MUST include search functionality via the @antora/lunr-extension.
-- **FR-014**: The ROOT module MUST include an architecture page with a visual request flow diagram showing the transport, engine, and provider layers.
-- **FR-015**: The ROOT module MUST include an API reference page documenting the Responses API wire format, SSE event types, and error codes.
+- **FR-014**: The developer module MUST include an architecture page with a visual request flow diagram showing the transport, engine, and provider layers.
+- **FR-015**: The reference module MUST include an API reference page documenting the Responses API wire format, SSE event types, and error codes.
 - **FR-016**: Cross-references (xrefs) MUST link between modules where concepts overlap (e.g., quickstart config sections linking to reference pages).
 - **FR-017**: The reference module MUST include an environment variables page mapping all config keys to their `ANTWORT_*` environment variable equivalents.
 - **FR-018**: The operations module MUST list all available Prometheus metrics with their descriptions and label dimensions.
+- **FR-019**: The client module MUST include an overview page listing supported OpenAI SDKs, a Python SDK page, a TypeScript SDK page, a common patterns page (streaming, tool calling, conversation chaining, structured output), and a troubleshooting page.
+- **FR-020**: The ROOT module MUST contain only the project overview page. Architecture and API reference pages MUST reside in the developer and reference modules respectively.
+- **FR-021**: The published documentation site MUST support light and dark mode via the countableSet/antora-ui bundle with a toggle button in the header. Theme preference MUST be stored in localStorage and shared with the main landing page.
+- **FR-022**: The documentation site MUST use the Inter font for body text, with a 15% larger font size for the main doc content area relative to the navigation sidebar.
 
 ### Key Entities
 
@@ -171,6 +193,5 @@ A documentation contributor wants to build and preview the docs locally. They ru
 - Landing page (Spec 018, separate Astro-based site)
 - API documentation auto-generation from Go source code
 - Hosting setup (GitHub Pages, Netlify, etc.)
-- Dark theme or custom UI bundle for the Antora site
 - Internationalization or translations
 - PDF export of documentation
