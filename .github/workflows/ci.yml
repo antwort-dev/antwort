@@ -261,18 +261,19 @@ jobs:
           curl -v http://localhost:8080/healthz || true
           exit 1
 
-      - name: Smoke test
-        run: |
-          RESPONSE=$(curl -sf -X POST http://localhost:8080/v1/responses \
-            -H 'Content-Type: application/json' \
-            -H 'Authorization: Bearer test' \
-            -d '{"model":"mock-model","input":[{"role":"user","content":"hello"}]}')
-          echo "$RESPONSE" | jq .
-          STATUS=$(echo "$RESPONSE" | jq -r '.status')
-          if [ "$STATUS" != "completed" ]; then
-            echo "ERROR: Expected status 'completed', got '$STATUS'"
-            exit 1
-          fi
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python SDK test dependencies
+        run: pip install -r test/sdk/python/requirements.txt
+
+      - name: Run SDK tests against K8s cluster
+        run: pytest test/sdk/python/ -v
+        env:
+          ANTWORT_BASE_URL: http://localhost:8080/v1
+          ANTWORT_API_KEY: test
+          ANTWORT_MODEL: mock-model
 
       - name: Pod logs on failure
         if: failure()
