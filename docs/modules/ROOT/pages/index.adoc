@@ -62,3 +62,4 @@ Latency histograms, token counters, and tool execution metrics are exposed on th
 * xref:operations:monitoring.adoc[Operations] covers monitoring, deployment, troubleshooting, and security.
 * xref:reference:api-reference.adoc[API Reference] documents the complete wire format, including request schemas, SSE events, and error codes.
 * xref:developer:architecture.adoc[Developer Guide] provides a deep dive into architecture, extension points, and how to build custom providers, storage backends, and authenticators.
+
