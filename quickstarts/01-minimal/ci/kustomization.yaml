@@ -6,7 +6,9 @@ resources:
   - mock-backend.yaml
 
 patches:
-  # Use locally built image, no registry pull
+  # Use locally built image, no registry pull.
+  # Remove runAsNonRoot because distroless uses string "nonroot" user
+  # which kind rejects (requires numeric UID for verification).
   - target:
       kind: Deployment
       name: antwort
@@ -17,6 +19,8 @@ patches:
       - op: add
         path: /spec/template/spec/containers/0/imagePullPolicy
         value: Never
+      - op: remove
+        path: /spec/template/spec/securityContext/runAsNonRoot
 
   # Point antwort at the mock-backend service
   - target:

@@ -15,11 +15,16 @@ const MODEL = process.env.ANTWORT_MODEL || "mock-model";
 
 const client = new OpenAI({ baseURL: BASE_URL, apiKey: API_KEY });
 
+/** Build a structured input message (antwort requires array of Item, not plain string). */
+function msg(text: string) {
+  return [{ role: "user" as const, content: text }];
+}
+
 describe("antwort SDK compatibility", () => {
   test("basic response", async () => {
     const response = await client.responses.create({
       model: MODEL,
-      input: "What is 2+2?",
+      input: msg("What is 2+2?"),
     });
     expect(response.id).toMatch(/^resp_/);
     expect(response.status).toBe("completed");
@@ -31,7 +36,7 @@ describe("antwort SDK compatibility", () => {
   test("streaming", async () => {
     const stream = await client.responses.create({
       model: MODEL,
-      input: "Say hello.",
+      input: msg("Say hello."),
       stream: true,
     });
 
@@ -53,7 +58,7 @@ describe("antwort SDK compatibility", () => {
   test("tool calling", async () => {
     const response = await client.responses.create({
       model: MODEL,
-      input: "Use the test tool.",
+      input: msg("Use the test tool."),
       tools: [
         {
           type: "function" as const,
@@ -75,13 +80,13 @@ describe("antwort SDK compatibility", () => {
   test("conversation chaining", async () => {
     const first = await client.responses.create({
       model: MODEL,
-      input: "Remember this: alpha.",
+      input: msg("Remember this: alpha."),
     });
     expect(first.id).toMatch(/^resp_/);
 
     const second = await client.responses.create({
       model: MODEL,
-      input: "What did I say?",
+      input: msg("What did I say?"),
       previous_response_id: first.id,
     });
     expect(second.id).toMatch(/^resp_/);
@@ -92,7 +97,7 @@ describe("antwort SDK compatibility", () => {
   test("structured output", async () => {
     const response = await client.responses.create({
       model: MODEL,
-      input: "List three colors.",
+      input: msg("List three colors."),
       text: {
         format: {
           type: "json_schema",

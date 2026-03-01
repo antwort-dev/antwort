@@ -74,6 +74,9 @@ func TestIntegration_CodeInterpreter_ExecuteWithRequirements(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
+	if _, err := exec.LookPath("uv"); err != nil {
+		t.Skip("skipping: uv not installed (required for pip package installation)")
+	}
 
 	sandboxURL := startSandboxServer(t)
 

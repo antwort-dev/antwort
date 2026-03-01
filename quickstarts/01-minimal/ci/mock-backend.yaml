@@ -15,7 +15,6 @@ spec:
         app.kubernetes.io/name: mock-backend
     spec:
       securityContext:
-        runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
       containers:
