@@ -150,6 +150,15 @@ api (pkg/api/)  <-- shared types, depended on by all layers
 - `pkg/engine/` implements the handler interfaces. Depends on `pkg/api/` and `pkg/transport/` (for interface types only).
 - `pkg/provider/` defines the provider interface and adapters. Depends on `pkg/api/` only. Does not import `pkg/transport/`.
 
+### Multi-User vs Multi-Tenant
+
+These terms have distinct meanings in the antwort project. All specs, documentation, and code must use them precisely.
+
+- **Multi-user**: A single antwort instance serving multiple individual users. Users are authenticated (via API key or JWT) and their data is isolated within the same instance. Each user has their own identity, responses, and conversation history. The auth middleware, `Identity.Subject`, and storage scoping enforce this isolation. Quickstart 03-multi-user demonstrates this model.
+- **Multi-tenant**: Multiple antwort instances, each serving a different user group (tenant). A tenant is a group of users that share a common organizational boundary (team, department, organization). Tenants are isolated at the infrastructure level: separate Deployments, separate storage databases, separate configuration. Cross-tenant access is impossible because the instances do not share state.
+
+In practice: multi-user isolation happens inside a single process via identity-scoped queries. Multi-tenant isolation happens outside the process via separate Kubernetes Deployments. The `Identity.Metadata["tenant_id"]` field identifies which tenant a user belongs to within a multi-user instance, enabling per-tenant rate limiting and access control. It does not create multi-tenant isolation on its own.
+
 ### Two-Tier API
 
 Antwort supports two operational modes determined per-request, not per-deployment:
@@ -166,4 +175,4 @@ The engine handles both modes. Stateless mode is always available. Stateful feat
 - New specs must declare compliance with these principles. Deviations require explicit justification in the spec's Assumptions or Clarifications section.
 - Code reviews verify constitutional compliance. Non-compliant code is not merged.
 
-**Version**: 1.3.0 | **Ratified**: 2026-02-17 | **Last Amended**: 2026-02-28
+**Version**: 1.4.0 | **Ratified**: 2026-02-17 | **Last Amended**: 2026-03-01
