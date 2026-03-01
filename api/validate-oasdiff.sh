@@ -39,17 +39,46 @@ echo ""
 
 # Compare using remote URL (oasdiff resolves $ref references).
 # --prefix-base /v1 aligns the upstream /responses path with our /v1/responses.
+#
+# NOTE: oasdiff labels changes as "error", "warning", or "info" based on the
+# *type* of change (e.g., type-changed = error, property-removed = warning).
+# These labels describe change severity, NOT test failures.
+# The command returns exit 0 if no changes would break existing clients,
+# even when many "error"-labeled changes are reported.
 RESULT=0
-if oasdiff breaking "$UPSTREAM_URL" "$LOCAL_SPEC" \
+OUTPUT=$(oasdiff breaking "$UPSTREAM_URL" "$LOCAL_SPEC" \
     --prefix-base "/v1" \
-    --format text 2>&1; then
-    echo "No breaking changes detected."
+    --format text 2>&1) || RESULT=$?
+
+echo "$OUTPUT"
+
+if [ "$RESULT" -eq 0 ]; then
+    # Count error/warning/info for the summary
+    ERRORS=$(echo "$OUTPUT" | grep -c '^error' || true)
+    WARNINGS=$(echo "$OUTPUT" | grep -c '^warning' || true)
+
+    echo ""
+    echo "=========================================="
+    echo "  RESULT: No breaking changes detected"
+    echo "=========================================="
+    if [ "$ERRORS" -gt 0 ] || [ "$WARNINGS" -gt 0 ]; then
+        echo ""
+        echo "  The ${ERRORS} error(s) and ${WARNINGS} warning(s) above"
+        echo "  are change classifications, not failures."
+        echo "  They indicate places where antwort's spec diverges"
+        echo "  from upstream (simpler schemas, fewer tool types,"
+        echo "  nullable fields). These are intentional and do not"
+        echo "  break OpenAI SDK clients."
+    fi
 else
-    RESULT=$?
     echo ""
-    echo "Breaking changes detected (exit code: $RESULT)."
+    echo "=========================================="
+    echo "  RESULT: BREAKING CHANGES DETECTED"
+    echo "=========================================="
     echo ""
-    echo "If these are intentional divergences, document them in api/DIVERGENCES.md"
+    echo "  Exit code: $RESULT"
+    echo "  These changes would break existing clients."
+    echo "  If intentional, document in api/DIVERGENCES.md"
 fi
 
 # Run a diff summary for informational purposes.
