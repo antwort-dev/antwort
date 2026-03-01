@@ -1,0 +1,6 @@
+.Client SDKs
+* xref:index.adoc[Overview]
+* xref:python.adoc[Python]
+* xref:typescript.adoc[TypeScript]
+* xref:patterns.adoc[Common Patterns]
+* xref:troubleshooting.adoc[Troubleshooting]

@@ -1,0 +1,92 @@
+= Client SDKs
+:description: Using Antwort from application code with OpenAI-compatible SDKs.
+
+Antwort implements the https://platform.openai.com/docs/api-reference/responses[OpenAI Responses API].
+Any application built with an official OpenAI SDK can point at an Antwort instance and work without modification.
+You do not need a special client library.
+
+== Supported SDKs
+
+[cols="1,2,1"]
+|===
+| Language | Package | Install
+
+| Python
+| https://github.com/openai/openai-python[openai]
+| `pip install openai`
+
+| TypeScript / Node
+| https://github.com/openai/openai-node[openai]
+| `npm install openai`
+
+| Go
+| https://github.com/openai/openai-go[openai-go]
+| `go get github.com/openai/openai-go`
+
+| Java
+| https://github.com/openai/openai-java[openai-java]
+| Maven / Gradle
+
+| .NET
+| https://github.com/openai/openai-dotnet[openai-dotnet]
+| `dotnet add package OpenAI`
+|===
+
+== Connecting to Antwort
+
+Every OpenAI SDK accepts a `base_url` (or equivalent) parameter.
+Point it at your Antwort instance and all Responses API calls go through Antwort instead of OpenAI.
+
+[source,python]
+----
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://antwort.example.com/v1",  # <1>
+    api_key="your-api-key",                      # <2>
+)
+----
+<1> Replace with your Antwort endpoint.
+The `/v1` path prefix is required.
+<2> The API key depends on your Antwort auth configuration.
+Use any non-empty string if auth is set to `none`.
+
+== Feature Matrix
+
+All features of the Responses API are supported:
+
+[cols="2,1,3"]
+|===
+| Feature | Supported | Notes
+
+| Text responses
+| Yes
+| Streaming and non-streaming
+
+| Multi-turn conversations
+| Yes
+| Via `previous_response_id`
+
+| Tool calling (server-side)
+| Yes
+| MCP tools, code interpreter, web search
+
+| Structured output
+| Yes
+| JSON Schema via `text.format`
+
+| Reasoning
+| Yes
+| Via `reasoning.effort` parameter
+
+| Model listing
+| Yes
+| `GET /v1/models` returns available models
+|===
+
+== Next Steps
+
+* xref:python.adoc[Python SDK] for a complete Python walkthrough
+* xref:typescript.adoc[TypeScript SDK] for Node.js examples
+* xref:patterns.adoc[Common Patterns] for streaming, tool calling, and conversation chaining
+* xref:reference:api-reference.adoc[API Reference] for the full wire format specification

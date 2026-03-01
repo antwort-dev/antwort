@@ -5,7 +5,8 @@ start_page: ROOT:index.adoc
 nav:
   - modules/ROOT/nav.adoc
   - modules/tutorial/nav.adoc
-  - modules/reference/nav.adoc
-  - modules/extensions/nav.adoc
+  - modules/client/nav.adoc
   - modules/quickstarts/nav.adoc
   - modules/operations/nav.adoc
+  - modules/reference/nav.adoc
+  - modules/developer/nav.adoc

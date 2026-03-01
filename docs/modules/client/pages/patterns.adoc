@@ -1,0 +1,265 @@
+= Common Patterns
+:description: Patterns for streaming, tool calling, conversation chaining, and structured output when using Antwort.
+
+This page covers patterns that apply across all SDKs.
+Code examples use Python, but the concepts translate directly to TypeScript and other languages.
+
+== Structured Input
+
+For simple prompts, pass a plain string as `input`.
+For conversations with explicit roles, pass a list of input items:
+
+[source,python]
+----
+response = client.responses.create(
+    model="qwen/Qwen2.5-7B-Instruct",
+    input=[
+        {
+            "type": "message",
+            "role": "user",
+            "content": [
+                {"type": "input_text", "text": "Summarize this document."}
+            ],
+        }
+    ],
+    instructions="You are a helpful assistant that writes concise summaries.",
+)
+----
+
+The `instructions` parameter sets a system-level prompt that is prepended to every conversation turn.
+
+== Streaming Best Practices
+
+=== Reconstructing Full Text
+
+To collect the complete response text from a stream:
+
+[source,python]
+----
+stream = client.responses.create(
+    model="qwen/Qwen2.5-7B-Instruct",
+    input="Write a haiku about containers.",
+    stream=True,
+)
+
+full_text = ""
+for event in stream:
+    if event.type == "response.output_text.delta":
+        full_text += event.delta
+
+print(full_text)
+----
+
+=== Tracking Token Usage
+
+Usage information is delivered in the `response.completed` event:
+
+[source,python]
+----
+for event in stream:
+    if event.type == "response.output_text.delta":
+        print(event.delta, end="")
+    elif event.type == "response.completed":
+        usage = event.response.usage
+        print(f"\nTokens: {usage.input_tokens} in, {usage.output_tokens} out")
+----
+
+=== Handling Errors During Streaming
+
+If an error occurs mid-stream, the server sends a `response.failed` event:
+
+[source,python]
+----
+for event in stream:
+    if event.type == "response.failed":
+        error = event.response.error
+        print(f"Error: {error.code} - {error.message}")
+        break
+    elif event.type == "response.output_text.delta":
+        print(event.delta, end="")
+----
+
+== Multi-Turn Conversations
+
+=== Chaining with `previous_response_id`
+
+Each response has an `id`.
+Pass it as `previous_response_id` in the next request to continue the conversation:
+
+[source,python]
+----
+r1 = client.responses.create(
+    model="qwen/Qwen2.5-7B-Instruct",
+    input="I'm building a REST API in Go.",
+)
+
+r2 = client.responses.create(
+    model="qwen/Qwen2.5-7B-Instruct",
+    input="What router should I use?",
+    previous_response_id=r1.id,
+)
+
+r3 = client.responses.create(
+    model="qwen/Qwen2.5-7B-Instruct",
+    input="Show me a minimal example.",
+    previous_response_id=r2.id,
+)
+----
+
+Antwort reconstructs the full history from stored responses.
+This requires a persistence backend (PostgreSQL or in-memory).
+
+=== Retrieving Past Responses
+
+Fetch a previously stored response by its ID:
+
+[source,python]
+----
+response = client.responses.retrieve("resp_abc123")
+print(response.output_text)
+----
+
+== Server-Side vs Client-Side Tools
+
+Antwort supports two tool execution models:
+
+=== Server-Side Tools (Default)
+
+Tools registered on the Antwort server (via MCP or built-in configuration) are executed automatically.
+The client sends the request, Antwort handles the tool loop, and the final answer comes back.
+
+[source,python]
+----
+# Server-side: Antwort executes the tool and returns the final answer
+response = client.responses.create(
+    model="qwen/Qwen2.5-7B-Instruct",
+    input="Run print(2**10) in Python.",
+    tools=[{"type": "code_interpreter"}],
+)
+print(response.output_text)  # "1024"
+----
+
+=== Client-Side Tools
+
+If a tool is not registered on the server, Antwort returns a response with `status: "incomplete"` containing the function call.
+Your client code executes the tool and sends the result back:
+
+[source,python]
+----
+import json
+
+# Step 1: Send request with tool definition
+response = client.responses.create(
+    model="qwen/Qwen2.5-7B-Instruct",
+    input="What's the weather in Berlin?",
+    tools=[
+        {
+            "type": "function",
+            "name": "get_weather",
+            "description": "Get current weather for a city",
+            "parameters": {
+                "type": "object",
+                "properties": {"city": {"type": "string"}},
+                "required": ["city"],
+            },
+        }
+    ],
+)
+
+# Step 2: Check if a tool call was requested
+for item in response.output:
+    if item.type == "function_call":
+        # Execute your function locally
+        args = json.loads(item.arguments)
+        result = get_weather(args["city"])  # your implementation
+
+        # Step 3: Send the result back
+        response = client.responses.create(
+            model="qwen/Qwen2.5-7B-Instruct",
+            previous_response_id=response.id,
+            input=[
+                {
+                    "type": "function_call_output",
+                    "call_id": item.call_id,
+                    "output": json.dumps(result),
+                }
+            ],
+        )
+
+print(response.output_text)
+----
+
+== Structured Output
+
+=== JSON Schema
+
+Constrain the model to output valid JSON matching a schema:
+
+[source,python]
+----
+response = client.responses.create(
+    model="qwen/Qwen2.5-7B-Instruct",
+    input="Extract the person's name and age from: 'Alice is 30 years old.'",
+    text={
+        "format": {
+            "type": "json_schema",
+            "name": "person_info",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "age": {"type": "integer"},
+                },
+                "required": ["name", "age"],
+            },
+        }
+    },
+)
+
+import json
+person = json.loads(response.output_text)
+# {"name": "Alice", "age": 30}
+----
+
+=== Plain JSON
+
+For simpler cases where you just need valid JSON without a schema:
+
+[source,python]
+----
+response = client.responses.create(
+    model="qwen/Qwen2.5-7B-Instruct",
+    input="List three fruits as a JSON array.",
+    text={"format": {"type": "json_object"}},
+)
+----
+
+== Reasoning
+
+Enable extended reasoning for complex tasks:
+
+[source,python]
+----
+response = client.responses.create(
+    model="qwen/Qwen2.5-7B-Instruct",
+    input="Solve: If a train leaves at 3pm going 60mph and another at 4pm going 80mph, when do they meet?",
+    reasoning={"effort": "high"},
+)
+
+print(response.output_text)
+----
+
+With streaming, reasoning tokens arrive as `response.reasoning.delta` events before the final output.
+
+== Model Selection
+
+List available models to discover what your Antwort instance serves:
+
+[source,python]
+----
+models = client.models.list()
+for model in models:
+    print(f"{model.id} (owned by: {model.owned_by})")
+----
+
+The available models depend on the provider configured on the Antwort server.

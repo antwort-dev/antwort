@@ -1,4 +1,2 @@
 .Antwort
 * xref:index.adoc[Overview]
-* xref:architecture.adoc[Architecture]
-* xref:api-reference.adoc[API Reference]

@@ -1,0 +1,152 @@
+= TypeScript SDK
+:description: Using Antwort with the OpenAI Node.js/TypeScript SDK.
+
+This page walks through common use cases with the https://github.com/openai/openai-node[OpenAI Node SDK].
+
+== Setup
+
+Install the SDK:
+
+[source,bash]
+----
+npm install openai
+----
+
+Create a client pointing at your Antwort instance:
+
+[source,typescript]
+----
+import OpenAI from "openai";
+
+const client = new OpenAI({
+  baseURL: "https://antwort.example.com/v1",
+  apiKey: "your-api-key",
+});
+----
+
+TIP: Set `OPENAI_BASE_URL` and `OPENAI_API_KEY` as environment variables to avoid hardcoding credentials.
+
+== Simple Text Response
+
+[source,typescript]
+----
+const response = await client.responses.create({
+  model: "qwen/Qwen2.5-7B-Instruct",
+  input: "What is Kubernetes?",
+});
+
+console.log(response.output_text);
+----
+
+== Streaming
+
+Use the `stream: true` option and iterate with `for await`:
+
+[source,typescript]
+----
+const stream = await client.responses.create({
+  model: "qwen/Qwen2.5-7B-Instruct",
+  input: "Explain container networking in three sentences.",
+  stream: true,
+});
+
+for await (const event of stream) {
+  if (event.type === "response.output_text.delta") {
+    process.stdout.write(event.delta);
+  }
+}
+console.log(); // newline after stream
+----
+
+== Tool Calling
+
+Server-side tools are executed by Antwort automatically.
+Include tool definitions in the request:
+
+[source,typescript]
+----
+const response = await client.responses.create({
+  model: "qwen/Qwen2.5-7B-Instruct",
+  input: "What time is it in Berlin?",
+  tools: [
+    {
+      type: "function",
+      name: "get_time",
+      description: "Get the current time in a timezone",
+      parameters: {
+        type: "object",
+        properties: {
+          timezone: {
+            type: "string",
+            description: "IANA timezone name",
+          },
+        },
+        required: ["timezone"],
+      },
+    },
+  ],
+});
+
+console.log(response.output_text);
+----
+
+== Conversation Chaining
+
+Build multi-turn conversations with `previous_response_id`:
+
+[source,typescript]
+----
+const first = await client.responses.create({
+  model: "qwen/Qwen2.5-7B-Instruct",
+  input: "My name is Alice.",
+});
+
+const second = await client.responses.create({
+  model: "qwen/Qwen2.5-7B-Instruct",
+  input: "What is my name?",
+  previous_response_id: first.id,
+});
+
+console.log(second.output_text); // "Your name is Alice."
+----
+
+== Structured Output
+
+Constrain the output to a JSON schema:
+
+[source,typescript]
+----
+const response = await client.responses.create({
+  model: "qwen/Qwen2.5-7B-Instruct",
+  input: "List three European capitals.",
+  text: {
+    format: {
+      type: "json_schema",
+      name: "capitals",
+      schema: {
+        type: "object",
+        properties: {
+          capitals: {
+            type: "array",
+            items: { type: "string" },
+          },
+        },
+        required: ["capitals"],
+      },
+    },
+  },
+});
+
+const data = JSON.parse(response.output_text);
+console.log(data.capitals);
+----
+
+== Listing Available Models
+
+[source,typescript]
+----
+const models = await client.models.list();
+for await (const model of models) {
+  console.log(model.id);
+}
+----

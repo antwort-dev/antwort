@@ -56,8 +56,9 @@ Latency histograms, token counters, and tool execution metrics are exposed on th
 
 == Where to Go Next
 
-* xref:architecture.adoc[Architecture] provides a deep dive into the request flow, component layers, and extension points.
-* xref:api-reference.adoc[API Reference] documents the complete wire format, including request schemas, response schemas, SSE event types, and error codes.
-* xref:quickstarts:index.adoc[Quickstarts] walk through deploying Antwort on Kubernetes, from a minimal single-Pod setup to production configurations with PostgreSQL and multi-user auth.
-* xref:extensions:overview.adoc[Extensions] explains how to implement custom providers, tool executors, authenticators, and storage backends.
-* xref:operations:monitoring.adoc[Operations] covers production deployment, monitoring, and troubleshooting.
+* xref:tutorial:getting-started.adoc[Tutorial] walks through deploying your first Antwort instance on Kubernetes.
+* xref:client:index.adoc[Client SDKs] shows how to use Antwort from Python, TypeScript, and other OpenAI-compatible SDKs.
+* xref:quickstarts:index.adoc[Quickstarts] provide ready-to-deploy Kubernetes configurations, from minimal setups to production with PostgreSQL and multi-user auth.
+* xref:operations:monitoring.adoc[Operations] covers monitoring, deployment, troubleshooting, and security.
+* xref:reference:api-reference.adoc[API Reference] documents the complete wire format, including request schemas, SSE events, and error codes.
+* xref:developer:architecture.adoc[Developer Guide] provides a deep dive into architecture, extension points, and how to build custom providers, storage backends, and authenticators.

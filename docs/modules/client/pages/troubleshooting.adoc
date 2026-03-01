@@ -1,0 +1,163 @@
+= Client Troubleshooting
+:description: Diagnosing and fixing common issues when connecting to Antwort with OpenAI SDKs.
+
+== Connection Errors
+
+=== Connection Refused
+
+[source]
+----
+openai.APIConnectionError: Connection error.
+----
+
+The SDK cannot reach the Antwort server.
+
+* Verify the `base_url` is correct and includes the `/v1` path prefix
+* Check that the Antwort Pod is running: `kubectl get pods -n antwort`
+* If using port-forward: `kubectl port-forward -n antwort svc/antwort 8080:8080`
+* Test connectivity: `curl -s https://antwort.example.com/healthz`
+
+=== SSL Certificate Errors
+
+If your Antwort instance uses a self-signed certificate:
+
+[source,python]
+----
+import httpx
+
+client = OpenAI(
+    base_url="https://antwort.example.com/v1",
+    api_key="your-key",
+    http_client=httpx.Client(verify=False),  # development only
+)
+----
+
+WARNING: Never disable certificate verification in production.
+Configure proper TLS certificates via your Kubernetes Ingress.
+
+== Authentication Errors
+
+=== 401 Unauthorized
+
+[source]
+----
+openai.AuthenticationError: Error code: 401
+----
+
+The API key is invalid or missing.
+
+* Check your Antwort auth configuration (`auth.mode` in config)
+* If auth mode is `none`, use any non-empty string as the API key
+* If auth mode is `apikey`, verify the key matches a configured bearer token
+* If auth mode is `jwt`, ensure you are passing a valid JWT as the API key
+
+=== Obtaining a JWT Token
+
+For Antwort instances with JWT/OIDC authentication:
+
+[source,bash]
+----
+# Get a token from your OIDC provider (Keycloak example)
+TOKEN=$(curl -s -X POST \
+  "https://keycloak.example.com/realms/antwort/protocol/openid-connect/token" \
+  -d "grant_type=password" \
+  -d "client_id=antwort" \
+  -d "username=alice" \
+  -d "password=alice" | jq -r '.access_token')
+----
+
+[source,python]
+----
+client = OpenAI(
+    base_url="https://antwort.example.com/v1",
+    api_key=TOKEN,
+)
+----
+
+== Model Errors
+
+=== 404 Model Not Found
+
+[source]
+----
+openai.NotFoundError: Error code: 404 - Model 'gpt-4' not found
+----
+
+The requested model is not available on your Antwort instance.
+Antwort serves models from its configured backend, not from OpenAI.
+
+* List available models: `client.models.list()`
+* Check your provider configuration on the server
+* Use the exact model ID from the model list
+
+=== No Models Available
+
+If `client.models.list()` returns an empty list:
+
+* The LLM backend may not be running
+* Check the backend Pod: `kubectl get pods -n antwort`
+* Verify the provider URL in the Antwort configuration
+
+== Streaming Issues
+
+=== Incomplete Responses
+
+If streaming stops before the response is complete:
+
+* Check for `response.failed` events in the stream
+* The model may have hit a token limit; check `max_output_tokens` in your request
+* Network timeouts can interrupt long streams; increase client timeout if needed
+
+=== Timeout Configuration
+
+For long-running responses (e.g., complex tool calling chains):
+
+[source,python]
+----
+client = OpenAI(
+    base_url="https://antwort.example.com/v1",
+    api_key="your-key",
+    timeout=120.0,  # seconds
+)
+----
+
+== Tool Execution Failures
+
+=== Server-Side Tool Errors
+
+If a server-side tool fails, the error appears in the response output as a `function_call_output` item with an error message.
+Check the Antwort server logs for details:
+
+[source,bash]
+----
+kubectl logs -n antwort deployment/antwort --tail=50
+----
+
+=== Code Interpreter Not Available
+
+If you request `{"type": "code_interpreter"}` and get an error, the sandbox server may not be deployed.
+See the xref:quickstarts:qs-05-code-interpreter.adoc[Code Interpreter quickstart] for setup instructions.
+
+== Verifying Connectivity
+
+A quick health check to confirm Antwort is reachable and ready:
+
+[source,python]
+----
+import httpx
+
+base = "https://antwort.example.com"
+
+# Liveness
+health = httpx.get(f"{base}/healthz")
+print(f"Health: {health.status_code}")  # 200
+
+# Readiness (checks backend + storage)
+ready = httpx.get(f"{base}/readyz")
+print(f"Ready: {ready.status_code}")  # 200
+
+# Models
+models = httpx.get(f"{base}/v1/models",
+                    headers={"Authorization": "Bearer your-key"})
+print(f"Models: {models.json()['data']}")
+----

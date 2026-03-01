@@ -310,4 +310,4 @@ The four primary extension points are:
 |===
 
 Each interface is defined in its respective package and can be implemented independently.
-The xref:extensions:overview.adoc[Extensions] module provides detailed guidance on implementing each one.
+The xref:overview.adoc[Extension Architecture] section provides detailed guidance on implementing each one.
