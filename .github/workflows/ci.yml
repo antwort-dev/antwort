@@ -251,14 +251,14 @@ jobs:
         run: |
           kubectl port-forward -n antwort svc/antwort 8080:8080 &
           for i in $(seq 1 30); do
-            if curl -sf http://localhost:8080/readyz > /dev/null 2>&1; then
-              echo "Readyz OK after ${i}s"
+            if curl -sf http://localhost:8080/healthz > /dev/null 2>&1; then
+              echo "Healthz OK after ${i}s"
               exit 0
             fi
             sleep 1
           done
-          echo "ERROR: readyz did not return 200 within 30s"
-          curl -v http://localhost:8080/readyz || true
+          echo "ERROR: healthz did not return 200 within 30s"
+          curl -v http://localhost:8080/healthz || true
           exit 1
 
       - name: Smoke test
