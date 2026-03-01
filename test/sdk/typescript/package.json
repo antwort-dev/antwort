@@ -1,0 +1,8 @@
+{
+  "name": "antwort-sdk-tests",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "openai": "^4.80.0"
+  }
+}
