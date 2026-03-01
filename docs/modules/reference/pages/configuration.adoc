@@ -163,7 +163,7 @@ auth:
 <3> The API key value. Clients send this as `Authorization: Bearer sk-my-api-key`.
 <4> Alternative: read the key from a file.
 <5> Subject identifier for this key, used in logging and audit.
-<6> Tenant identifier. Enables multi-tenant data isolation when using storage.
+<6> Tenant identifier. Enables multi-user data isolation (user-group scoping within a single instance) when using storage.
 <7> Service tier label, echoed in responses.
 <8> JWT/OIDC settings. Only used when `type` is `jwt` or `chain`.
 <9> Expected `iss` claim in the JWT.

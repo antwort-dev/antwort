@@ -141,7 +141,7 @@ func GetTenant(ctx context.Context) string {
 The auth middleware calls `SetTenant` when it extracts a `tenant_id` from the authenticated identity's metadata.
 Every `ResponseStore` method receives this enriched context and must use `GetTenant(ctx)` to scope queries.
 
-When `GetTenant` returns an empty string, the system is operating in single-tenant mode and no tenant filtering should be applied.
+When `GetTenant` returns an empty string, no user-group scoping is active and no tenant filtering should be applied.
 
 == Pagination: ListOptions
 

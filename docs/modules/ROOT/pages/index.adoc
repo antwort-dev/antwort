@@ -36,9 +36,9 @@ Register them once, and they are available to every request that includes them i
 Model Context Protocol (MCP) tool servers can be connected to Antwort.
 Tools are discovered automatically and merged into the request's tool list, allowing the model to call MCP-hosted functions alongside built-in and user-defined tools.
 
-*Multi-tenant authentication*::
-API key and JWT/OIDC authentication with tenant isolation.
-Each tenant's responses are stored separately, and cross-tenant access is prevented at the storage layer.
+*Multi-user authentication*::
+API key and JWT/OIDC authentication with user isolation.
+Each user group's responses are stored separately within the same instance, and cross-group access is prevented at the storage layer.
 
 *Conversation persistence*::
 Optional PostgreSQL-backed storage with `previous_response_id` chaining.
@@ -58,6 +58,6 @@ Latency histograms, token counters, and tool execution metrics are exposed on th
 
 * xref:architecture.adoc[Architecture] provides a deep dive into the request flow, component layers, and extension points.
 * xref:api-reference.adoc[API Reference] documents the complete wire format, including request schemas, response schemas, SSE event types, and error codes.
-* xref:quickstarts:index.adoc[Quickstarts] walk through deploying Antwort on Kubernetes, from a minimal single-Pod setup to production configurations with PostgreSQL and multi-tenant auth.
+* xref:quickstarts:index.adoc[Quickstarts] walk through deploying Antwort on Kubernetes, from a minimal single-Pod setup to production configurations with PostgreSQL and multi-user auth.
 * xref:extensions:overview.adoc[Extensions] explains how to implement custom providers, tool executors, authenticators, and storage backends.
 * xref:operations:monitoring.adoc[Operations] covers production deployment, monitoring, and troubleshooting.

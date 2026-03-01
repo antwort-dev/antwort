@@ -281,7 +281,7 @@ When a `ResponseStore` is configured, Antwort persists responses and supports:
 Two storage implementations are provided:
 
 * *In-memory* -- suitable for development and testing. State is lost on restart.
-* *PostgreSQL* -- production-grade persistence using `pgx/v5`. Supports multi-tenant isolation, where each tenant's data is separated at the query level.
+* *PostgreSQL* -- production-grade persistence using `pgx/v5`. Supports multi-user isolation, where each user group's data is separated at the query level using the `tenant_id` scope.
 
 The `store` field in the request controls whether a response is persisted.
 It defaults to `true` when a store is configured.

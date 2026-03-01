@@ -24,8 +24,8 @@ Deploy the shared backend first, then work through the quickstarts at your own p
 | 5 min
 
 | xref:qs-03-multi-user.adoc[03: Multi-User]
-| Adds Keycloak for JWT authentication and tenant isolation.
-| JWT auth, per-tenant data isolation, OIDC
+| Adds Keycloak for JWT authentication and user isolation.
+| JWT auth, per-user data isolation, OIDC
 | 10 min
 
 | xref:qs-04-mcp-tools.adoc[04: MCP Tools]

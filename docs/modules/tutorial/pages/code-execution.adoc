@@ -214,7 +214,7 @@ providers:
 ----
 
 Each code execution request gets its own sandbox Pod, which is automatically cleaned up after use.
-The operator provides resource quotas, network isolation, and automatic cleanup, making it suitable for multi-tenant environments.
+The operator provides resource quotas, network isolation, and automatic cleanup, making it suitable for multi-user environments.
 
 Refer to the https://github.com/sigs-k8s/agent-sandbox[agent-sandbox documentation] for operator installation and `SandboxTemplate` configuration.
 

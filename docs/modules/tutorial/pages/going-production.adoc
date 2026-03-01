@@ -140,9 +140,9 @@ auth:
 
 === Tenant Isolation
 
-The `tenant_claim` setting enables multi-tenant isolation.
+The `tenant_claim` setting enables multi-user isolation (user-group scoping within a single instance).
 When a user creates a response, Antwort tags it with the tenant ID from the JWT.
-Subsequent retrieval requests filter by tenant, ensuring that users in one tenant cannot access responses created by another.
+Subsequent retrieval requests filter by tenant ID, ensuring that users in one group cannot access responses created by another.
 
 The quickstart includes two pre-configured users:
 

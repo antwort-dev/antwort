@@ -293,7 +293,7 @@ For a real production Deployment, replace the default password with a strong one
 == Next Steps
 
 Ready for more?
-Continue to xref:qs-03-multi-user.adoc[Quickstart 03: Multi-User] to add JWT authentication and tenant isolation.
+Continue to xref:qs-03-multi-user.adoc[Quickstart 03: Multi-User] to add JWT authentication and user isolation.
 
 == Cleanup
 

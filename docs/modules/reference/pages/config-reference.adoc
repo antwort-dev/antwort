@@ -142,7 +142,7 @@ For annotated examples and usage guidance, see xref:configuration.adoc[].
 | string
 |
 |
-| Tenant identifier for multi-tenant data isolation.
+| Tenant identifier for multi-user data isolation (user-group scoping within a single instance).
 
 | `auth.api_keys[].service_tier`
 | string

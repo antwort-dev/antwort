@@ -1,8 +1,10 @@
 = Quickstart 03: Multi-User with JWT Authentication
-:description: Deploy antwort with Keycloak for JWT-based authentication and tenant isolation.
+:description: Deploy antwort with Keycloak for JWT-based authentication and user-group isolation.
 
-Deploy antwort with Keycloak for JWT-based authentication and tenant isolation.
-Two users (alice and bob) are pre-configured in separate tenants, demonstrating that each user can only access their own data.
+Deploy antwort with Keycloak for JWT-based authentication and user-group isolation within a single antwort instance.
+Two users (alice and bob) are pre-configured in separate user groups (tenants), demonstrating that each user can only access their own data.
+
+NOTE: This is multi-user isolation (multiple users sharing a single antwort instance with data scoping), not multi-tenant isolation (which would use separate antwort instances per tenant).
 
 *Time to deploy*: 10 minutes (after LLM backend is running)
 

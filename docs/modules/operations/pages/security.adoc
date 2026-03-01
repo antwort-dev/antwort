@@ -1,7 +1,7 @@
 = Security
 :navtitle: Security
 
-Antwort supports multiple authentication methods, TLS termination through Kubernetes infrastructure, and multi-tenant isolation.
+Antwort supports multiple authentication methods, TLS termination through Kubernetes infrastructure, and multi-user isolation.
 This page covers how to configure each mechanism and combine them for production deployments.
 
 == Authentication Overview
@@ -52,7 +52,7 @@ auth:
 ----
 <1> The raw API key. Clients send this as `Authorization: Bearer sk-alice-secret-key`.
 <2> A unique identifier for the caller, used in logging and storage scoping.
-<3> Tenant identifier for multi-tenant isolation.
+<3> Tenant identifier for multi-user isolation (user-group scoping within a single instance).
 <4> Service tier for rate limiting.
 <5> The `key_file` variant reads the key from a mounted file, keeping it out of the config.
 
@@ -276,14 +276,15 @@ Files are read once at startup and trimmed of whitespace.
 We strongly recommend using `_file` fields in production rather than embedding secrets in ConfigMaps or environment variables.
 Environment variables appear in process listings and are often captured in crash dumps, while mounted files have restricted filesystem permissions.
 
-== Multi-Tenant Isolation
+== Multi-User Isolation
 
-Antwort supports multi-tenant deployments through the `tenant_id` metadata field on the authenticated identity.
-Tenant isolation works as follows:
+Antwort supports multi-user deployments through the `tenant_id` metadata field on the authenticated identity.
+This provides user-group isolation within a single Antwort instance (not to be confused with multi-tenant isolation, which uses separate instances per tenant).
+User-group isolation works as follows:
 
 . Each API key entry or JWT claim includes a `tenant_id`.
 . The authentication middleware populates `Identity.Metadata["tenant_id"]` for every authenticated request.
-. The storage layer uses the tenant ID to scope response storage, ensuring that tenants cannot access each other's conversation history.
+. The storage layer uses the tenant ID to scope response storage, ensuring that user groups cannot access each other's conversation history.
 
 [source,yaml]
 ----

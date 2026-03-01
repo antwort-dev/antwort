@@ -86,7 +86,7 @@ Scopes:: A list of authorization scopes.
 Reserved for future fine-grained access control.
 
 Metadata:: A string map for provider-specific data.
-The key `"tenant_id"` has special meaning: when present, the auth middleware calls `storage.SetTenant()` to inject it into the context, enabling multi-tenant storage scoping.
+The key `"tenant_id"` has special meaning: when present, the auth middleware calls `storage.SetTenant()` to inject it into the context, enabling multi-user storage scoping (user-group isolation within a single instance).
 
 The `TenantID()` helper method extracts the tenant identifier:
 
