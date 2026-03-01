@@ -31,6 +31,8 @@ Auto-generated from all feature plans. Last updated: 2026-02-16
 - YAML (Kubernetes manifests), Markdown (READMEs), Bash (test commands) + Kustomize, kubectl/oc CLI, existing antwort container images (031-quickstart-updates)
 - AsciiDoc (content), YAML (Antora config), JavaScript (Antora build via npx) + Antora 3.x, @antora/lunr-extension, npx (Node.js 18+) (032-documentation-site)
 - N/A (static site generator) (032-documentation-site)
+- Go 1.25 (server, mock-backend), Python 3.x (SDK tests), TypeScript/Bun (SDK tests + conformance) + `openai` Python/TypeScript SDK, `kind` (K8s in Docker), `oasdiff`, `bun`, `pytest` (033-ci-pipeline)
+- N/A (CI pipeline, no persistent storage) (033-ci-pipeline)
 
 - Go 1.22+ + None (Go standard library only: `encoding/json`, `crypto/rand`, `errors`, `fmt`, `strings`, `regexp`) (001-core-protocol)
 
@@ -50,9 +52,9 @@ tests/
 Go 1.22+: Follow standard conventions
 
 ## Recent Changes
+- 033-ci-pipeline: Added Go 1.25 (server, mock-backend), Python 3.x (SDK tests), TypeScript/Bun (SDK tests + conformance) + `openai` Python/TypeScript SDK, `kind` (K8s in Docker), `oasdiff`, `bun`, `pytest`
 - 032-documentation-site: Added AsciiDoc (content), YAML (Antora config), JavaScript (Antora build via npx) + Antora 3.x, @antora/lunr-extension, npx (Node.js 18+)
 - 031-quickstart-updates: Added YAML (Kubernetes manifests), Markdown (READMEs), Bash (test commands) + Kustomize, kubectl/oc CLI, existing antwort container images
-- 030-responses-api-provider: Added Go 1.22+ + Go standard library only for the new provider (consistent with existing providers). No new external dependencies.
 
 
 <!-- MANUAL ADDITIONS START -->

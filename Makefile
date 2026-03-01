@@ -9,7 +9,7 @@ IMAGE_TAG  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
 
 KUBE_NAMESPACE ?= antwort
 
-.PHONY: build test vet conformance api-test clean image-build image-push image-latest sandbox-build sandbox-push deploy deploy-openshift docs docs-serve
+.PHONY: build test vet conformance api-test ci-sdk-test clean image-build image-push image-latest sandbox-build sandbox-push deploy deploy-openshift docs docs-serve
 
 # Build all binaries.
 build:
@@ -34,6 +34,18 @@ api-test:
 #        make conformance PROFILE=extended
 conformance: build
 	./conformance/run.sh $(PROFILE)
+
+# Run SDK client tests (Python + TypeScript) against a local server.
+# Requires: pip install -r test/sdk/python/requirements.txt
+#           cd test/sdk/typescript && bun install
+ci-sdk-test: build
+	@MOCK_PORT=9090 $(BIN_DIR)/mock-backend & MOCK_PID=$$!; \
+	ANTWORT_BACKEND_URL="http://localhost:9090" ANTWORT_MODEL="mock-model" ANTWORT_PORT="8080" ANTWORT_STORAGE="memory" $(BIN_DIR)/server & SERVER_PID=$$!; \
+	for i in $$(seq 1 30); do curl -sf http://localhost:8080/healthz >/dev/null 2>&1 && break; sleep 1; done; \
+	pytest test/sdk/python/ -v; PYTEST_EXIT=$$?; \
+	cd test/sdk/typescript && bun test; BUN_EXIT=$$?; \
+	kill $$MOCK_PID $$SERVER_PID 2>/dev/null; \
+	exit $$(( PYTEST_EXIT + BUN_EXIT ))
 
 # Build sandbox container image.
 sandbox-build:

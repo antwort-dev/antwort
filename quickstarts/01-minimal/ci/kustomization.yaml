@@ -1,0 +1,44 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../base
+  - mock-backend.yaml
+
+patches:
+  # Use locally built image, no registry pull
+  - target:
+      kind: Deployment
+      name: antwort
+    patch: |
+      - op: replace
+        path: /spec/template/spec/containers/0/image
+        value: antwort:ci
+      - op: add
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never
+
+  # Point antwort at the mock-backend service
+  - target:
+      kind: ConfigMap
+      name: antwort-config
+    patch: |
+      - op: replace
+        path: /data/config.yaml
+        value: |
+          server:
+            port: 8080
+          engine:
+            provider: vllm
+            backend_url: http://mock-backend:9090
+            default_model: mock-model
+            max_turns: 10
+          storage:
+            type: memory
+            max_size: 10000
+          auth:
+            type: none
+          observability:
+            metrics:
+              enabled: true
+              path: /metrics

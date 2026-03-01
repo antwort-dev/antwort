@@ -1,0 +1,22 @@
+# Mock LLM backend for CI testing.
+# Provides deterministic Chat Completions API responses for conformance and SDK tests.
+#
+# Build: docker build -t mock-backend -f Containerfile.mock .
+
+FROM docker.io/library/golang:1.25 AS builder
+
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /mock-backend ./cmd/mock-backend
+
+FROM gcr.io/distroless/static-debian12:nonroot
+
+COPY --from=builder /mock-backend /mock-backend
+
+EXPOSE 9090
+
+USER nonroot:nonroot
+
+ENTRYPOINT ["/mock-backend"]
