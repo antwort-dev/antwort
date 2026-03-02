@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -41,10 +42,10 @@ func TestSelectExtractor(t *testing.T) {
 	})
 
 	tests := []struct {
-		name       string
-		mimeType   string
-		wantName   string
-		wantNil    bool
+		name     string
+		mimeType string
+		wantName string
+		wantNil  bool
 	}{
 		{
 			name:     "application/pdf routes to docling",
@@ -438,3 +439,277 @@ func (f *failEmbedder) Embed(_ context.Context, _ []string) ([][]float32, error)
 }
 
 func (f *failEmbedder) Dimensions() int { return 4 }
+
+// ---------- Async Ingest tests ----------
+
+// waitForFileStatus polls the metadata store until the file reaches the expected status
+// or the timeout expires.
+func waitForFileStatus(t *testing.T, metadata *MemoryMetadataStore, fileID string, want FileStatus, timeout time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		f, err := metadata.Get(context.Background(), fileID)
+		if err == nil && f.Status == want {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("file %s did not reach status %q within %v", fileID, want, timeout)
+}
+
+func TestIngestionPipeline_AsyncStatusTransitions(t *testing.T) {
+	var mu sync.Mutex
+	var transitions []FileStatus
+
+	fileStore := NewMemoryFileStore()
+	metaStore := NewMemoryMetadataStore()
+	vsFileStore := NewMemoryVectorStoreFileStore()
+
+	// Wrap metadata Update to capture transitions.
+	tracked := &statusTracker{
+		FileMetadataStore: metaStore,
+		onUpdate: func(status FileStatus) {
+			mu.Lock()
+			transitions = append(transitions, status)
+			mu.Unlock()
+		},
+	}
+
+	pipeline := NewIngestionPipeline(PipelineConfig{
+		FileStore:   fileStore,
+		Metadata:    tracked,
+		VSFileStore: vsFileStore,
+		Passthrough: NewPassthroughExtractor(),
+		Chunker:     NewFixedSizeChunker(100, 0),
+		Embedding:   &stubEmbedder{dim: 4},
+		Indexer:     newStubIndexer(),
+		VSLookup:    func(vsID string) (string, error) { return "coll-" + vsID, nil },
+		Workers:     1,
+		Logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
+	})
+
+	ctx := context.Background()
+	file := NewFile("file-trans", "test.txt", "text/plain", "assistants", "", 12)
+	_ = fileStore.Store(ctx, file.ID, strings.NewReader("test content"))
+	_ = metaStore.Save(ctx, file)
+	rec := NewVectorStoreFileRecord("vs-1", file.ID)
+	_ = vsFileStore.Save(ctx, rec)
+
+	// Trigger async ingestion.
+	pipeline.Ingest(file, "vs-1")
+
+	// Wait for completion.
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		mu.Lock()
+		done := len(transitions) >= 2
+		mu.Unlock()
+		if done {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	if len(transitions) < 2 {
+		t.Fatalf("expected at least 2 status transitions, got %d: %v", len(transitions), transitions)
+	}
+	if transitions[0] != FileStatusProcessing {
+		t.Errorf("first transition: got %q, want %q", transitions[0], FileStatusProcessing)
+	}
+	if transitions[len(transitions)-1] != FileStatusCompleted {
+		t.Errorf("last transition: got %q, want %q", transitions[len(transitions)-1], FileStatusCompleted)
+	}
+}
+
+func TestIngestionPipeline_AsyncExtractionFailureSetsStatusFailed(t *testing.T) {
+	fileStore := NewMemoryFileStore()
+	metaStore := NewMemoryMetadataStore()
+	vsFileStore := NewMemoryVectorStoreFileStore()
+
+	// Extraction always fails.
+	failExtractor := &stubExtractorWithError{err: fmt.Errorf("extraction error")}
+
+	pipeline := NewIngestionPipeline(PipelineConfig{
+		FileStore:   fileStore,
+		Metadata:    metaStore,
+		VSFileStore: vsFileStore,
+		Passthrough: failExtractor,
+		Chunker:     NewFixedSizeChunker(100, 0),
+		Embedding:   &stubEmbedder{dim: 4},
+		Indexer:     newStubIndexer(),
+		VSLookup:    func(vsID string) (string, error) { return "coll-" + vsID, nil },
+		Workers:     1,
+		Logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
+	})
+
+	ctx := context.Background()
+	file := NewFile("file-async-ext-fail", "broken.txt", "text/plain", "assistants", "", 50)
+	_ = fileStore.Store(ctx, file.ID, strings.NewReader("content"))
+	_ = metaStore.Save(ctx, file)
+	rec := NewVectorStoreFileRecord("vs-1", file.ID)
+	_ = vsFileStore.Save(ctx, rec)
+
+	pipeline.Ingest(file, "vs-1")
+	waitForFileStatus(t, metaStore, file.ID, FileStatusFailed, 5*time.Second)
+
+	f, _ := metaStore.Get(ctx, file.ID)
+	if f.Status != FileStatusFailed {
+		t.Errorf("file status: got %q, want %q", f.Status, FileStatusFailed)
+	}
+	if f.StatusError == "" {
+		t.Error("expected status error to be set")
+	}
+}
+
+func TestIngestionPipeline_AsyncEmbeddingFailureSetsStatusFailed(t *testing.T) {
+	fileStore := NewMemoryFileStore()
+	metaStore := NewMemoryMetadataStore()
+	vsFileStore := NewMemoryVectorStoreFileStore()
+
+	pipeline := NewIngestionPipeline(PipelineConfig{
+		FileStore:   fileStore,
+		Metadata:    metaStore,
+		VSFileStore: vsFileStore,
+		Passthrough: NewPassthroughExtractor(),
+		Chunker:     NewFixedSizeChunker(100, 0),
+		Embedding:   &failEmbedder{err: fmt.Errorf("embedding service unavailable")},
+		Indexer:     newStubIndexer(),
+		VSLookup:    func(vsID string) (string, error) { return "coll-" + vsID, nil },
+		Workers:     1,
+		Logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
+	})
+
+	ctx := context.Background()
+	file := NewFile("file-async-emb-fail", "test.txt", "text/plain", "assistants", "", 18)
+	_ = fileStore.Store(ctx, file.ID, strings.NewReader("some text to embed"))
+	_ = metaStore.Save(ctx, file)
+	rec := NewVectorStoreFileRecord("vs-1", file.ID)
+	_ = vsFileStore.Save(ctx, rec)
+
+	pipeline.Ingest(file, "vs-1")
+	waitForFileStatus(t, metaStore, file.ID, FileStatusFailed, 5*time.Second)
+
+	f, _ := metaStore.Get(ctx, file.ID)
+	if f.Status != FileStatusFailed {
+		t.Errorf("file status: got %q, want %q", f.Status, FileStatusFailed)
+	}
+}
+
+func TestIngestionPipeline_WorkerPoolConcurrency(t *testing.T) {
+	const maxWorkers = 2
+	const totalFiles = 6
+
+	var currentWorkers atomic.Int32
+	var maxSeen atomic.Int32
+
+	slowExtractor := &slowStubExtractor{
+		delay:  50 * time.Millisecond,
+		result: &ExtractionResult{Text: "content", Method: "mock"},
+		onStart: func() {
+			cur := currentWorkers.Add(1)
+			for {
+				seen := maxSeen.Load()
+				if cur <= seen || maxSeen.CompareAndSwap(seen, cur) {
+					break
+				}
+			}
+		},
+		onDone: func() {
+			currentWorkers.Add(-1)
+		},
+	}
+
+	fileStore := NewMemoryFileStore()
+	metaStore := NewMemoryMetadataStore()
+	vsFileStore := NewMemoryVectorStoreFileStore()
+
+	pipeline := NewIngestionPipeline(PipelineConfig{
+		FileStore:   fileStore,
+		Metadata:    metaStore,
+		VSFileStore: vsFileStore,
+		Passthrough: slowExtractor,
+		Chunker:     NewFixedSizeChunker(100, 0),
+		Embedding:   &stubEmbedder{dim: 4},
+		Indexer:     newStubIndexer(),
+		VSLookup:    func(vsID string) (string, error) { return "coll-" + vsID, nil },
+		Workers:     maxWorkers,
+		Logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
+	})
+
+	ctx := context.Background()
+	for i := 0; i < totalFiles; i++ {
+		id := fmt.Sprintf("file-conc-%d", i)
+		file := NewFile(id, "test.txt", "text/plain", "assistants", "", 10)
+		_ = fileStore.Store(ctx, id, strings.NewReader("text"))
+		_ = metaStore.Save(ctx, file)
+		rec := NewVectorStoreFileRecord("vs-1", id)
+		_ = vsFileStore.Save(ctx, rec)
+		pipeline.Ingest(file, "vs-1")
+	}
+
+	// Wait for all files to complete.
+	for i := 0; i < totalFiles; i++ {
+		id := fmt.Sprintf("file-conc-%d", i)
+		waitForFileStatus(t, metaStore, id, FileStatusCompleted, 10*time.Second)
+	}
+
+	if seen := maxSeen.Load(); seen > int32(maxWorkers) {
+		t.Errorf("max concurrent workers: %d, limit was %d", seen, maxWorkers)
+	}
+}
+
+// ---------- Additional helper types ----------
+
+// statusTracker wraps FileMetadataStore to observe Update calls.
+type statusTracker struct {
+	FileMetadataStore
+	onUpdate func(status FileStatus)
+}
+
+func (s *statusTracker) Update(ctx context.Context, id string, status FileStatus, errMsg string) error {
+	if s.onUpdate != nil {
+		s.onUpdate(status)
+	}
+	return s.FileMetadataStore.Update(ctx, id, status, errMsg)
+}
+
+// stubExtractorWithError always returns an error.
+type stubExtractorWithError struct {
+	err error
+}
+
+func (s *stubExtractorWithError) Extract(_ context.Context, _, _ string, content io.Reader) (*ExtractionResult, error) {
+	io.ReadAll(content)
+	return nil, s.err
+}
+
+func (s *stubExtractorWithError) SupportedFormats() []string {
+	return []string{"text/plain"}
+}
+
+// slowStubExtractor adds configurable delay for concurrency testing.
+type slowStubExtractor struct {
+	delay   time.Duration
+	result  *ExtractionResult
+	onStart func()
+	onDone  func()
+}
+
+func (m *slowStubExtractor) Extract(_ context.Context, _, _ string, content io.Reader) (*ExtractionResult, error) {
+	io.ReadAll(content)
+	if m.onStart != nil {
+		m.onStart()
+	}
+	time.Sleep(m.delay)
+	if m.onDone != nil {
+		m.onDone()
+	}
+	return m.result, nil
+}
+
+func (m *slowStubExtractor) SupportedFormats() []string {
+	return []string{"text/plain"}
+}
