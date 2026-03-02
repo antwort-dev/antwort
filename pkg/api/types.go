@@ -78,6 +78,11 @@ type Annotation struct {
 	Text       string `json:"text,omitempty"`
 	StartIndex int    `json:"start_index,omitempty"`
 	EndIndex   int    `json:"end_index,omitempty"`
+	// Citation-specific fields (populated based on Type).
+	FileID string `json:"file_id,omitempty"`  // file_citation: source file identifier
+	Quote  string `json:"quote,omitempty"`    // file_citation: quoted passage from source
+	URL    string `json:"url,omitempty"`      // url_citation: source URL
+	Title  string `json:"title,omitempty"`    // url_citation: page title
 }
 
 // TokenLogprob holds log probability information for a single token.

@@ -66,4 +66,8 @@ type ToolResult struct {
 
 	// IsError indicates that the output is an error message.
 	IsError bool
+
+	// Metadata carries structured source information for citation generation.
+	// Providers populate this with tool-specific data (e.g., file_id, url, title, content).
+	Metadata map[string]string
 }

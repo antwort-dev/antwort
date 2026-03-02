@@ -159,9 +159,22 @@ func (p *WebSearchProvider) Execute(ctx context.Context, call tools.ToolCall) (*
 	// Format results as structured text.
 	output := formatResults(args.Query, results)
 
+	// Build metadata for citation generation.
+	var metadata map[string]string
+	if len(results) > 0 {
+		top := results[0]
+		metadata = map[string]string{
+			"tool":    toolName,
+			"url":     top.URL,
+			"title":   top.Title,
+			"content": top.Snippet,
+		}
+	}
+
 	return &tools.ToolResult{
-		CallID: call.ID,
-		Output: output,
+		CallID:   call.ID,
+		Output:   output,
+		Metadata: metadata,
 	}, nil
 }
 

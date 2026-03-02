@@ -38,6 +38,9 @@ const (
 	EventCodeInterpreterInProgress     StreamEventType = "response.code_interpreter_call.in_progress"
 	EventCodeInterpreterInterpreting   StreamEventType = "response.code_interpreter_call.interpreting"
 	EventCodeInterpreterCompleted      StreamEventType = "response.code_interpreter_call.completed"
+
+	// Annotation events emitted after output text is complete.
+	EventAnnotationAdded StreamEventType = "response.output_text.annotation.added"
 )
 
 // State machine events track the lifecycle of a response.
