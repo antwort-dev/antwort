@@ -12,6 +12,50 @@ import (
 	"github.com/rhuss/antwort/pkg/tools/registry"
 )
 
+// Prometheus metrics for the Files API.
+var (
+	filesUploadedTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "antwort_files_uploaded_total",
+			Help: "Total files uploaded",
+		},
+		[]string{"mime_type"},
+	)
+
+	filesIngestionDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "antwort_files_ingestion_duration_seconds",
+			Help:    "File ingestion pipeline duration",
+			Buckets: []float64{0.1, 0.5, 1, 2, 5, 10, 30, 60, 120, 300},
+		},
+		[]string{"mime_type"},
+	)
+
+	filesIngestionStatus = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "antwort_files_ingestion_status_total",
+			Help: "File ingestion outcomes by status",
+		},
+		[]string{"status"},
+	)
+
+	filesExtractionDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "antwort_extraction_duration_seconds",
+			Help:    "Content extraction duration",
+			Buckets: []float64{0.1, 0.5, 1, 2, 5, 10, 30, 60},
+		},
+		[]string{"extractor"},
+	)
+
+	filesChunksTotal = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "antwort_chunking_chunks_total",
+			Help: "Total chunks produced",
+		},
+	)
+)
+
 // FilesProvider implements registry.FunctionProvider for the Files API.
 // It contributes HTTP routes for file management but no tool definitions.
 type FilesProvider struct {
@@ -163,7 +207,15 @@ func (p *FilesProvider) Routes() []registry.Route {
 	}
 }
 
-func (p *FilesProvider) Collectors() []prometheus.Collector { return nil }
+func (p *FilesProvider) Collectors() []prometheus.Collector {
+	return []prometheus.Collector{
+		filesUploadedTotal,
+		filesIngestionDuration,
+		filesIngestionStatus,
+		filesExtractionDuration,
+		filesChunksTotal,
+	}
+}
 
 func (p *FilesProvider) Close() error { return nil }
 

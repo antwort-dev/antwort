@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/rhuss/antwort/pkg/api"
 )
@@ -71,14 +72,19 @@ func (p *IngestionPipeline) Ingest(file *File, vectorStoreID string) {
 		defer func() { <-p.sem }() // release worker slot
 
 		ctx := context.Background()
+		start := time.Now()
 		p.logger.Info("starting ingestion", "file_id", file.ID, "vector_store_id", vectorStoreID)
 
 		if err := p.ingest(ctx, file, vectorStoreID); err != nil {
 			p.logger.Error("ingestion failed", "file_id", file.ID, "error", err)
 			_ = p.updateStatus(ctx, file.ID, vectorStoreID, FileStatusFailed, 0, err.Error())
+			filesIngestionStatus.WithLabelValues("failed").Inc()
+			filesIngestionDuration.WithLabelValues(file.MIMEType).Observe(time.Since(start).Seconds())
 			return
 		}
 
+		filesIngestionStatus.WithLabelValues("completed").Inc()
+		filesIngestionDuration.WithLabelValues(file.MIMEType).Observe(time.Since(start).Seconds())
 		p.logger.Info("ingestion completed", "file_id", file.ID, "vector_store_id", vectorStoreID)
 	}()
 }
@@ -102,7 +108,12 @@ func (p *IngestionPipeline) ingest(ctx context.Context, file *File, vectorStoreI
 		return fmt.Errorf("%s extraction requires an external extraction service (docling-serve)", file.MIMEType)
 	}
 
+	extractStart := time.Now()
 	result, err := extractor.Extract(ctx, file.Filename, file.MIMEType, reader)
+	extractDuration := time.Since(extractStart).Seconds()
+	if result != nil {
+		filesExtractionDuration.WithLabelValues(result.Method).Observe(extractDuration)
+	}
 	if err != nil {
 		return fmt.Errorf("extracting content: %w", err)
 	}
@@ -115,6 +126,7 @@ func (p *IngestionPipeline) ingest(ctx context.Context, file *File, vectorStoreI
 	if len(chunks) == 0 {
 		return fmt.Errorf("chunking produced no output")
 	}
+	filesChunksTotal.Add(float64(len(chunks)))
 
 	// Stage 5: Embed chunks.
 	texts := make([]string, len(chunks))

@@ -116,6 +116,9 @@ func (a *FilesAPI) handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Record upload metric.
+	filesUploadedTotal.WithLabelValues(fileMIMEType).Inc()
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(file)

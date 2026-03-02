@@ -329,7 +329,10 @@ func TestFilesAPI_DeleteFile(t *testing.T) {
 	}
 
 	// Verify file is gone.
-	getResp, _ := http.Get(server.URL + "/v1/files/" + uploaded.ID)
+	getResp, err := http.Get(server.URL + "/v1/files/" + uploaded.ID)
+	if err != nil {
+		t.Fatalf("GET after delete: %v", err)
+	}
 	defer getResp.Body.Close()
 	if getResp.StatusCode != http.StatusNotFound {
 		t.Errorf("expected 404 after delete, got %d", getResp.StatusCode)
