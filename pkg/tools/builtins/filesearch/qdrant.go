@@ -8,6 +8,8 @@ import (
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/rhuss/antwort/pkg/files"
 )
 
 // QdrantBackend implements VectorStoreBackend using the Qdrant HTTP API.
@@ -16,8 +18,11 @@ type QdrantBackend struct {
 	HTTPClient *http.Client
 }
 
-// Compile-time check that QdrantBackend implements VectorStoreBackend.
-var _ VectorStoreBackend = (*QdrantBackend)(nil)
+// Compile-time checks.
+var (
+	_ VectorStoreBackend  = (*QdrantBackend)(nil)
+	_ files.VectorIndexer = (*QdrantBackend)(nil)
+)
 
 // NewQdrant creates a new QdrantBackend that communicates with Qdrant via HTTP.
 func NewQdrant(url string) *QdrantBackend {
@@ -170,4 +175,97 @@ func (q *QdrantBackend) Search(ctx context.Context, collection string, vector []
 	}
 
 	return matches, nil
+}
+
+// qdrantPoint represents a point for Qdrant's upsert endpoint.
+type qdrantPoint struct {
+	ID      string                 `json:"id"`
+	Vector  []float32              `json:"vector"`
+	Payload map[string]interface{} `json:"payload"`
+}
+
+// UpsertPoints inserts or updates vector points in the named collection.
+// PUT /collections/{name}/points
+func (q *QdrantBackend) UpsertPoints(ctx context.Context, collection string, points []files.VectorPoint) error {
+	qPoints := make([]qdrantPoint, len(points))
+	for i, p := range points {
+		payload := make(map[string]interface{}, len(p.Metadata))
+		for k, v := range p.Metadata {
+			payload[k] = v
+		}
+		qPoints[i] = qdrantPoint{
+			ID:      p.ID,
+			Vector:  p.Vector,
+			Payload: payload,
+		}
+	}
+
+	body := map[string]interface{}{
+		"points": qPoints,
+	}
+
+	data, err := json.Marshal(body)
+	if err != nil {
+		return fmt.Errorf("marshaling upsert request: %w", err)
+	}
+
+	url := fmt.Sprintf("%s/collections/%s/points", q.BaseURL, collection)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, bytes.NewReader(data))
+	if err != nil {
+		return fmt.Errorf("creating upsert request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := q.HTTPClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("qdrant upsert request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("qdrant upsert returned status %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	return nil
+}
+
+// DeletePointsByFile removes all points with the given file_id from the collection.
+// POST /collections/{name}/points/delete with filter
+func (q *QdrantBackend) DeletePointsByFile(ctx context.Context, collection string, fileID string) error {
+	body := map[string]interface{}{
+		"filter": map[string]interface{}{
+			"must": []map[string]interface{}{
+				{
+					"key":   "file_id",
+					"match": map[string]interface{}{"value": fileID},
+				},
+			},
+		},
+	}
+
+	data, err := json.Marshal(body)
+	if err != nil {
+		return fmt.Errorf("marshaling delete request: %w", err)
+	}
+
+	url := fmt.Sprintf("%s/collections/%s/points/delete", q.BaseURL, collection)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(data))
+	if err != nil {
+		return fmt.Errorf("creating delete request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := q.HTTPClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("qdrant delete points request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("qdrant delete points returned status %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	return nil
 }

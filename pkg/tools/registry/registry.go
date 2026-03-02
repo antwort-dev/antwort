@@ -237,6 +237,15 @@ func (r *FunctionRegistry) Close() error {
 	return lastErr
 }
 
+// Providers returns a copy of the registered providers list.
+func (r *FunctionRegistry) Providers() []FunctionProvider {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	cp := make([]FunctionProvider, len(r.providers))
+	copy(cp, r.providers)
+	return cp
+}
+
 // HasProviders returns true if at least one provider is registered.
 func (r *FunctionRegistry) HasProviders() bool {
 	r.mu.RLock()

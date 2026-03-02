@@ -51,6 +51,15 @@ type FileSearchProvider struct {
 // Compile-time check that FileSearchProvider implements FunctionProvider.
 var _ registry.FunctionProvider = (*FileSearchProvider)(nil)
 
+// Backend returns the vector store backend for sharing with other providers.
+func (p *FileSearchProvider) Backend() VectorStoreBackend { return p.backend }
+
+// Embedding returns the embedding client for sharing with other providers.
+func (p *FileSearchProvider) Embedding() EmbeddingClient { return p.embedding }
+
+// Metadata returns the metadata store for sharing with other providers.
+func (p *FileSearchProvider) MetadataStore() *MetadataStore { return p.metadata }
+
 // New creates a FileSearchProvider from a settings map.
 //
 // Supported settings:
