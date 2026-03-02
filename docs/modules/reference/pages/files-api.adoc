@@ -1,0 +1,383 @@
+= Files API
+:description: API reference for the Files API and document ingestion pipeline, including file upload, content extraction, chunking, and vector store integration.
+
+The Files API lets you upload documents, extract their content, and index them into vector stores for retrieval via the `file_search` tool.
+Files are uploaded via multipart form data, then added to vector stores to trigger asynchronous ingestion.
+The ingestion pipeline extracts text (via Docling for complex formats or passthrough for plain text), splits the text into chunks, embeds each chunk, and indexes the vectors for search.
+
+All file operations are user-scoped.
+Authenticated users can only access their own files.
+
+== Endpoints
+
+[cols="1,2,3"]
+|===
+| Method | Path | Description
+
+| `POST`
+| `/builtin/files`
+| Upload a file
+
+| `GET`
+| `/builtin/files`
+| List uploaded files (paginated)
+
+| `GET`
+| `/builtin/files/\{file_id\}`
+| Retrieve file metadata
+
+| `GET`
+| `/builtin/files/\{file_id\}/content`
+| Download file content
+
+| `DELETE`
+| `/builtin/files/\{file_id\}`
+| Delete a file and its indexed chunks
+
+| `POST`
+| `/builtin/vector_stores/\{store_id\}/files`
+| Add a file to a vector store (triggers ingestion)
+
+| `GET`
+| `/builtin/vector_stores/\{store_id\}/files`
+| List files in a vector store with ingestion status
+
+| `DELETE`
+| `/builtin/vector_stores/\{store_id\}/files/\{file_id\}`
+| Remove a file from a vector store
+
+| `POST`
+| `/builtin/vector_stores/\{store_id\}/file_batches`
+| Add multiple files to a vector store
+
+| `GET`
+| `/builtin/vector_stores/\{store_id\}/file_batches/\{batch_id\}`
+| Check batch ingestion status
+|===
+
+== POST /builtin/files
+
+Upload a file via multipart form data.
+The file is stored and assigned an ID.
+No ingestion happens until the file is added to a vector store.
+
+=== Request
+
+Content-Type: `multipart/form-data`
+
+[cols="1,1,1,3"]
+|===
+| Field | Type | Required | Description
+
+| `file`
+| file
+| Yes
+| The file to upload (max 50 MB by default)
+
+| `purpose`
+| string
+| Yes
+| One of: `assistants`, `batch`, `fine-tune`, `vision`
+|===
+
+=== Response (201 Created)
+
+[source,json]
+----
+{
+  "id": "file_abc123def456ghi789jkl012",
+  "object": "file",
+  "bytes": 120456,
+  "created_at": 1709366400,
+  "filename": "report.pdf",
+  "purpose": "assistants",
+  "status": "uploaded",
+  "status_details": null
+}
+----
+
+=== Errors
+
+* `400` - Missing file or purpose, invalid purpose value
+* `413` - File exceeds the configured maximum upload size
+
+== GET /builtin/files
+
+List files for the authenticated user.
+
+=== Query Parameters
+
+[cols="1,1,1,3"]
+|===
+| Param | Type | Default | Description
+
+| `after`
+| string
+| (none)
+| Cursor for pagination
+
+| `limit`
+| int
+| 20
+| Results per page (max 100)
+
+| `order`
+| string
+| desc
+| Sort order: `asc` or `desc`
+
+| `purpose`
+| string
+| (none)
+| Filter by purpose
+|===
+
+=== Response (200 OK)
+
+[source,json]
+----
+{
+  "object": "list",
+  "data": [ { "id": "file_...", "object": "file", ... } ],
+  "has_more": false,
+  "first_id": "file_...",
+  "last_id": "file_..."
+}
+----
+
+== GET /builtin/files/\{file_id\}
+
+Retrieve metadata for a single file.
+Returns `404` if the file does not exist or belongs to a different user.
+
+== GET /builtin/files/\{file_id\}/content
+
+Download the original file content.
+The response includes `Content-Type` and `Content-Disposition` headers matching the uploaded file.
+
+== DELETE /builtin/files/\{file_id\}
+
+Delete a file entirely.
+This removes the file from content storage, deletes its metadata, and cascades to all vector stores: chunks belonging to this file are deleted from every vector store that contains them.
+
+=== Response (200 OK)
+
+[source,json]
+----
+{
+  "id": "file_abc123def456ghi789jkl012",
+  "object": "file",
+  "deleted": true
+}
+----
+
+== POST /builtin/vector_stores/\{store_id\}/files
+
+Add a file to a vector store.
+This triggers asynchronous ingestion: extraction, chunking, embedding, and indexing.
+The request returns immediately with status `in_progress`.
+
+=== Request
+
+[source,json]
+----
+{
+  "file_id": "file_abc123def456ghi789jkl012"
+}
+----
+
+=== Response (200 OK)
+
+[source,json]
+----
+{
+  "id": "file_abc123def456ghi789jkl012",
+  "object": "vector_store.file",
+  "vector_store_id": "vs_xyz789abc123def456ghi012",
+  "status": "in_progress",
+  "created_at": 1709366400,
+  "last_error": null
+}
+----
+
+=== Errors
+
+* `404` - Vector store or file not found
+* `400` - File already exists in this vector store
+
+== GET /builtin/vector_stores/\{store_id\}/files
+
+List files in a vector store with their ingestion status.
+
+=== Query Parameters
+
+[cols="1,1,1,3"]
+|===
+| Param | Type | Default | Description
+
+| `filter`
+| string
+| (none)
+| Filter by status: `in_progress`, `completed`, `failed`, `cancelled`
+
+| `after`
+| string
+| (none)
+| Cursor for pagination
+
+| `limit`
+| int
+| 20
+| Results per page (max 100)
+|===
+
+== DELETE /builtin/vector_stores/\{store_id\}/files/\{file_id\}
+
+Remove a file from a vector store.
+All chunks belonging to this file are deleted from the store's vector collection.
+The file itself remains in file storage and can be re-added later.
+
+== POST /builtin/vector_stores/\{store_id\}/file_batches
+
+Add multiple files to a vector store in a single request.
+Each file is queued for ingestion individually.
+
+=== Request
+
+[source,json]
+----
+{
+  "file_ids": [
+    "file_abc123def456ghi789jkl012",
+    "file_def456ghi789jkl012mno345"
+  ]
+}
+----
+
+=== Response (200 OK)
+
+[source,json]
+----
+{
+  "id": "batch_abc123def456ghi789jkl012",
+  "object": "vector_store.files_batch",
+  "vector_store_id": "vs_xyz789abc123def456ghi012",
+  "status": "in_progress",
+  "created_at": 1709366400,
+  "file_counts": {
+    "in_progress": 2,
+    "completed": 0,
+    "failed": 0,
+    "cancelled": 0,
+    "total": 2
+  }
+}
+----
+
+== GET /builtin/vector_stores/\{store_id\}/file_batches/\{batch_id\}
+
+Check batch ingestion status.
+File counts are recomputed from the current state of each file's ingestion.
+When all files finish processing (completed or failed), the batch status changes to `completed`.
+
+== File Status Lifecycle
+
+Files progress through these statuses during ingestion:
+
+----
+uploaded --> processing --> completed
+                       \-> failed
+----
+
+* `uploaded` - File stored, no ingestion started yet
+* `processing` - Ingestion pipeline is running (extracting, chunking, embedding, indexing)
+* `completed` - All chunks embedded and indexed successfully
+* `failed` - Ingestion failed at some stage; `status_details` contains the error message
+
+== Supported Formats
+
+[cols="2,2,2"]
+|===
+| Format | MIME Type | Extractor
+
+| Plain text
+| `text/plain`
+| Passthrough (built-in)
+
+| Markdown
+| `text/markdown`
+| Passthrough (built-in)
+
+| CSV
+| `text/csv`
+| Passthrough (built-in)
+
+| JSON
+| `application/json`
+| Passthrough (built-in)
+
+| HTML
+| `text/html`
+| Passthrough (built-in)
+
+| PDF
+| `application/pdf`
+| Docling (requires docling-serve)
+
+| DOCX
+| Word document
+| Docling (requires docling-serve)
+
+| PPTX
+| PowerPoint
+| Docling (requires docling-serve)
+
+| XLSX
+| Excel spreadsheet
+| Docling (requires docling-serve)
+
+| PNG, JPEG, TIFF
+| Images
+| Docling with OCR (requires docling-serve)
+|===
+
+Passthrough formats work without any external service.
+Complex formats require docling-serve to be deployed and configured.
+When docling-serve is not available, uploading a PDF still succeeds, but ingestion will fail with a clear error message.
+
+== Configuration
+
+All settings are under `providers.files.settings` in the config file.
+See xref:config-reference.adoc[Configuration Reference] for the full list.
+
+[source,yaml]
+----
+providers:
+  files:
+    enabled: true
+    settings:
+      store_type: filesystem        # <1>
+      store_path: /data/files       # <2>
+      max_upload_size: 52428800     # <3>
+      docling_url: http://docling-serve:5001  # <4>
+      docling_ocr: true             # <5>
+      docling_timeout: 300s         # <6>
+      chunk_size: 800               # <7>
+      chunk_overlap: 200            # <8>
+      pipeline_workers: 4           # <9>
+----
+<1> File storage backend: `filesystem` or `memory`
+<2> Base directory for filesystem storage (should be a PVC mount in Kubernetes)
+<3> Maximum upload size in bytes (default: 50 MB)
+<4> docling-serve endpoint (leave empty to disable complex format support)
+<5> Enable OCR for scanned documents and images
+<6> Per-file extraction timeout
+<7> Maximum tokens per chunk (approximated as 4 characters per token)
+<8> Token overlap between consecutive chunks
+<9> Maximum concurrent ingestion goroutines
+
+== See Also
+
+* xref:quickstarts:qs-08-rag.adoc[Quickstart 08: RAG] for a complete deployment example
+* xref:api-reference.adoc[API Reference] for the core Responses API
+* xref:configuration.adoc[Configuration Guide] for general configuration patterns

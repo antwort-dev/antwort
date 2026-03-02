@@ -110,6 +110,7 @@ Request-scoped data (request IDs, user identity, tracing context) propagates thr
 
 ### Documentation
 
+- Every feature MUST include documentation updates before it is considered complete. A feature without documentation is an unfinished feature. At minimum, new features require: API reference entries for new endpoints, configuration reference entries for new settings, and a quickstart page if the feature introduces a new deployment pattern.
 - All user-facing documentation is written in AsciiDoc using the Antora static site generator.
 - Documentation content MUST be written using the `kubernetes-patterns` voice profile (`~/.claude/style/voices/kubernetes-patterns.yaml`) via the prose plugin.
 - The writing workflow for all documentation pages is: `prose:write` (or `prose:content-generator`) to create content, `prose:check` (or `prose:pre-validator`) to validate voice compliance, `prose:rewrite` (or `prose:humanizer`) to fix any AI-generated patterns detected.
@@ -175,4 +176,4 @@ The engine handles both modes. Stateless mode is always available. Stateful feat
 - New specs must declare compliance with these principles. Deviations require explicit justification in the spec's Assumptions or Clarifications section.
 - Code reviews verify constitutional compliance. Non-compliant code is not merged.
 
-**Version**: 1.4.0 | **Ratified**: 2026-02-17 | **Last Amended**: 2026-03-01
+**Version**: 1.5.0 | **Ratified**: 2026-02-17 | **Last Amended**: 2026-03-02
