@@ -15,6 +15,7 @@ type VectorStoreFileRecord struct {
 	Status        FileStatus `json:"status"`
 	ChunkCount    int        `json:"chunk_count,omitempty"`
 	LastError     string     `json:"last_error,omitempty"`
+	BatchID       string     `json:"batch_id,omitempty"`
 	CreatedAt     int64      `json:"created_at"`
 }
 
@@ -45,6 +46,9 @@ type VectorStoreFileStore interface {
 
 	// ListByFile returns all store records for the given file ID.
 	ListByFile(ctx context.Context, fileID string) ([]*VectorStoreFileRecord, error)
+
+	// ListByBatch returns all records associated with the given batch ID.
+	ListByBatch(ctx context.Context, batchID string) ([]*VectorStoreFileRecord, error)
 }
 
 // key builds a composite key for the in-memory map.
@@ -113,6 +117,18 @@ func (m *MemoryVectorStoreFileStore) ListByFile(_ context.Context, fileID string
 	var result []*VectorStoreFileRecord
 	for _, rec := range m.records {
 		if rec.FileID == fileID {
+			result = append(result, rec)
+		}
+	}
+	return result, nil
+}
+
+func (m *MemoryVectorStoreFileStore) ListByBatch(_ context.Context, batchID string) ([]*VectorStoreFileRecord, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	var result []*VectorStoreFileRecord
+	for _, rec := range m.records {
+		if rec.BatchID == batchID {
 			result = append(result, rec)
 		}
 	}

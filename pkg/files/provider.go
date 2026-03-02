@@ -124,6 +124,7 @@ func New(settings map[string]interface{}, deps ProviderDeps) (*FilesProvider, er
 		vsLookup:    deps.VSLookup,
 		indexer:     deps.Indexer,
 		pipeline:    pipeline,
+		batches:     NewBatchStore(),
 	}
 
 	return &FilesProvider{
@@ -156,6 +157,9 @@ func (p *FilesProvider) Routes() []registry.Route {
 		{Method: "POST", Pattern: "/vector_stores/{store_id}/files", Handler: p.vsFilesAPI.handleAddFile},
 		{Method: "GET", Pattern: "/vector_stores/{store_id}/files", Handler: p.vsFilesAPI.handleListFiles},
 		{Method: "DELETE", Pattern: "/vector_stores/{store_id}/files/{file_id}", Handler: p.vsFilesAPI.handleRemoveFile},
+		// Batch file operations
+		{Method: "POST", Pattern: "/vector_stores/{store_id}/file_batches", Handler: p.vsFilesAPI.handleCreateBatch},
+		{Method: "GET", Pattern: "/vector_stores/{store_id}/file_batches/{batch_id}", Handler: p.vsFilesAPI.handleGetBatch},
 	}
 }
 
