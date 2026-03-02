@@ -12,11 +12,15 @@ const (
 
 	responseIDPrefix = "resp_"
 	itemIDPrefix     = "item_"
+	fileIDPrefix     = "file_"
+	batchIDPrefix    = "batch_"
 )
 
 var (
 	responseIDPattern = regexp.MustCompile(`^resp_[a-zA-Z0-9]{24}$`)
 	itemIDPattern     = regexp.MustCompile(`^item_[a-zA-Z0-9]{24}$`)
+	fileIDPattern     = regexp.MustCompile(`^file_[a-zA-Z0-9]{24}$`)
+	batchIDPattern    = regexp.MustCompile(`^batch_[a-zA-Z0-9]{24}$`)
 )
 
 // NewResponseID generates a new response ID with the "resp_" prefix
@@ -41,6 +45,30 @@ func ValidateResponseID(id string) bool {
 // (matches "item_" + 24 alphanumeric characters).
 func ValidateItemID(id string) bool {
 	return itemIDPattern.MatchString(id)
+}
+
+// NewFileID generates a new file ID with the "file_" prefix
+// followed by 24 cryptographically random alphanumeric characters.
+func NewFileID() string {
+	return fileIDPrefix + randomAlphanumeric(idLength)
+}
+
+// NewBatchID generates a new batch ID with the "batch_" prefix
+// followed by 24 cryptographically random alphanumeric characters.
+func NewBatchID() string {
+	return batchIDPrefix + randomAlphanumeric(idLength)
+}
+
+// ValidateFileID checks whether the given string is a valid file ID
+// (matches "file_" + 24 alphanumeric characters).
+func ValidateFileID(id string) bool {
+	return fileIDPattern.MatchString(id)
+}
+
+// ValidateBatchID checks whether the given string is a valid batch ID
+// (matches "batch_" + 24 alphanumeric characters).
+func ValidateBatchID(id string) bool {
+	return batchIDPattern.MatchString(id)
 }
 
 func randomAlphanumeric(n int) string {

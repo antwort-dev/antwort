@@ -1,0 +1,186 @@
+= Quickstart 08: RAG (Document Upload, Ingestion & Search)
+:description: Deploy antwort with a full RAG pipeline for document upload, content extraction, chunking, embedding, and vector search.
+
+Deploy antwort with a full RAG pipeline: upload documents, extract content via Docling, chunk the text, embed it, and index it into a vector store for retrieval via the `file_search` tool.
+Supports PDF, DOCX, PPTX, images (with OCR), and plain text.
+
+*Time to deploy*: 10 minutes (after LLM backend is running)
+
+== Architecture
+
+This quickstart deploys four services:
+
+* *antwort* - Gateway with the Files API and `file_search` tool
+* *Qdrant* - Vector database for chunk storage and similarity search
+* *docling-serve* - Document extraction service for PDF, DOCX, and images
+* *embedding-service* - vLLM with `all-MiniLM-L6-v2` for text embeddings (CPU-only)
+
+== Prerequisites
+
+* xref:index.adoc[Shared LLM Backend] deployed and running
+* `kubectl` or `oc` CLI configured
+* At least 8 GB of allocatable memory on the cluster
+
+== Deploy
+
+[source,bash]
+----
+# Create namespace
+kubectl create namespace antwort
+
+# Deploy all components
+kubectl apply -k quickstarts/08-rag/base/ -n antwort
+
+# Wait for backing services (embedding model download takes ~60s)
+kubectl rollout status deployment/qdrant -n antwort --timeout=120s
+kubectl rollout status deployment/docling-serve -n antwort --timeout=300s
+kubectl rollout status deployment/embedding-service -n antwort --timeout=300s
+
+# Wait for antwort
+kubectl rollout status deployment/antwort -n antwort --timeout=60s
+----
+
+=== OpenShift / ROSA
+
+For external access via Route:
+
+[source,bash]
+----
+# Apply with OpenShift overlay
+kubectl apply -k quickstarts/08-rag/openshift/ -n antwort
+
+# Get the route URL
+ROUTE=$(kubectl get route antwort -n antwort -o jsonpath='{.spec.host}')
+echo "Antwort URL: https://$ROUTE"
+----
+
+== Test
+
+=== Setup Port-Forward
+
+[source,bash]
+----
+# Using port-forward (vanilla Kubernetes)
+kubectl port-forward -n antwort svc/antwort 8080:8080 &
+
+# Or using the Route URL (OpenShift)
+# export URL=https://$ROUTE
+
+export URL=http://localhost:8080
+----
+
+=== Upload a Text File
+
+[source,bash]
+----
+echo "Kubernetes is an open source container orchestration platform. \
+It automates deployment, scaling, and management of containerized applications. \
+Pods are the smallest deployable units in Kubernetes." > /tmp/k8s-intro.txt
+
+FILE_ID=$(curl -s -X POST "$URL/builtin/files" \
+  -F "file=@/tmp/k8s-intro.txt" \
+  -F "purpose=assistants" | jq -r .id)
+
+echo "Uploaded file: $FILE_ID"
+----
+
+=== Create a Vector Store and Ingest
+
+[source,bash]
+----
+# Create a vector store
+VS_ID=$(curl -s -X POST "$URL/builtin/vector_stores" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"docs"}' | jq -r .id)
+
+# Add file to the store (triggers ingestion)
+curl -s -X POST "$URL/builtin/vector_stores/$VS_ID/files" \
+  -H "Content-Type: application/json" \
+  -d "{\"file_id\":\"$FILE_ID\"}" | jq .
+
+# Wait for ingestion to complete
+for i in $(seq 1 30); do
+  STATUS=$(curl -s "$URL/builtin/vector_stores/$VS_ID/files" | \
+    jq -r '.data[0].status')
+  echo "Ingestion status: $STATUS"
+  [ "$STATUS" = "completed" ] && break
+  sleep 2
+done
+----
+
+=== Search via file_search
+
+Use the LLM with the `file_search` tool to query your document.
+The LLM searches the uploaded content and includes relevant chunks in its answer.
+
+[source,bash]
+----
+curl -s -X POST "$URL/v1/responses" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "/mnt/models",
+    "tools": [{"type": "file_search", "vector_store_ids": ["'"$VS_ID"'"]}],
+    "input": "What are Pods in Kubernetes?"
+  }' | jq '.output[] | select(.type == "message") | .content[].text'
+----
+
+=== Upload a PDF
+
+Docling extracts structured text from PDFs, preserving headings and tables.
+
+[source,bash]
+----
+PDF_ID=$(curl -s -X POST "$URL/builtin/files" \
+  -F "file=@document.pdf" \
+  -F "purpose=assistants" | jq -r .id)
+
+curl -s -X POST "$URL/builtin/vector_stores/$VS_ID/files" \
+  -H "Content-Type: application/json" \
+  -d "{\"file_id\":\"$PDF_ID\"}" | jq .
+
+# PDF extraction takes longer than plain text
+for i in $(seq 1 60); do
+  STATUS=$(curl -s "$URL/builtin/vector_stores/$VS_ID/files" | \
+    jq -r "[.data[] | select(.id==\"$PDF_ID\")][0].status")
+  echo "PDF ingestion: $STATUS"
+  [ "$STATUS" = "completed" ] && break
+  [ "$STATUS" = "failed" ] && break
+  sleep 2
+done
+----
+
+=== Manage Files
+
+[source,bash]
+----
+# List all uploaded files
+curl -s "$URL/builtin/files" | jq '.data[] | {id, filename, status}'
+
+# Download original content
+curl -s "$URL/builtin/files/$FILE_ID/content" -o downloaded.txt
+
+# Remove file from a vector store (chunks deleted, file remains)
+curl -s -X DELETE "$URL/builtin/vector_stores/$VS_ID/files/$FILE_ID" | jq .
+
+# Delete file entirely (cascades to all vector stores)
+curl -s -X DELETE "$URL/builtin/files/$FILE_ID" | jq .
+----
+
+== Text-Only Mode (Without Docling)
+
+If you only need plain text, Markdown, and CSV support, remove the docling-serve Deployment and clear `docling_url` in the ConfigMap.
+The built-in passthrough extractor handles simple formats without any external service.
+Attempting to ingest a PDF without docling-serve returns a clear error explaining what is needed.
+
+== See Also
+
+* xref:reference:files-api.adoc[Files API Reference] for the complete endpoint documentation
+* xref:reference:configuration.adoc[Configuration Guide] for customizing the deployment
+* xref:qs-05-code-interpreter.adoc[Quickstart 05] for another tool-based deployment pattern
+
+== Teardown
+
+[source,bash]
+----
+kubectl delete namespace antwort
+----

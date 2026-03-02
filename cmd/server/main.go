@@ -35,6 +35,7 @@ import (
 	"github.com/rhuss/antwort/pkg/storage/memory"
 	"github.com/rhuss/antwort/pkg/storage/postgres"
 	"github.com/rhuss/antwort/pkg/tools"
+	"github.com/rhuss/antwort/pkg/files"
 	"github.com/rhuss/antwort/pkg/tools/builtins/codeinterpreter"
 	"github.com/rhuss/antwort/pkg/tools/builtins/filesearch"
 	"github.com/rhuss/antwort/pkg/tools/builtins/websearch"
@@ -220,12 +221,47 @@ func createFunctionRegistry(cfg *config.Config) *registry.FunctionRegistry {
 			}
 			reg.Register(provider)
 
+		case "files":
+			// Files provider needs shared dependencies from file_search.
+			var fsDeps files.ProviderDeps
+			if fsProvider := findFileSearchProvider(reg); fsProvider != nil {
+				// Use the Qdrant backend as VectorIndexer (it implements both interfaces).
+				if qdrant, ok := fsProvider.Backend().(*filesearch.QdrantBackend); ok {
+					fsDeps.Indexer = qdrant
+				}
+				fsDeps.Embedding = fsProvider.Embedding()
+				vsMetadata := fsProvider.MetadataStore()
+				fsDeps.VSLookup = func(vsID string) (string, error) {
+					vs, err := vsMetadata.Get(vsID)
+					if err != nil {
+						return "", err
+					}
+					return vs.CollectionName, nil
+				}
+			}
+			provider, err := files.New(provCfg.Settings, fsDeps)
+			if err != nil {
+				slog.Error("failed to create files provider", "error", err)
+				continue
+			}
+			reg.Register(provider)
+
 		default:
 			slog.Info("builtin provider configured (no implementation yet)", "provider", name)
 		}
 	}
 
 	return reg
+}
+
+// findFileSearchProvider returns the FileSearchProvider from the registry if registered.
+func findFileSearchProvider(reg *registry.FunctionRegistry) *filesearch.FileSearchProvider {
+	for _, p := range reg.Providers() {
+		if fsp, ok := p.(*filesearch.FileSearchProvider); ok {
+			return fsp
+		}
+	}
+	return nil
 }
 
 // createProvider creates a provider.Provider from the config.
