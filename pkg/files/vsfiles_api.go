@@ -4,7 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
-
+	"sync"
+	
 	"github.com/rhuss/antwort/pkg/api"
 )
 
@@ -15,6 +16,33 @@ type VSFilesAPI struct {
 	vsLookup    VectorStoreLookup
 	indexer     VectorIndexer
 	pipeline    *IngestionPipeline
+	batches     *BatchStore
+}
+
+// BatchStore is a thread-safe in-memory store for file batch records.
+type BatchStore struct {
+	mu      sync.RWMutex
+	batches map[string]*FileBatch // batchID -> batch
+}
+
+// NewBatchStore creates an empty batch store.
+func NewBatchStore() *BatchStore {
+	return &BatchStore{
+		batches: make(map[string]*FileBatch),
+	}
+}
+
+func (b *BatchStore) Save(batch *FileBatch) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.batches[batch.ID] = batch
+}
+
+func (b *BatchStore) Get(batchID string) (*FileBatch, bool) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	batch, ok := b.batches[batchID]
+	return batch, ok
 }
 
 func (v *VSFilesAPI) handleAddFile(w http.ResponseWriter, r *http.Request) {
@@ -130,6 +158,123 @@ func (v *VSFilesAPI) handleListFiles(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
+}
+
+func (v *VSFilesAPI) handleCreateBatch(w http.ResponseWriter, r *http.Request) {
+	storeID := r.PathValue("store_id")
+
+	// Verify vector store exists.
+	if _, err := v.vsLookup(storeID); err != nil {
+		writeAPIError(w, api.NewNotFoundError("vector store not found"))
+		return
+	}
+
+	var req struct {
+		FileIDs []string `json:"file_ids"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeAPIError(w, api.NewInvalidRequestError("body", "invalid request body"))
+		return
+	}
+	if len(req.FileIDs) == 0 {
+		writeAPIError(w, api.NewInvalidRequestError("file_ids", "file_ids is required and must not be empty"))
+		return
+	}
+
+	batchID := api.NewBatchID()
+	batch := &FileBatch{
+		ID:            batchID,
+		Object:        "vector_store.files_batch",
+		VectorStoreID: storeID,
+		Status:        "in_progress",
+		FileCounts: FileBatchCounts{
+			Total: len(req.FileIDs),
+		},
+		CreatedAt: time.Now().Unix(),
+	}
+
+	// Queue each file for ingestion.
+	for _, fileID := range req.FileIDs {
+		file, err := v.metadata.Get(r.Context(), fileID)
+		if err != nil {
+			// File not found: create a record marked as failed.
+			rec := NewVectorStoreFileRecord(storeID, fileID)
+			rec.BatchID = batchID
+			rec.Status = FileStatusFailed
+			rec.LastError = "file not found"
+			_ = v.vsFileStore.Save(r.Context(), rec)
+			batch.FileCounts.Failed++
+			continue
+		}
+
+		// Check if already in the store.
+		if existing, _ := v.vsFileStore.Get(r.Context(), storeID, fileID); existing != nil {
+			batch.FileCounts.Failed++
+			continue
+		}
+
+		rec := NewVectorStoreFileRecord(storeID, fileID)
+		rec.BatchID = batchID
+		if err := v.vsFileStore.Save(r.Context(), rec); err != nil {
+			batch.FileCounts.Failed++
+			continue
+		}
+
+		batch.FileCounts.InProgress++
+		v.pipeline.Ingest(file, storeID)
+	}
+
+	// Determine batch status.
+	if batch.FileCounts.InProgress == 0 {
+		batch.Status = "completed"
+	}
+
+	v.batches.Save(batch)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(batch)
+}
+
+func (v *VSFilesAPI) handleGetBatch(w http.ResponseWriter, r *http.Request) {
+	storeID := r.PathValue("store_id")
+	batchID := r.PathValue("batch_id")
+
+	// Verify vector store exists.
+	if _, err := v.vsLookup(storeID); err != nil {
+		writeAPIError(w, api.NewNotFoundError("vector store not found"))
+		return
+	}
+
+	batch, ok := v.batches.Get(batchID)
+	if !ok || batch.VectorStoreID != storeID {
+		writeAPIError(w, api.NewNotFoundError("batch not found"))
+		return
+	}
+
+	// Recompute counts from current VS file records.
+	records, err := v.vsFileStore.ListByBatch(r.Context(), batchID)
+	if err == nil {
+		counts := FileBatchCounts{Total: len(records)}
+		for _, rec := range records {
+			switch rec.Status {
+			case FileStatusProcessing:
+				counts.InProgress++
+			case FileStatusCompleted:
+				counts.Completed++
+			case FileStatusFailed:
+				counts.Failed++
+			}
+		}
+		batch.FileCounts = counts
+
+		// Update batch status.
+		if counts.InProgress == 0 {
+			batch.Status = "completed"
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(batch)
 }
 
 func (v *VSFilesAPI) handleRemoveFile(w http.ResponseWriter, r *http.Request) {
