@@ -2,7 +2,7 @@
 
 **Date**: 2026-03-03
 **Participants**: Roland Huss
-**Goal**: Design a user-ownership-first authorization model with Unix-style permissions and Keycloak role-based admin access.
+**Goal**: Design a three-layer authorization model: endpoint-level scopes, CRUD-level roles, and resource-level ownership with Unix-style permissions.
 
 ## Core Principle
 
@@ -17,7 +17,44 @@ Today:    Authn ✅ → Tenant isolation ✅ → User isolation ❌ → Authoriz
 Target:   Authn ✅ → Tenant isolation ✅ → User isolation ✅ → Authorization ✅
 ```
 
-## Design
+## Three-Layer Design
+
+```
+Level 1: Endpoint Access (scopes)     → Can you call POST /v1/files at all?
+Level 2: CRUD Authorization (roles)   → Roles bundle scopes for common personas
+Level 3: Resource Ownership (per-obj) → Can you access THIS specific file?
+```
+
+All three layers are enforced independently. Passing Level 1 does not bypass Level 3.
+
+### Level 1: Endpoint-Level Scopes
+
+Every endpoint requires a scope. Scopes are fine-grained, per resource type and operation:
+
+| Resource | Scopes |
+|----------|--------|
+| Responses | `responses:create`, `responses:read`, `responses:delete` |
+| Files | `files:create`, `files:read`, `files:delete` |
+| Vector Stores | `vector_stores:create`, `vector_stores:read`, `vector_stores:write`, `vector_stores:delete` |
+| Conversations | `conversations:create`, `conversations:read`, `conversations:write`, `conversations:delete` |
+| Agents | `agents:read` |
+
+Scopes come from the JWT `scope` claim (space-separated or array). A scope middleware checks the required scope for each endpoint before the handler runs.
+
+### Level 2: Role-Based Scope Bundles (Keycloak)
+
+Roles are managed in Keycloak and bundle scopes for common personas:
+
+| Role | Scopes Included | Use Case |
+|------|----------------|----------|
+| **viewer** | `*:read`, `agents:read` | Read-only dashboards, monitoring |
+| **user** | viewer + `responses:create`, `files:create`, `conversations:create`, `conversations:write` | Standard chat user |
+| **manager** | user + `vector_stores:*`, `files:delete`, `conversations:delete`, `responses:delete` | RAG infrastructure management |
+| **admin** | All scopes + admin resource override | Full tenant administration |
+
+Role-to-scope expansion happens in antwort at request time. Keycloak assigns roles, antwort knows the mapping.
+
+### Level 3: Resource-Level Ownership (Always Enforced)
 
 ### Layer 1: User-Level Ownership (Always Enforced)
 
@@ -136,6 +173,35 @@ In Keycloak, the `admin` role is assigned via realm roles. The JWT includes:
 
 Antwort reads `realm_access.roles` (configurable claim path) to determine admin status.
 
+## Enforcement Architecture
+
+```
+Request
+  │
+  ▼
+Auth Middleware (existing)
+  │ Extracts Identity: subject, tenant, scopes, roles
+  │
+  ▼
+Scope Middleware (NEW - Level 1)
+  │ Expands roles → scopes (role-scope mapping in config)
+  │ Checks: does Identity have required scope for this endpoint?
+  │ 404 if missing scope (don't leak endpoint existence)
+  │
+  ▼
+Handler (Level 3 checks)
+  │ Calls CanAccess(identity, resource, operation)
+  │ Owner always has access
+  │ Admin role overrides for tenant resources
+  │ Group permissions for shared resources
+  │ 404 if no access (don't leak resource existence)
+  │
+  ▼
+Storage (existing tenant filter + NEW owner filter)
+```
+
+Key: Scopes control "can you call this endpoint." Ownership controls "can you see this data." Both enforced independently.
+
 ## What Changes
 
 ### Storage Layer
@@ -145,16 +211,17 @@ Every store (ResponseStore, FileMetadataStore, ConversationStore, VectorStoreFil
 - **Permissions field** on shareable resources (vector stores initially)
 - **Query filtering** by owner (not just tenant)
 
-### Auth Middleware
+### Auth/Authz Middleware
 
 - Extract roles from JWT claims (new: `roles_claim` config)
-- Pass roles in `Identity.Metadata["roles"]` or a new `Identity.Roles` field
-- Authorization helper function used by handlers
+- Add `Identity.Roles` field (or use Metadata)
+- New scope middleware: expand roles to scopes, check required scope per endpoint
+- Role-to-scope mapping in config (not hardcoded)
 
 ### API Changes
 
 - `permissions` field on create/update for shareable resources
-- Error responses: 403 Forbidden (not 404) when resource exists but user lacks access... actually, 404 is more secure (doesn't leak existence). Keep returning 404 for unauthorized access.
+- 404 for unauthorized access (don't leak resource existence)
 
 ### Configuration
 
@@ -162,7 +229,13 @@ Every store (ResponseStore, FileMetadataStore, ConversationStore, VectorStoreFil
 auth:
   jwt:
     roles_claim: realm_access.roles   # Keycloak default path
-    admin_role: admin                  # Role name that grants admin access
+  authorization:
+    admin_role: admin
+    role_scopes:
+      viewer: [responses:read, files:read, vector_stores:read, conversations:read, agents:read]
+      user: [viewer, responses:create, files:create, conversations:create, conversations:write]
+      manager: [user, vector_stores:create, vector_stores:read, vector_stores:write, vector_stores:delete, files:delete, conversations:delete, responses:delete]
+      admin: ["*"]
 ```
 
 ## Keycloak Reference Architecture
@@ -176,7 +249,9 @@ Keycloak Realm: antwort
 │           ├── tenant_id → custom claim from user attribute
 │           └── realm roles → realm_access.roles (default)
 ├── Realm Roles
-│   ├── user (default)
+│   ├── viewer
+│   ├── user (default, assigned to all new users)
+│   ├── manager
 │   └── admin
 ├── Users
 │   ├── alice (roles: user, tenant: org-1)
@@ -192,6 +267,8 @@ Keycloak Realm: antwort
 ## Scope
 
 ### In Scope (spec candidate)
+- Scope middleware: per-endpoint scope enforcement
+- Role-to-scope mapping in config
 - Owner field on all resources
 - Owner-based query filtering (user sees only own data)
 - Unix-style permissions on vector stores (group read for sharing)
