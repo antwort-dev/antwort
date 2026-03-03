@@ -568,6 +568,29 @@ type ToolDefinition struct {
 }
 
 // ---------------------------------------------------------------------------
+// Conversation types (Spec 037)
+// ---------------------------------------------------------------------------
+
+// Conversation represents a named container for a sequence of interaction items.
+type Conversation struct {
+	ID        string         `json:"id"`
+	Object    string         `json:"object"`
+	Name      string         `json:"name,omitempty"`
+	UserID    string         `json:"-"`
+	CreatedAt int64          `json:"created_at"`
+	UpdatedAt int64          `json:"updated_at"`
+	Metadata  map[string]any `json:"metadata,omitempty"`
+}
+
+// ConversationItem links an item to a conversation with ordering.
+type ConversationItem struct {
+	ConversationID string `json:"conversation_id"`
+	Item           Item   `json:"item"`
+	Position       int    `json:"position"`
+	CreatedAt      int64  `json:"created_at"`
+}
+
+// ---------------------------------------------------------------------------
 // Request and Response types (T011)
 // ---------------------------------------------------------------------------
 
@@ -582,6 +605,7 @@ type CreateResponseRequest struct {
 	Store              *bool                        `json:"store,omitempty"`
 	Stream             bool                         `json:"stream,omitempty"`
 	PreviousResponseID string                       `json:"previous_response_id,omitempty"`
+	ConversationID     string                       `json:"conversation_id,omitempty"`
 	Truncation         string                       `json:"truncation,omitempty"`
 	ServiceTier        string                       `json:"service_tier,omitempty"`
 	MaxOutputTokens    *int                         `json:"max_output_tokens,omitempty"`
@@ -630,6 +654,7 @@ type Response struct {
 	IncompleteDetails  *IncompleteDetails         `json:"incomplete_details"`
 	Model              string                     `json:"model"`
 	PreviousResponseID *string                    `json:"previous_response_id"`
+	ConversationID     *string                    `json:"conversation_id,omitempty"`
 	Instructions       *string                    `json:"instructions"`
 	Input              []Item                     `json:"input,omitempty"`
 	Output             []Item                     `json:"output"`

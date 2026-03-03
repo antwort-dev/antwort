@@ -16,11 +16,12 @@ import (
 // Adapter serves the OpenResponses API over HTTP.
 // It routes requests to the appropriate handler and serializes responses.
 type Adapter struct {
-	creator  transport.ResponseCreator
-	store    transport.ResponseStore // nil if stateless-only
-	inflight *transport.InFlightRegistry
-	mux      *http.ServeMux
-	config   Config
+	creator   transport.ResponseCreator
+	store     transport.ResponseStore        // nil if stateless-only
+	convStore transport.ConversationStore    // nil if conversations disabled
+	inflight  *transport.InFlightRegistry
+	mux       *http.ServeMux
+	config    Config
 }
 
 // Config holds configuration for the HTTP adapter.
@@ -63,7 +64,20 @@ func NewAdapter(creator transport.ResponseCreator, store transport.ResponseStore
 	a.mux.HandleFunc("GET /v1/responses", a.handleListResponses)
 	a.mux.HandleFunc("DELETE /v1/responses/{id}", a.handleDeleteResponse)
 
+	// Conversation endpoints (Spec 037).
+	a.mux.HandleFunc("POST /v1/conversations", a.handleCreateConversation)
+	a.mux.HandleFunc("GET /v1/conversations", a.handleListConversations)
+	a.mux.HandleFunc("GET /v1/conversations/{id}/items", a.handleListConversationItems)
+	a.mux.HandleFunc("POST /v1/conversations/{id}/items", a.handleAddConversationItem)
+	a.mux.HandleFunc("GET /v1/conversations/{id}", a.handleGetConversation)
+	a.mux.HandleFunc("DELETE /v1/conversations/{id}", a.handleDeleteConversation)
+
 	return a
+}
+
+// SetConversationStore enables conversation endpoints on the adapter.
+func (a *Adapter) SetConversationStore(store transport.ConversationStore) {
+	a.convStore = store
 }
 
 // Handler returns the http.Handler for this adapter. Use this to integrate

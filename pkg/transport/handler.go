@@ -84,6 +84,37 @@ type ResponseStore interface {
 	Close() error
 }
 
+// ConversationList is a paginated list of conversations.
+type ConversationList struct {
+	Object  string              `json:"object"`
+	Data    []*api.Conversation `json:"data"`
+	HasMore bool                `json:"has_more"`
+	FirstID string              `json:"first_id"`
+	LastID  string              `json:"last_id"`
+}
+
+// ConversationStore handles persistence and retrieval of conversations.
+// It is only available in stateful deployments with persistence configured.
+type ConversationStore interface {
+	// SaveConversation creates or updates a conversation.
+	SaveConversation(ctx context.Context, conv *api.Conversation) error
+
+	// GetConversation retrieves a conversation by ID.
+	GetConversation(ctx context.Context, id string) (*api.Conversation, error)
+
+	// DeleteConversation soft-deletes a conversation by ID.
+	DeleteConversation(ctx context.Context, id string) error
+
+	// ListConversations returns a paginated list of conversations for the user.
+	ListConversations(ctx context.Context, opts ListOptions) (*ConversationList, error)
+
+	// AddItems appends items to a conversation.
+	AddItems(ctx context.Context, conversationID string, items []api.ConversationItem) error
+
+	// ListItems returns a paginated list of items in a conversation.
+	ListItems(ctx context.Context, conversationID string, opts ListOptions) (*ItemList, error)
+}
+
 // ResponseWriter abstracts streaming and non-streaming output for the handler.
 // The transport layer creates a ResponseWriter for each request and provides
 // it to the handler. The handler uses WriteEvent for streaming responses or
