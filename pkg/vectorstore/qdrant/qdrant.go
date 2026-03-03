@@ -1,4 +1,5 @@
-package filesearch
+// Package qdrant implements the vectorstore.Backend interface using the Qdrant HTTP API.
+package qdrant
 
 import (
 	"bytes"
@@ -9,32 +10,27 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/rhuss/antwort/pkg/files"
+	"github.com/rhuss/antwort/pkg/vectorstore"
 )
 
-// QdrantBackend implements VectorStoreBackend using the Qdrant HTTP API.
-type QdrantBackend struct {
+// Backend implements vectorstore.Backend using the Qdrant HTTP API.
+type Backend struct {
 	BaseURL    string
 	HTTPClient *http.Client
 }
 
-// Compile-time checks.
-var (
-	_ VectorStoreBackend  = (*QdrantBackend)(nil)
-	_ files.VectorIndexer = (*QdrantBackend)(nil)
-)
+// Compile-time check.
+var _ vectorstore.Backend = (*Backend)(nil)
 
-// NewQdrant creates a new QdrantBackend that communicates with Qdrant via HTTP.
-func NewQdrant(url string) *QdrantBackend {
-	return &QdrantBackend{
+// New creates a new Qdrant backend that communicates via HTTP.
+func New(url string) *Backend {
+	return &Backend{
 		BaseURL:    strings.TrimRight(url, "/"),
 		HTTPClient: &http.Client{},
 	}
 }
 
-// CreateCollection creates a new vector collection in Qdrant.
-// PUT /collections/{name} with {"vectors": {"size": dims, "distance": "Cosine"}}
-func (q *QdrantBackend) CreateCollection(ctx context.Context, name string, dimensions int) error {
+func (q *Backend) CreateCollection(ctx context.Context, name string, dimensions int) error {
 	body := map[string]interface{}{
 		"vectors": map[string]interface{}{
 			"size":     dimensions,
@@ -68,9 +64,7 @@ func (q *QdrantBackend) CreateCollection(ctx context.Context, name string, dimen
 	return nil
 }
 
-// DeleteCollection removes a vector collection from Qdrant.
-// DELETE /collections/{name}
-func (q *QdrantBackend) DeleteCollection(ctx context.Context, name string) error {
+func (q *Backend) DeleteCollection(ctx context.Context, name string) error {
 	url := fmt.Sprintf("%s/collections/%s", q.BaseURL, name)
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
 	if err != nil {
@@ -91,28 +85,24 @@ func (q *QdrantBackend) DeleteCollection(ctx context.Context, name string) error
 	return nil
 }
 
-// qdrantSearchRequest is the JSON body for Qdrant's search endpoint.
-type qdrantSearchRequest struct {
+type searchRequest struct {
 	Vector      []float32 `json:"vector"`
 	Limit       int       `json:"limit"`
 	WithPayload bool      `json:"with_payload"`
 }
 
-// qdrantSearchResponse represents Qdrant's search response.
-type qdrantSearchResponse struct {
-	Result []qdrantSearchResult `json:"result"`
+type searchResponse struct {
+	Result []searchResult `json:"result"`
 }
 
-type qdrantSearchResult struct {
+type searchResult struct {
 	ID      interface{}            `json:"id"`
 	Score   float32                `json:"score"`
 	Payload map[string]interface{} `json:"payload"`
 }
 
-// Search performs a nearest-neighbor search in the named collection.
-// POST /collections/{name}/points/search
-func (q *QdrantBackend) Search(ctx context.Context, collection string, vector []float32, maxResults int) ([]SearchMatch, error) {
-	searchReq := qdrantSearchRequest{
+func (q *Backend) Search(ctx context.Context, collection string, vector []float32, maxResults int) ([]vectorstore.SearchMatch, error) {
+	searchReq := searchRequest{
 		Vector:      vector,
 		Limit:       maxResults,
 		WithPayload: true,
@@ -145,20 +135,19 @@ func (q *QdrantBackend) Search(ctx context.Context, collection string, vector []
 		return nil, fmt.Errorf("qdrant search returned status %d: %s", resp.StatusCode, string(respBody))
 	}
 
-	var searchResp qdrantSearchResponse
+	var searchResp searchResponse
 	if err := json.Unmarshal(respBody, &searchResp); err != nil {
 		return nil, fmt.Errorf("parsing search response: %w", err)
 	}
 
-	matches := make([]SearchMatch, 0, len(searchResp.Result))
+	matches := make([]vectorstore.SearchMatch, 0, len(searchResp.Result))
 	for _, r := range searchResp.Result {
-		match := SearchMatch{
+		match := vectorstore.SearchMatch{
 			DocumentID: fmt.Sprintf("%v", r.ID),
 			Score:      r.Score,
 			Metadata:   make(map[string]string),
 		}
 
-		// Extract content and metadata from payload.
 		if content, ok := r.Payload["content"].(string); ok {
 			match.Content = content
 		}
@@ -177,23 +166,20 @@ func (q *QdrantBackend) Search(ctx context.Context, collection string, vector []
 	return matches, nil
 }
 
-// qdrantPoint represents a point for Qdrant's upsert endpoint.
-type qdrantPoint struct {
+type point struct {
 	ID      string                 `json:"id"`
 	Vector  []float32              `json:"vector"`
 	Payload map[string]interface{} `json:"payload"`
 }
 
-// UpsertPoints inserts or updates vector points in the named collection.
-// PUT /collections/{name}/points
-func (q *QdrantBackend) UpsertPoints(ctx context.Context, collection string, points []files.VectorPoint) error {
-	qPoints := make([]qdrantPoint, len(points))
+func (q *Backend) UpsertPoints(ctx context.Context, collection string, points []vectorstore.VectorPoint) error {
+	qPoints := make([]point, len(points))
 	for i, p := range points {
 		payload := make(map[string]interface{}, len(p.Metadata))
 		for k, v := range p.Metadata {
 			payload[k] = v
 		}
-		qPoints[i] = qdrantPoint{
+		qPoints[i] = point{
 			ID:      p.ID,
 			Vector:  p.Vector,
 			Payload: payload,
@@ -230,9 +216,7 @@ func (q *QdrantBackend) UpsertPoints(ctx context.Context, collection string, poi
 	return nil
 }
 
-// DeletePointsByFile removes all points with the given file_id from the collection.
-// POST /collections/{name}/points/delete with filter
-func (q *QdrantBackend) DeletePointsByFile(ctx context.Context, collection string, fileID string) error {
+func (q *Backend) DeletePointsByFile(ctx context.Context, collection string, fileID string) error {
 	body := map[string]interface{}{
 		"filter": map[string]interface{}{
 			"must": []map[string]interface{}{

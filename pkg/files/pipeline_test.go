@@ -11,6 +11,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/rhuss/antwort/pkg/vectorstore"
 )
 
 // stubExtractor is a minimal ContentExtractor for testing extractor selection.
@@ -212,6 +214,12 @@ type stubIndexer struct {
 
 func newStubIndexer() *stubIndexer {
 	return &stubIndexer{points: make(map[string][]VectorPoint)}
+}
+
+func (s *stubIndexer) CreateCollection(_ context.Context, _ string, _ int) error { return nil }
+func (s *stubIndexer) DeleteCollection(_ context.Context, _ string) error               { return nil }
+func (s *stubIndexer) Search(_ context.Context, _ string, _ []float32, _ int) ([]vectorstore.SearchMatch, error) {
+	return nil, nil
 }
 
 func (s *stubIndexer) UpsertPoints(_ context.Context, collection string, points []VectorPoint) error {

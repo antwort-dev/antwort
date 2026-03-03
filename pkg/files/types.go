@@ -78,12 +78,7 @@ type ExtractionResult struct {
 	Method    string `json:"method"`
 }
 
-// VectorPoint represents a chunk prepared for vector store insertion.
-type VectorPoint struct {
-	ID       string
-	Vector   []float32
-	Metadata map[string]string
-}
+// Note: VectorPoint is now defined in pkg/vectorstore/ and aliased in indexer.go.
 
 // FileBatch tracks a batch of files being added to a vector store.
 type FileBatch struct {

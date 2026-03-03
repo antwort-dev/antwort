@@ -9,11 +9,19 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/rhuss/antwort/pkg/vectorstore"
 )
 
 // mockVectorIndexer records calls to UpsertPoints and DeletePointsByFile.
 type mockVectorIndexer struct {
 	deletedFiles []string // "collection|fileID"
+}
+
+func (m *mockVectorIndexer) CreateCollection(_ context.Context, _ string, _ int) error { return nil }
+func (m *mockVectorIndexer) DeleteCollection(_ context.Context, _ string) error        { return nil }
+func (m *mockVectorIndexer) Search(_ context.Context, _ string, _ []float32, _ int) ([]vectorstore.SearchMatch, error) {
+	return nil, nil
 }
 
 func (m *mockVectorIndexer) UpsertPoints(_ context.Context, _ string, _ []VectorPoint) error {

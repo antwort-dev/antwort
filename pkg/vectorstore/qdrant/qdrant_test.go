@@ -1,4 +1,4 @@
-package filesearch
+package qdrant
 
 import (
 	"context"
@@ -38,7 +38,7 @@ func TestQdrant_CreateCollection(t *testing.T) {
 	}))
 	defer server.Close()
 
-	q := NewQdrant(server.URL)
+	q := New(server.URL)
 	err := q.CreateCollection(context.Background(), "test-collection", 384)
 	if err != nil {
 		t.Fatalf("CreateCollection() returned error: %v", err)
@@ -52,7 +52,7 @@ func TestQdrant_CreateCollectionError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	q := NewQdrant(server.URL)
+	q := New(server.URL)
 	err := q.CreateCollection(context.Background(), "existing", 384)
 	if err == nil {
 		t.Fatal("expected error for conflicting collection")
@@ -72,7 +72,7 @@ func TestQdrant_DeleteCollection(t *testing.T) {
 	}))
 	defer server.Close()
 
-	q := NewQdrant(server.URL)
+	q := New(server.URL)
 	err := q.DeleteCollection(context.Background(), "test-collection")
 	if err != nil {
 		t.Fatalf("DeleteCollection() returned error: %v", err)
@@ -88,7 +88,7 @@ func TestQdrant_Search(t *testing.T) {
 			t.Errorf("expected path /collections/docs/points/search, got %s", r.URL.Path)
 		}
 
-		var req qdrantSearchRequest
+		var req searchRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			t.Fatalf("failed to decode search request: %v", err)
 		}
@@ -99,8 +99,8 @@ func TestQdrant_Search(t *testing.T) {
 			t.Errorf("expected limit = 5, got %d", req.Limit)
 		}
 
-		resp := qdrantSearchResponse{
-			Result: []qdrantSearchResult{
+		resp := searchResponse{
+			Result: []searchResult{
 				{
 					ID:    "doc-1",
 					Score: 0.95,
@@ -125,7 +125,7 @@ func TestQdrant_Search(t *testing.T) {
 	}))
 	defer server.Close()
 
-	q := NewQdrant(server.URL)
+	q := New(server.URL)
 	matches, err := q.Search(context.Background(), "docs", []float32{0.1, 0.2, 0.3}, 5)
 	if err != nil {
 		t.Fatalf("Search() returned error: %v", err)
@@ -163,7 +163,7 @@ func TestQdrant_SearchError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	q := NewQdrant(server.URL)
+	q := New(server.URL)
 	_, err := q.Search(context.Background(), "nonexistent", []float32{0.1}, 5)
 	if err == nil {
 		t.Fatal("expected error for missing collection")
@@ -181,7 +181,7 @@ func TestQdrant_TrailingSlashInURL(t *testing.T) {
 	defer server.Close()
 
 	// URL with trailing slash should be handled correctly.
-	q := NewQdrant(server.URL + "/")
+	q := New(server.URL + "/")
 	err := q.DeleteCollection(context.Background(), "test")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

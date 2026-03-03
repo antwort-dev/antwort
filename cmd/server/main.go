@@ -249,10 +249,8 @@ func createFunctionRegistry(cfg *config.Config) *registry.FunctionRegistry {
 			// Files provider needs shared dependencies from file_search.
 			var fsDeps files.ProviderDeps
 			if fsProvider := findFileSearchProvider(reg); fsProvider != nil {
-				// Use the Qdrant backend as VectorIndexer (it implements both interfaces).
-				if qdrant, ok := fsProvider.Backend().(*filesearch.QdrantBackend); ok {
-					fsDeps.Indexer = qdrant
-				}
+				// The backend implements the unified vectorstore.Backend interface.
+				fsDeps.Indexer = fsProvider.Backend()
 				fsDeps.Embedding = fsProvider.Embedding()
 				vsMetadata := fsProvider.MetadataStore()
 				fsDeps.VSLookup = func(vsID string) (string, error) {

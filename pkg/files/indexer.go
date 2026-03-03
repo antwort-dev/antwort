@@ -1,17 +1,17 @@
 package files
 
-import "context"
+import (
+	"context"
 
-// VectorIndexer writes and deletes vector points in a collection.
-// It complements the read-only VectorStoreBackend from filesearch.
-type VectorIndexer interface {
-	// UpsertPoints inserts or updates vector points in the named collection.
-	UpsertPoints(ctx context.Context, collection string, points []VectorPoint) error
+	"github.com/rhuss/antwort/pkg/vectorstore"
+)
 
-	// DeletePointsByFile removes all points associated with the given file ID
-	// from the named collection.
-	DeletePointsByFile(ctx context.Context, collection string, fileID string) error
-}
+// VectorIndexer is an alias for vectorstore.Backend.
+// Kept for backward compatibility with existing code in this package.
+type VectorIndexer = vectorstore.Backend
+
+// VectorPoint is an alias for vectorstore.VectorPoint.
+type VectorPoint = vectorstore.VectorPoint
 
 // Embedder converts text into embedding vectors. This mirrors filesearch.EmbeddingClient
 // to avoid an import cycle between pkg/files and pkg/tools/builtins/filesearch.
