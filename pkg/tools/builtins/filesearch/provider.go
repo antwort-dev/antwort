@@ -315,10 +315,28 @@ func (p *FileSearchProvider) Execute(ctx context.Context, call tools.ToolCall) (
 	// Format results as text.
 	output := formatSearchResults(args.Query, allMatches)
 
+	// Build metadata for citation generation.
+	// Use the top match's content and file_id for annotation source tracking.
+	var metadata map[string]string
+	if len(allMatches) > 0 {
+		top := allMatches[0]
+		metadata = map[string]string{
+			"tool":    toolName,
+			"content": top.Content,
+		}
+		if fileID, ok := top.Metadata["file_id"]; ok {
+			metadata["file_id"] = fileID
+		}
+		if top.DocumentID != "" && metadata["file_id"] == "" {
+			metadata["file_id"] = top.DocumentID
+		}
+	}
+
 	p.searchCount.WithLabelValues("success").Inc()
 	return &tools.ToolResult{
-		CallID: call.ID,
-		Output: output,
+		CallID:   call.ID,
+		Output:   output,
+		Metadata: metadata,
 	}, nil
 }
 

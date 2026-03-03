@@ -28,6 +28,7 @@ func (e *Engine) runAgenticLoop(ctx context.Context, req *api.CreateResponseRequ
 
 	var allOutputItems []api.Item
 	var cumulativeUsage api.Usage
+	var allToolResults []tools.ToolResult // Track results for annotation generation.
 
 	debug.Log("engine", "agentic loop start", "max_turns", maxTurns, "parallel", parallel, "tools", len(req.Tools))
 
@@ -82,7 +83,7 @@ func (e *Engine) runAgenticLoop(ctx context.Context, req *api.CreateResponseRequ
 		// No tool calls: final answer. Return completed response.
 		if len(toolCalls) == 0 {
 			debug.Log("engine", "final answer (no tool calls)", "turn", turn+1, "status", string(provResp.Status))
-			return e.buildAndWriteResponse(ctx, req, allOutputItems, &cumulativeUsage, provResp.Status, nil, w)
+			return e.buildAndWriteResponse(ctx, req, allOutputItems, &cumulativeUsage, provResp.Status, nil, w, allToolResults)
 		}
 
 		// Log tool calls.
@@ -112,6 +113,9 @@ func (e *Engine) runAgenticLoop(ctx context.Context, req *api.CreateResponseRequ
 
 		// Combine with rejected results.
 		allResults := append(results, filterResult.Rejected...)
+
+		// Track tool results for annotation generation.
+		allToolResults = append(allToolResults, allResults...)
 
 		// Convert results to function_call_output items and add to output.
 		var resultItems []api.Item
@@ -143,7 +147,7 @@ func (e *Engine) runAgenticLoop(ctx context.Context, req *api.CreateResponseRequ
 	}
 
 	// Max turns reached: return incomplete.
-	return e.buildAndWriteResponse(ctx, req, allOutputItems, &cumulativeUsage, api.ResponseStatusIncomplete, nil, w)
+	return e.buildAndWriteResponse(ctx, req, allOutputItems, &cumulativeUsage, api.ResponseStatusIncomplete, nil, w, allToolResults)
 }
 
 // runAgenticLoopStreaming executes the multi-turn agentic cycle for streaming
@@ -157,6 +161,7 @@ func (e *Engine) runAgenticLoopStreaming(ctx context.Context, req *api.CreateRes
 
 	var cumulativeUsage api.Usage
 	var allOutputItems []api.Item
+	var allToolResults []tools.ToolResult // Track for annotation generation.
 
 	// Build initial response skeleton.
 	resp := buildResponseFromRequest(req, api.ResponseStatusInProgress)
@@ -196,7 +201,8 @@ func (e *Engine) runAgenticLoopStreaming(ctx context.Context, req *api.CreateRes
 		}
 
 		// Consume events from this turn, accumulating items.
-		turnItems, turnUsage, turnErr := e.consumeStreamTurn(ctx, eventCh, state, w)
+		// Pass tool results for annotation generation on the output text.
+		turnItems, turnUsage, turnErr := e.consumeStreamTurn(ctx, eventCh, state, w, allToolResults)
 		turnDuration := time.Since(turnStreamStart)
 
 		// Record provider metrics for this streaming turn.
@@ -271,6 +277,9 @@ func (e *Engine) runAgenticLoopStreaming(ctx context.Context, req *api.CreateRes
 		results := e.executeToolsWithEvents(ctx, filterResult.Allowed, parallel, w, state)
 		allResults := append(results, filterResult.Rejected...)
 
+		// Track tool results for annotation generation.
+		allToolResults = append(allToolResults, allResults...)
+
 		// Append the assistant's tool call message before results.
 		provReq.Messages = append(provReq.Messages, buildAssistantToolCallMessage(toolCalls))
 
@@ -335,7 +344,7 @@ func streamUsage(usage *api.Usage, req *api.CreateResponseRequest) *api.Usage {
 // consumeStreamTurn reads all events from one provider.Stream turn,
 // writing events to the ResponseWriter and collecting output items.
 // Returns the items produced, usage (if any), and any error.
-func (e *Engine) consumeStreamTurn(ctx context.Context, eventCh <-chan provider.ProviderEvent, state *streamState, w transport.ResponseWriter) ([]api.Item, *api.Usage, error) {
+func (e *Engine) consumeStreamTurn(ctx context.Context, eventCh <-chan provider.ProviderEvent, state *streamState, w transport.ResponseWriter, toolResults []tools.ToolResult) ([]api.Item, *api.Usage, error) {
 	var itemAdded bool
 	var accumulatedText string
 	var toolCallItems []api.Item
@@ -378,24 +387,60 @@ func (e *Engine) consumeStreamTurn(ctx context.Context, eventCh <-chan provider.
 			var items []api.Item
 			if itemAdded && accumulatedText != "" {
 				outputItem.Status = api.ItemStatusCompleted
-				outputItem.Message.Output = []api.OutputContentPart{
-					{Type: "output_text", Text: accumulatedText},
-				}
 
-				// Emit text done, content_part.done, output_item.done.
+				// Emit text done.
 				if err := w.WriteEvent(ctx, api.StreamEvent{
 					Type: api.EventOutputTextDone, SequenceNumber: state.nextSeq(),
 					ItemID: outputItem.ID, OutputIndex: state.outputIndex,
 				}); err != nil {
 					return nil, nil, err
 				}
+
+				// Generate and emit annotations after text is complete.
+				var annotations []api.Annotation
+				if e.cfg.Annotator != nil && len(toolResults) > 0 {
+					sources := ExtractSourceContexts(toolResults)
+					annotations = e.cfg.Annotator.Generate(accumulatedText, sources)
+					for i, ann := range annotations {
+						if err := w.WriteEvent(ctx, api.StreamEvent{
+							Type:            api.EventAnnotationAdded,
+							SequenceNumber:  state.nextSeq(),
+							ItemID:          outputItem.ID,
+							OutputIndex:     state.outputIndex,
+							ContentIndex:    0,
+							AnnotationIndex: i,
+							Annotation:      &ann,
+						}); err != nil {
+							return nil, nil, err
+						}
+					}
+				}
+
+				// Build content part with annotations.
+				contentPart := &api.OutputContentPart{
+					Type:        "output_text",
+					Text:        accumulatedText,
+					Annotations: annotations,
+				}
+				if contentPart.Annotations == nil {
+					contentPart.Annotations = []api.Annotation{}
+				}
+
 				if err := w.WriteEvent(ctx, api.StreamEvent{
 					Type: api.EventContentPartDone, SequenceNumber: state.nextSeq(),
-					Part:   &api.OutputContentPart{Type: "output_text", Text: accumulatedText},
+					Part:   contentPart,
 					ItemID: outputItem.ID, OutputIndex: state.outputIndex,
 				}); err != nil {
 					return nil, nil, err
 				}
+				// Set the output item's content with annotations.
+				outputItem.Message.Output = []api.OutputContentPart{
+					{Type: "output_text", Text: accumulatedText, Annotations: annotations},
+				}
+				if outputItem.Message.Output[0].Annotations == nil {
+					outputItem.Message.Output[0].Annotations = []api.Annotation{}
+				}
+
 				if err := w.WriteEvent(ctx, api.StreamEvent{
 					Type: api.EventOutputItemDone, SequenceNumber: state.nextSeq(),
 					Item: &outputItem, OutputIndex: state.outputIndex,
@@ -768,7 +813,26 @@ func buildAssistantToolCallMessage(calls []tools.ToolCall) provider.ProviderMess
 }
 
 // buildAndWriteResponse creates the final response and writes it.
-func (e *Engine) buildAndWriteResponse(ctx context.Context, req *api.CreateResponseRequest, items []api.Item, usage *api.Usage, status api.ResponseStatus, respErr *api.APIError, w transport.ResponseWriter) error {
+func (e *Engine) buildAndWriteResponse(ctx context.Context, req *api.CreateResponseRequest, items []api.Item, usage *api.Usage, status api.ResponseStatus, respErr *api.APIError, w transport.ResponseWriter, toolResults ...[]tools.ToolResult) error {
+	// Generate annotations from tool results if annotator is configured.
+	if e.cfg.Annotator != nil && len(toolResults) > 0 {
+		sources := ExtractSourceContexts(toolResults[0])
+		if len(sources) > 0 {
+			for i := range items {
+				if items[i].Type == api.ItemTypeMessage && items[i].Message != nil {
+					for j := range items[i].Message.Output {
+						if items[i].Message.Output[j].Type == "output_text" && items[i].Message.Output[j].Text != "" {
+							anns := e.cfg.Annotator.Generate(items[i].Message.Output[j].Text, sources)
+							if len(anns) > 0 {
+								items[i].Message.Output[j].Annotations = anns
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
 	resp := buildResponseFromRequest(req, status)
 	resp.Output = items
 	resp.Usage = usage
