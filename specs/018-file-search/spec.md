@@ -4,6 +4,15 @@
 **Created**: 2026-02-23
 **Status**: Draft
 
+> **Amended by**: [Spec 034 - Files API](../034-files-api/spec.md) (2026-03-03)
+> Document ingestion is no longer external-only. Spec 034 adds a built-in Files API
+> with content extraction, chunking, embedding, and vector indexing.
+
+> **Amended by**: [Spec 039 - Vector Store Unification](../039-vectorstore-unification/spec.md) (2026-03-03)
+> The `VectorStoreBackend` interface defined here has been unified into
+> `pkg/vectorstore/Backend` (5 methods). The Qdrant adapter moved to
+> `pkg/vectorstore/qdrant/`. An in-memory backend was added for testing.
+
 ## Overview
 
 This specification adds a built-in `file_search` tool with a Vector Store management API to antwort. The Vector Store API manages metadata (store names, file references, configuration). An external ingestion pipeline handles document processing (parsing, chunking, embedding, vector insertion). When the model calls `file_search`, antwort queries the external vector DB and returns relevant document chunks for retrieval-augmented generation (RAG).

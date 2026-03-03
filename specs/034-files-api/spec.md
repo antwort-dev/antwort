@@ -5,6 +5,10 @@
 **Status**: Draft
 **Input**: User description: "Files API and Document Ingestion - upload, store, extract, chunk, embed, and index documents for RAG"
 
+> **Amended by**: [Spec 039 - Vector Store Unification](../039-vectorstore-unification/spec.md) (2026-03-03)
+> The `VectorIndexer` interface defined here has been unified into
+> `pkg/vectorstore/Backend`. The `VectorPoint` type moved to `pkg/vectorstore/`.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Upload and Search a Document (Priority: P1)
