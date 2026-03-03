@@ -12,15 +12,17 @@ const (
 
 	responseIDPrefix = "resp_"
 	itemIDPrefix     = "item_"
-	fileIDPrefix     = "file_"
-	batchIDPrefix    = "batch_"
+	fileIDPrefix         = "file_"
+	batchIDPrefix        = "batch_"
+	conversationIDPrefix = "conv_"
 )
 
 var (
-	responseIDPattern = regexp.MustCompile(`^resp_[a-zA-Z0-9]{24}$`)
-	itemIDPattern     = regexp.MustCompile(`^item_[a-zA-Z0-9]{24}$`)
-	fileIDPattern     = regexp.MustCompile(`^file_[a-zA-Z0-9]{24}$`)
-	batchIDPattern    = regexp.MustCompile(`^batch_[a-zA-Z0-9]{24}$`)
+	responseIDPattern     = regexp.MustCompile(`^resp_[a-zA-Z0-9]{24}$`)
+	itemIDPattern         = regexp.MustCompile(`^item_[a-zA-Z0-9]{24}$`)
+	fileIDPattern         = regexp.MustCompile(`^file_[a-zA-Z0-9]{24}$`)
+	batchIDPattern        = regexp.MustCompile(`^batch_[a-zA-Z0-9]{24}$`)
+	conversationIDPattern = regexp.MustCompile(`^conv_[a-zA-Z0-9]{24}$`)
 )
 
 // NewResponseID generates a new response ID with the "resp_" prefix
@@ -57,6 +59,17 @@ func NewFileID() string {
 // followed by 24 cryptographically random alphanumeric characters.
 func NewBatchID() string {
 	return batchIDPrefix + randomAlphanumeric(idLength)
+}
+
+// NewConversationID generates a new conversation ID with the "conv_" prefix
+// followed by 24 cryptographically random alphanumeric characters.
+func NewConversationID() string {
+	return conversationIDPrefix + randomAlphanumeric(idLength)
+}
+
+// ValidateConversationID checks whether the given string is a valid conversation ID.
+func ValidateConversationID(id string) bool {
+	return conversationIDPattern.MatchString(id)
 }
 
 // ValidateFileID checks whether the given string is a valid file ID

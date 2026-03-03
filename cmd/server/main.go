@@ -110,6 +110,12 @@ func run() error {
 	// Create HTTP adapter.
 	adapter := transporthttp.NewAdapter(eng, store, transporthttp.DefaultConfig())
 
+	// Enable conversations if storage is available.
+	if store != nil {
+		convStore := memory.NewConversationStore()
+		adapter.SetConversationStore(convStore)
+	}
+
 	// Build auth chain from config.
 	authChain := buildAuthChain(cfg)
 
