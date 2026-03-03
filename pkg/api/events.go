@@ -57,15 +57,17 @@ const (
 // StreamEvent represents a single server-sent event in a streaming response.
 // Fields are included or omitted based on the event type via custom marshaling.
 type StreamEvent struct {
-	Type           StreamEventType    `json:"-"`
-	SequenceNumber int                `json:"-"`
-	Response       *Response          `json:"-"`
-	Item           *Item              `json:"-"`
-	Part           *OutputContentPart `json:"-"`
-	Delta          string             `json:"-"`
-	ItemID         string             `json:"-"`
-	OutputIndex    int                `json:"-"`
-	ContentIndex   int                `json:"-"`
+	Type            StreamEventType    `json:"-"`
+	SequenceNumber  int                `json:"-"`
+	Response        *Response          `json:"-"`
+	Item            *Item              `json:"-"`
+	Part            *OutputContentPart `json:"-"`
+	Delta           string             `json:"-"`
+	ItemID          string             `json:"-"`
+	OutputIndex     int                `json:"-"`
+	ContentIndex    int                `json:"-"`
+	AnnotationIndex int                `json:"-"`
+	Annotation      *Annotation        `json:"-"`
 }
 
 // MarshalJSON serializes a StreamEvent with the correct fields for each event type.
@@ -206,6 +208,18 @@ func (e StreamEvent) MarshalJSON() ([]byte, error) {
 			ItemID         string          `json:"item_id"`
 			OutputIndex    int             `json:"output_index"`
 		}{e.Type, e.SequenceNumber, e.ItemID, e.OutputIndex})
+
+	case EventAnnotationAdded:
+		// Annotation event: type + seq + item_id + output_index + content_index + annotation_index + annotation.
+		return json.Marshal(struct {
+			Type            StreamEventType `json:"type"`
+			SequenceNumber  int             `json:"sequence_number"`
+			ItemID          string          `json:"item_id"`
+			OutputIndex     int             `json:"output_index"`
+			ContentIndex    int             `json:"content_index"`
+			AnnotationIndex int             `json:"annotation_index"`
+			Annotation      *Annotation     `json:"annotation,omitempty"`
+		}{e.Type, e.SequenceNumber, e.ItemID, e.OutputIndex, e.ContentIndex, e.AnnotationIndex, e.Annotation})
 
 	default:
 		// Fallback: include all non-zero fields.

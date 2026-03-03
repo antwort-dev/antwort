@@ -17,6 +17,10 @@ type Config struct {
 	// loop. When nil or empty, the engine falls back to single-shot
 	// behavior (tool calls returned as function_call items).
 	Executors []tools.ToolExecutor
+
+	// Annotator generates citations on output text from tool result sources.
+	// When nil, no annotations are generated (feature disabled).
+	Annotator AnnotationGenerator
 }
 
 // maxTurns returns the effective max turns value, defaulting to 10.
