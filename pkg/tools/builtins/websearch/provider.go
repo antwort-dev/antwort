@@ -65,8 +65,28 @@ func New(settings map[string]interface{}) (*WebSearchProvider, error) {
 			return nil, fmt.Errorf("web_search: 'url' must be a non-empty string")
 		}
 		adapter = NewSearXNG(urlStr)
+	case "brave":
+		apiKey, ok := settings["api_key"]
+		if !ok {
+			return nil, fmt.Errorf("web_search: 'api_key' is required for brave backend")
+		}
+		keyStr, ok := apiKey.(string)
+		if !ok || keyStr == "" {
+			return nil, fmt.Errorf("web_search: 'api_key' must be a non-empty string for brave backend")
+		}
+		adapter = NewBrave(keyStr)
+	case "tavily":
+		apiKey, ok := settings["api_key"]
+		if !ok {
+			return nil, fmt.Errorf("web_search: 'api_key' is required for tavily backend")
+		}
+		keyStr, ok := apiKey.(string)
+		if !ok || keyStr == "" {
+			return nil, fmt.Errorf("web_search: 'api_key' must be a non-empty string for tavily backend")
+		}
+		adapter = NewTavily(keyStr)
 	default:
-		return nil, fmt.Errorf("web_search: unknown backend %q", backend)
+		return nil, fmt.Errorf("web_search: unknown backend %q (available: searxng, brave, tavily)", backend)
 	}
 
 	queries := prometheus.NewCounterVec(
