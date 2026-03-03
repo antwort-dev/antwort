@@ -12,6 +12,8 @@ import (
 	"github.com/rhuss/antwort/pkg/storage"
 	"github.com/rhuss/antwort/pkg/tools"
 	"github.com/rhuss/antwort/pkg/tools/registry"
+	memorybackend "github.com/rhuss/antwort/pkg/vectorstore/memory"
+	qdrantbackend "github.com/rhuss/antwort/pkg/vectorstore/qdrant"
 )
 
 const toolName = "file_search"
@@ -98,9 +100,11 @@ func New(settings map[string]interface{}) (*FileSearchProvider, error) {
 		if !ok || urlStr == "" {
 			return nil, fmt.Errorf("file_search: 'backend_url' must be a non-empty string")
 		}
-		backend = NewQdrant(urlStr)
+		backend = qdrantbackend.New(urlStr)
+	case "memory":
+		backend = memorybackend.New()
 	default:
-		return nil, fmt.Errorf("file_search: unknown backend %q", backendType)
+		return nil, fmt.Errorf("file_search: unknown backend %q (available: qdrant, memory)", backendType)
 	}
 
 	// Create embedding client.

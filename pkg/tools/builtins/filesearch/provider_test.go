@@ -10,6 +10,7 @@ import (
 
 	"github.com/rhuss/antwort/pkg/storage"
 	"github.com/rhuss/antwort/pkg/tools"
+	"github.com/rhuss/antwort/pkg/vectorstore"
 )
 
 // mockBackend is a test implementation of VectorStoreBackend.
@@ -39,6 +40,14 @@ func (m *mockBackend) Search(_ context.Context, collection string, vector []floa
 		return m.searchFn(collection, vector, maxResults)
 	}
 	return nil, nil
+}
+
+func (m *mockBackend) UpsertPoints(_ context.Context, _ string, _ []vectorstore.VectorPoint) error {
+	return nil
+}
+
+func (m *mockBackend) DeletePointsByFile(_ context.Context, _ string, _ string) error {
+	return nil
 }
 
 // mockEmbedding is a test implementation of EmbeddingClient.
