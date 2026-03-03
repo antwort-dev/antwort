@@ -110,10 +110,34 @@ Request-scoped data (request IDs, user identity, tracing context) propagates thr
 
 ### Documentation
 
-- Every feature MUST include documentation updates before it is considered complete. A feature without documentation is an unfinished feature. At minimum, new features require: API reference entries for new endpoints, configuration reference entries for new settings, and a quickstart page if the feature introduces a new deployment pattern.
-- All user-facing documentation is written in AsciiDoc using the Antora static site generator.
-- Documentation content MUST be written using the `kubernetes-patterns` voice profile (`~/.claude/style/voices/kubernetes-patterns.yaml`) via the prose plugin.
-- The writing workflow for all documentation pages is: `prose:write` (or `prose:content-generator`) to create content, `prose:check` (or `prose:pre-validator`) to validate voice compliance, `prose:rewrite` (or `prose:humanizer`) to fix any AI-generated patterns detected.
+A feature without documentation is an unfinished feature. Documentation is a deliverable, not an afterthought.
+
+**Mandatory documentation by feature type:**
+
+- **New API endpoints** (substantial features): MUST update the `reference` module. Add endpoint tables, request/response schemas, error codes, and field descriptions to the appropriate reference page (or create a new one). Update `nav.adoc` if a new page is added.
+- **New configuration settings**: MUST update the `reference/config-reference.adoc` and `reference/environment-variables.adoc` pages with the new settings, their defaults, and their effects.
+- **User-facing capabilities** (new tools, APIs, workflows): MUST add or update a page in the `tutorial` module explaining how to configure and use the feature, with working `curl` examples.
+- **New deployment patterns** (new infrastructure components): MUST add a quickstart page in the `quickstarts` module with kustomize manifests and step-by-step instructions.
+- **Extension hooks** (new interfaces, provider patterns, adapter APIs): MUST add or update a page in the `developer` module explaining the interface contract, how to implement it, and how to register the implementation.
+- **Minor features and enhancements**: MUST update existing documentation pages where the feature changes behavior, adds options, or modifies configuration. No new pages required, but existing pages MUST stay accurate.
+- **Bug fixes**: Documentation updates are optional unless the fix changes user-visible behavior or corrects documented behavior that was wrong.
+
+**Documentation modules** (Antora site structure):
+
+| Module | Purpose | When to update |
+|--------|---------|----------------|
+| `reference` | API specs, config reference, env vars | Every new endpoint, setting, or field |
+| `tutorial` | How-to guides, getting started | Every user-facing capability |
+| `quickstarts` | Deployable examples | Every new deployment pattern |
+| `operations` | Monitoring, troubleshooting, security | Observability or ops changes |
+| `developer` | Architecture, extension points | Every new interface or hook |
+| `client` | SDK integration patterns | Client-visible API changes |
+
+**Writing standards:**
+
+- All documentation is written in AsciiDoc using the Antora static site generator.
+- Content MUST be written using the `kubernetes-patterns` voice profile (`~/.claude/style/voices/kubernetes-patterns.yaml`) via the prose plugin.
+- The writing workflow is: `prose:write` to create content, `prose:check` to validate voice compliance, `prose:rewrite` to fix any AI-generated patterns detected.
 - AsciiDoc files follow semantic line breaks: one sentence per line. This produces clean git diffs and makes sentence length visible.
 - Kubernetes resource names are capitalized (Pod, Service, Deployment). Field names use monospace formatting (e.g., `spec.replicas`).
 - Cross-references between documentation modules use Antora xrefs to keep content interconnected.
@@ -176,4 +200,4 @@ The engine handles both modes. Stateless mode is always available. Stateful feat
 - New specs must declare compliance with these principles. Deviations require explicit justification in the spec's Assumptions or Clarifications section.
 - Code reviews verify constitutional compliance. Non-compliant code is not merged.
 
-**Version**: 1.5.0 | **Ratified**: 2026-02-17 | **Last Amended**: 2026-03-02
+**Version**: 1.6.0 | **Ratified**: 2026-02-17 | **Last Amended**: 2026-03-03
