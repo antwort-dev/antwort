@@ -15,47 +15,47 @@ Authenticated users can only access their own files.
 | Method | Path | Description
 
 | `POST`
-| `/builtin/files`
+| `/v1/files`
 | Upload a file
 
 | `GET`
-| `/builtin/files`
+| `/v1/files`
 | List uploaded files (paginated)
 
 | `GET`
-| `/builtin/files/\{file_id\}`
+| `/v1/files/\{file_id\}`
 | Retrieve file metadata
 
 | `GET`
-| `/builtin/files/\{file_id\}/content`
+| `/v1/files/\{file_id\}/content`
 | Download file content
 
 | `DELETE`
-| `/builtin/files/\{file_id\}`
+| `/v1/files/\{file_id\}`
 | Delete a file and its indexed chunks
 
 | `POST`
-| `/builtin/vector_stores/\{store_id\}/files`
+| `/v1/vector_stores/\{store_id\}/files`
 | Add a file to a vector store (triggers ingestion)
 
 | `GET`
-| `/builtin/vector_stores/\{store_id\}/files`
+| `/v1/vector_stores/\{store_id\}/files`
 | List files in a vector store with ingestion status
 
 | `DELETE`
-| `/builtin/vector_stores/\{store_id\}/files/\{file_id\}`
+| `/v1/vector_stores/\{store_id\}/files/\{file_id\}`
 | Remove a file from a vector store
 
 | `POST`
-| `/builtin/vector_stores/\{store_id\}/file_batches`
+| `/v1/vector_stores/\{store_id\}/file_batches`
 | Add multiple files to a vector store
 
 | `GET`
-| `/builtin/vector_stores/\{store_id\}/file_batches/\{batch_id\}`
+| `/v1/vector_stores/\{store_id\}/file_batches/\{batch_id\}`
 | Check batch ingestion status
 |===
 
-== POST /builtin/files
+== POST /v1/files
 
 Upload a file via multipart form data.
 The file is stored and assigned an ID.
@@ -101,7 +101,7 @@ Content-Type: `multipart/form-data`
 * `400` - Missing file or purpose, invalid purpose value
 * `413` - File exceeds the configured maximum upload size
 
-== GET /builtin/files
+== GET /v1/files
 
 List files for the authenticated user.
 
@@ -145,17 +145,17 @@ List files for the authenticated user.
 }
 ----
 
-== GET /builtin/files/\{file_id\}
+== GET /v1/files/\{file_id\}
 
 Retrieve metadata for a single file.
 Returns `404` if the file does not exist or belongs to a different user.
 
-== GET /builtin/files/\{file_id\}/content
+== GET /v1/files/\{file_id\}/content
 
 Download the original file content.
 The response includes `Content-Type` and `Content-Disposition` headers matching the uploaded file.
 
-== DELETE /builtin/files/\{file_id\}
+== DELETE /v1/files/\{file_id\}
 
 Delete a file entirely.
 This removes the file from content storage, deletes its metadata, and cascades to all vector stores: chunks belonging to this file are deleted from every vector store that contains them.
@@ -171,7 +171,7 @@ This removes the file from content storage, deletes its metadata, and cascades t
 }
 ----
 
-== POST /builtin/vector_stores/\{store_id\}/files
+== POST /v1/vector_stores/\{store_id\}/files
 
 Add a file to a vector store.
 This triggers asynchronous ingestion: extraction, chunking, embedding, and indexing.
@@ -205,7 +205,7 @@ The request returns immediately with status `in_progress`.
 * `404` - Vector store or file not found
 * `400` - File already exists in this vector store
 
-== GET /builtin/vector_stores/\{store_id\}/files
+== GET /v1/vector_stores/\{store_id\}/files
 
 List files in a vector store with their ingestion status.
 
@@ -231,13 +231,13 @@ List files in a vector store with their ingestion status.
 | Results per page (max 100)
 |===
 
-== DELETE /builtin/vector_stores/\{store_id\}/files/\{file_id\}
+== DELETE /v1/vector_stores/\{store_id\}/files/\{file_id\}
 
 Remove a file from a vector store.
 All chunks belonging to this file are deleted from the store's vector collection.
 The file itself remains in file storage and can be re-added later.
 
-== POST /builtin/vector_stores/\{store_id\}/file_batches
+== POST /v1/vector_stores/\{store_id\}/file_batches
 
 Add multiple files to a vector store in a single request.
 Each file is queued for ingestion individually.
@@ -274,7 +274,7 @@ Each file is queued for ingestion individually.
 }
 ----
 
-== GET /builtin/vector_stores/\{store_id\}/file_batches/\{batch_id\}
+== GET /v1/vector_stores/\{store_id\}/file_batches/\{batch_id\}
 
 Check batch ingestion status.
 File counts are recomputed from the current state of each file's ingestion.

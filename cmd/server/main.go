@@ -141,9 +141,12 @@ func run() error {
 	mux := http.NewServeMux()
 	mux.Handle("/", adapter.Handler())
 
-	// Mount builtin provider routes (behind auth via server-level middleware).
+	// Mount builtin provider routes under /v1/ for OpenAI API compatibility.
+	// Provider routes define patterns like /files, /vector_stores which become
+	// /v1/files, /v1/vector_stores after the StripPrefix. Explicit routes on
+	// the adapter (POST /v1/responses, etc.) take precedence in Go's ServeMux.
 	if funcRegistry.HasProviders() {
-		mux.Handle("/builtin/", http.StripPrefix("/builtin", funcRegistry.HTTPHandler()))
+		mux.Handle("/v1/", http.StripPrefix("/v1", funcRegistry.HTTPHandler()))
 	}
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

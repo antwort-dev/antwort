@@ -103,7 +103,7 @@ Routes() []Route
 ----
 
 Returns HTTP endpoints that this provider exposes.
-These routes are mounted under the `/builtin/` path prefix and serve purposes such as health checks, webhooks, and management APIs.
+These routes are mounted under the `/v1/` path prefix and serve purposes such as health checks, webhooks, and management APIs.
 
 [source,go]
 ----

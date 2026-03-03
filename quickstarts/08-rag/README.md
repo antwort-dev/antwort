@@ -91,7 +91,7 @@ echo "Kubernetes is an open source container orchestration platform. \
 It automates deployment, scaling, and management of containerized applications. \
 Pods are the smallest deployable units in Kubernetes." > /tmp/k8s-intro.txt
 
-FILE_ID=$(curl -s -X POST "$URL/builtin/files" \
+FILE_ID=$(curl -s -X POST "$URL/v1/files" \
   -F "file=@/tmp/k8s-intro.txt" \
   -F "purpose=assistants" | jq -r .id)
 
@@ -101,7 +101,7 @@ echo "Uploaded file: $FILE_ID"
 ### Step 2: Create a Vector Store
 
 ```bash
-VS_ID=$(curl -s -X POST "$URL/builtin/vector_stores" \
+VS_ID=$(curl -s -X POST "$URL/v1/vector_stores" \
   -H "Content-Type: application/json" \
   -d '{"name":"docs"}' | jq -r .id)
 
@@ -111,7 +111,7 @@ echo "Vector store: $VS_ID"
 ### Step 3: Add File to Vector Store (Triggers Ingestion)
 
 ```bash
-curl -s -X POST "$URL/builtin/vector_stores/$VS_ID/files" \
+curl -s -X POST "$URL/v1/vector_stores/$VS_ID/files" \
   -H "Content-Type: application/json" \
   -d "{\"file_id\":\"$FILE_ID\"}" | jq .
 ```
@@ -120,7 +120,7 @@ curl -s -X POST "$URL/builtin/vector_stores/$VS_ID/files" \
 
 ```bash
 for i in $(seq 1 30); do
-  STATUS=$(curl -s "$URL/builtin/vector_stores/$VS_ID/files" | \
+  STATUS=$(curl -s "$URL/v1/vector_stores/$VS_ID/files" | \
     jq -r '.data[0].status')
   echo "Ingestion status: $STATUS"
   [ "$STATUS" = "completed" ] && break
@@ -149,18 +149,18 @@ The LLM will search the uploaded document, find the relevant chunk about Pods, a
 
 ```bash
 # Upload any PDF document
-PDF_ID=$(curl -s -X POST "$URL/builtin/files" \
+PDF_ID=$(curl -s -X POST "$URL/v1/files" \
   -F "file=@/path/to/document.pdf" \
   -F "purpose=assistants" | jq -r .id)
 
 # Add to vector store
-curl -s -X POST "$URL/builtin/vector_stores/$VS_ID/files" \
+curl -s -X POST "$URL/v1/vector_stores/$VS_ID/files" \
   -H "Content-Type: application/json" \
   -d "{\"file_id\":\"$PDF_ID\"}" | jq .
 
 # Wait for ingestion (PDF extraction takes longer)
 for i in $(seq 1 60); do
-  STATUS=$(curl -s "$URL/builtin/vector_stores/$VS_ID/files" | \
+  STATUS=$(curl -s "$URL/v1/vector_stores/$VS_ID/files" | \
     jq -r "[.data[] | select(.id==\"$PDF_ID\")][0].status")
   echo "PDF ingestion: $STATUS"
   [ "$STATUS" = "completed" ] && break
@@ -173,12 +173,12 @@ done
 
 ```bash
 # Upload several files first
-F1=$(curl -s -X POST "$URL/builtin/files" -F "file=@doc1.txt" -F "purpose=assistants" | jq -r .id)
-F2=$(curl -s -X POST "$URL/builtin/files" -F "file=@doc2.txt" -F "purpose=assistants" | jq -r .id)
-F3=$(curl -s -X POST "$URL/builtin/files" -F "file=@doc3.txt" -F "purpose=assistants" | jq -r .id)
+F1=$(curl -s -X POST "$URL/v1/files" -F "file=@doc1.txt" -F "purpose=assistants" | jq -r .id)
+F2=$(curl -s -X POST "$URL/v1/files" -F "file=@doc2.txt" -F "purpose=assistants" | jq -r .id)
+F3=$(curl -s -X POST "$URL/v1/files" -F "file=@doc3.txt" -F "purpose=assistants" | jq -r .id)
 
 # Add all at once via batch
-curl -s -X POST "$URL/builtin/vector_stores/$VS_ID/file_batches" \
+curl -s -X POST "$URL/v1/vector_stores/$VS_ID/file_batches" \
   -H "Content-Type: application/json" \
   -d "{\"file_ids\":[\"$F1\",\"$F2\",\"$F3\"]}" | jq .
 ```
@@ -187,22 +187,22 @@ curl -s -X POST "$URL/builtin/vector_stores/$VS_ID/file_batches" \
 
 ```bash
 # List all uploaded files
-curl -s "$URL/builtin/files" | jq .
+curl -s "$URL/v1/files" | jq .
 
 # Get file metadata
-curl -s "$URL/builtin/files/$FILE_ID" | jq .
+curl -s "$URL/v1/files/$FILE_ID" | jq .
 
 # Download original file content
-curl -s "$URL/builtin/files/$FILE_ID/content" -o downloaded.txt
+curl -s "$URL/v1/files/$FILE_ID/content" -o downloaded.txt
 
 # List files in vector store
-curl -s "$URL/builtin/vector_stores/$VS_ID/files" | jq .
+curl -s "$URL/v1/vector_stores/$VS_ID/files" | jq .
 
 # Remove file from store (chunks deleted, file remains)
-curl -s -X DELETE "$URL/builtin/vector_stores/$VS_ID/files/$FILE_ID" | jq .
+curl -s -X DELETE "$URL/v1/vector_stores/$VS_ID/files/$FILE_ID" | jq .
 
 # Delete file entirely (cascades to all vector stores)
-curl -s -X DELETE "$URL/builtin/files/$FILE_ID" | jq .
+curl -s -X DELETE "$URL/v1/files/$FILE_ID" | jq .
 ```
 
 ## Configuration Reference

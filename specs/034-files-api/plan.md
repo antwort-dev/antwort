@@ -83,7 +83,7 @@ The existing `QdrantBackend` in filesearch implements both interfaces. At server
 - `Name()` = "files"
 - `Tools()` = empty (Files API is not a tool)
 - `Routes()` = all file management and vector store file endpoints
-- Registered via config like other providers, mounted under `/builtin/`
+- Registered via config like other providers, mounted under `/v1/`
 
 Route ownership:
 - **FilesProvider**: `/files`, `/files/{file_id}`, `/files/{file_id}/content`, `/vector_stores/{store_id}/files`, `/vector_stores/{store_id}/files/{file_id}`, `/vector_stores/{store_id}/file_batches`

@@ -1,6 +1,6 @@
 # API Contract: Files API
 
-**Version**: 1.0 | **Base Path**: `/builtin` (via FunctionProvider route mounting)
+**Version**: 1.0 | **Base Path**: `/v1` (OpenAI API compatible)
 
 ## POST /files
 

@@ -82,7 +82,7 @@ pkg/files/
 
 **Decision**: Register `FilesProvider` as a `FunctionProvider` with empty `Tools()`. It contributes only HTTP routes, no tool definitions.
 
-**Rationale**: The FunctionProvider pattern provides automatic auth middleware, metrics wrapping, and consistent route mounting under `/builtin/`. Using it for files routes avoids duplicating this infrastructure. The filesearch provider already demonstrates the pattern of contributing both tools and management API routes.
+**Rationale**: The FunctionProvider pattern provides automatic auth middleware, metrics wrapping, and consistent route mounting under `/v1/`. Using it for files routes avoids duplicating this infrastructure. The filesearch provider already demonstrates the pattern of contributing both tools and management API routes.
 
 **Route ownership**:
 - FilesProvider owns: `/files`, `/files/{file_id}`, `/files/{file_id}/content`, `/vector_stores/{store_id}/files`, `/vector_stores/{store_id}/files/{file_id}`, `/vector_stores/{store_id}/file_batches`
