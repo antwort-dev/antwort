@@ -16,12 +16,13 @@ import (
 // Adapter serves the OpenResponses API over HTTP.
 // It routes requests to the appropriate handler and serializes responses.
 type Adapter struct {
-	creator   transport.ResponseCreator
-	store     transport.ResponseStore        // nil if stateless-only
-	convStore transport.ConversationStore    // nil if conversations disabled
-	inflight  *transport.InFlightRegistry
-	mux       *http.ServeMux
-	config    Config
+	creator         transport.ResponseCreator
+	store           transport.ResponseStore        // nil if stateless-only
+	convStore       transport.ConversationStore    // nil if conversations disabled
+	profileResolver interface{}                    // agent.ProfileResolver, nil if profiles disabled
+	inflight        *transport.InFlightRegistry
+	mux             *http.ServeMux
+	config          Config
 }
 
 // Config holds configuration for the HTTP adapter.
@@ -64,6 +65,9 @@ func NewAdapter(creator transport.ResponseCreator, store transport.ResponseStore
 	a.mux.HandleFunc("GET /v1/responses", a.handleListResponses)
 	a.mux.HandleFunc("DELETE /v1/responses/{id}", a.handleDeleteResponse)
 
+	// Agent profile listing (Spec 038).
+	a.mux.HandleFunc("GET /v1/agents", a.handleListAgents)
+
 	// Conversation endpoints (Spec 037).
 	a.mux.HandleFunc("POST /v1/conversations", a.handleCreateConversation)
 	a.mux.HandleFunc("GET /v1/conversations", a.handleListConversations)
@@ -79,6 +83,12 @@ func NewAdapter(creator transport.ResponseCreator, store transport.ResponseStore
 func (a *Adapter) SetConversationStore(store transport.ConversationStore) {
 	a.convStore = store
 }
+
+// SetProfileResolver enables agent profile listing on the adapter.
+func (a *Adapter) SetProfileResolver(resolver interface{}) {
+	a.profileResolver = resolver
+}
+
 
 // Handler returns the http.Handler for this adapter. Use this to integrate
 // with an http.Server or test with httptest. The returned handler includes

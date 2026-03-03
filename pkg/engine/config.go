@@ -1,6 +1,9 @@
 package engine
 
-import "github.com/rhuss/antwort/pkg/tools"
+import (
+	"github.com/rhuss/antwort/pkg/agent"
+	"github.com/rhuss/antwort/pkg/tools"
+)
 
 // Config holds configuration for the core engine.
 type Config struct {
@@ -21,6 +24,10 @@ type Config struct {
 	// Annotator generates citations on output text from tool result sources.
 	// When nil, no annotations are generated (feature disabled).
 	Annotator AnnotationGenerator
+
+	// ProfileResolver resolves agent profiles by name.
+	// When nil, the agent and prompt fields on requests are rejected.
+	ProfileResolver agent.ProfileResolver
 }
 
 // maxTurns returns the effective max turns value, defaulting to 10.

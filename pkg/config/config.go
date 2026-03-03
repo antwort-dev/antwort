@@ -19,8 +19,28 @@ type Config struct {
 	Auth          AuthConfig                  `yaml:"auth"`
 	MCP           MCPConfig                   `yaml:"mcp"`
 	Providers     map[string]ProviderConfig   `yaml:"providers"`
+	Agents        map[string]AgentProfileConfig `yaml:"agents"`
 	Observability ObservabilityConfig         `yaml:"observability"`
 	Logging       LoggingConfig               `yaml:"logging"`
+}
+
+// AgentProfileConfig holds the configuration for a single agent profile.
+type AgentProfileConfig struct {
+	Description     string                 `yaml:"description"`
+	Model           string                 `yaml:"model"`
+	Instructions    string                 `yaml:"instructions"`
+	Tools           []map[string]interface{} `yaml:"tools"`
+	Temperature     *float64               `yaml:"temperature"`
+	TopP            *float64               `yaml:"top_p"`
+	MaxOutputTokens *int                   `yaml:"max_output_tokens"`
+	MaxToolCalls    *int                   `yaml:"max_tool_calls"`
+	Reasoning       *ReasoningProfileConfig `yaml:"reasoning"`
+}
+
+// ReasoningProfileConfig holds reasoning settings for an agent profile.
+type ReasoningProfileConfig struct {
+	Effort  string `yaml:"effort"`
+	Summary string `yaml:"summary"`
 }
 
 // LoggingConfig controls log verbosity and debug categories.
