@@ -39,6 +39,8 @@ Auto-generated from all feature plans. Last updated: 2026-02-16
 - No new storage. Annotations are ephemeral, attached to response output. (035-annotations)
 - Go 1.22+ + Go standard library only (`net/http`, `encoding/json`, `net/url`) (036-web-search-providers)
 - In-memory ConversationStore (default). PostgreSQL adapter (future, extends existing pgx store). (037-conversations-api)
+- Go 1.22+ + Go standard library only (strings, regexp for template substitution) (038-agent-profiles)
+- Config file only (no database, no runtime CRUD) (038-agent-profiles)
 
 - Go 1.22+ + None (Go standard library only: `encoding/json`, `crypto/rand`, `errors`, `fmt`, `strings`, `regexp`) (001-core-protocol)
 
@@ -58,9 +60,9 @@ tests/
 Go 1.22+: Follow standard conventions
 
 ## Recent Changes
+- 038-agent-profiles: Added Go 1.22+ + Go standard library only (strings, regexp for template substitution)
 - 037-conversations-api: Added Go 1.22+ + Go standard library only
 - 036-web-search-providers: Added Go 1.22+ + Go standard library only (`net/http`, `encoding/json`, `net/url`)
-- 035-annotations: Added Go 1.22+ (consistent with all existing specs) + Go standard library only (string matching, no external NLP libraries)
 
 
 <!-- MANUAL ADDITIONS START -->
