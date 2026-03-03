@@ -35,6 +35,7 @@ import (
 	"github.com/rhuss/antwort/pkg/storage/memory"
 	"github.com/rhuss/antwort/pkg/storage/postgres"
 	"github.com/rhuss/antwort/pkg/tools"
+	"github.com/rhuss/antwort/pkg/agent"
 	"github.com/rhuss/antwort/pkg/files"
 	"github.com/rhuss/antwort/pkg/tools/builtins/codeinterpreter"
 	"github.com/rhuss/antwort/pkg/tools/builtins/filesearch"
@@ -97,11 +98,23 @@ func run() error {
 		defer funcRegistry.Close()
 	}
 
+	// Create agent profile resolver from config.
+	var profileResolver agent.ProfileResolver
+	if len(cfg.Agents) > 0 {
+		resolver, err := agent.NewConfigResolver(cfg.Agents)
+		if err != nil {
+			return fmt.Errorf("creating agent profile resolver: %w", err)
+		}
+		profileResolver = resolver
+		slog.Info("agent profiles loaded", "count", len(cfg.Agents))
+	}
+
 	// Create engine.
 	eng, err := engine.New(prov, store, engine.Config{
 		DefaultModel:    cfg.Engine.DefaultModel,
 		MaxAgenticTurns: cfg.Engine.MaxTurns,
 		Executors:       executors,
+		ProfileResolver: profileResolver,
 	})
 	if err != nil {
 		return fmt.Errorf("creating engine: %w", err)
@@ -114,6 +127,11 @@ func run() error {
 	if store != nil {
 		convStore := memory.NewConversationStore()
 		adapter.SetConversationStore(convStore)
+	}
+
+	// Enable agent profile listing if profiles are configured.
+	if profileResolver != nil {
+		adapter.SetProfileResolver(profileResolver)
 	}
 
 	// Build auth chain from config.

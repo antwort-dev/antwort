@@ -591,6 +591,19 @@ type ConversationItem struct {
 }
 
 // ---------------------------------------------------------------------------
+// Prompt Reference (Spec 038 - OpenAI prompt parameter compatibility)
+// ---------------------------------------------------------------------------
+
+// PromptReference represents the OpenAI "prompt" parameter on create response.
+// It references a server-side agent profile by ID, with optional version and
+// template variable substitutions.
+type PromptReference struct {
+	ID        string            `json:"id"`
+	Version   string            `json:"version,omitempty"`
+	Variables map[string]string `json:"variables,omitempty"`
+}
+
+// ---------------------------------------------------------------------------
 // Request and Response types (T011)
 // ---------------------------------------------------------------------------
 
@@ -606,6 +619,9 @@ type CreateResponseRequest struct {
 	Stream             bool                         `json:"stream,omitempty"`
 	PreviousResponseID string                       `json:"previous_response_id,omitempty"`
 	ConversationID     string                       `json:"conversation_id,omitempty"`
+	Agent              string                       `json:"agent,omitempty"`
+	Prompt             *PromptReference             `json:"prompt,omitempty"`
+	Variables          map[string]string            `json:"variables,omitempty"`
 	Truncation         string                       `json:"truncation,omitempty"`
 	ServiceTier        string                       `json:"service_tier,omitempty"`
 	MaxOutputTokens    *int                         `json:"max_output_tokens,omitempty"`
