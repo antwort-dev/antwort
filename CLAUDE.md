@@ -33,6 +33,10 @@ Auto-generated from all feature plans. Last updated: 2026-02-16
 - N/A (static site generator) (032-documentation-site)
 - Go 1.25 (server, mock-backend), Python 3.x (SDK tests), TypeScript/Bun (SDK tests + conformance) + `openai` Python/TypeScript SDK, `kind` (K8s in Docker), `oasdiff`, `bun`, `pytest` (033-ci-pipeline)
 - N/A (CI pipeline, no persistent storage) (033-ci-pipeline)
+- Go 1.22+ (consistent with all existing specs) + Go standard library only for core. S3 backend requires AWS SDK (adapter package only). Docling adapter uses stdlib `net/http`. (034-files-api)
+- File content: filesystem (default), S3, in-memory. File metadata: in-memory (default), PostgreSQL (future, via existing pgx adapter). (034-files-api)
+- Go 1.22+ (consistent with all existing specs) + Go standard library only (string matching, no external NLP libraries) (035-annotations)
+- No new storage. Annotations are ephemeral, attached to response output. (035-annotations)
 
 - Go 1.22+ + None (Go standard library only: `encoding/json`, `crypto/rand`, `errors`, `fmt`, `strings`, `regexp`) (001-core-protocol)
 
@@ -52,9 +56,9 @@ tests/
 Go 1.22+: Follow standard conventions
 
 ## Recent Changes
+- 035-annotations: Added Go 1.22+ (consistent with all existing specs) + Go standard library only (string matching, no external NLP libraries)
+- 034-files-api: Added Go 1.22+ (consistent with all existing specs) + Go standard library only for core. S3 backend requires AWS SDK (adapter package only). Docling adapter uses stdlib `net/http`.
 - 033-ci-pipeline: Added Go 1.25 (server, mock-backend), Python 3.x (SDK tests), TypeScript/Bun (SDK tests + conformance) + `openai` Python/TypeScript SDK, `kind` (K8s in Docker), `oasdiff`, `bun`, `pytest`
-- 032-documentation-site: Added AsciiDoc (content), YAML (Antora config), JavaScript (Antora build via npx) + Antora 3.x, @antora/lunr-extension, npx (Node.js 18+)
-- 031-quickstart-updates: Added YAML (Kubernetes manifests), Markdown (READMEs), Bash (test commands) + Kustomize, kubectl/oc CLI, existing antwort container images
 
 
 <!-- MANUAL ADDITIONS START -->
