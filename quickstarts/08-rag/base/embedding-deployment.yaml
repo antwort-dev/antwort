@@ -18,7 +18,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: vllm
-          image: vllm/vllm-openai:latest
+          image: docker.io/vllm/vllm-openai:latest
           args:
             - --model=sentence-transformers/all-MiniLM-L6-v2
             - --task=embed

@@ -1,0 +1,278 @@
+# Brainstorm: Incorporating openresponses-gw Features into Antwort
+
+**Date**: 2026-03-02
+**Participants**: Roland Huss (antwort), inspired by Seb Han's openresponses-gw
+**Goal**: Identify features from openresponses-gw worth adopting in antwort, prioritize them, and outline integration approaches.
+
+---
+
+## 1. Context
+
+**Antwort** is a production-grade OpenResponses API implementation (33 specs, SDD methodology, Kubernetes-native, multi-tenant, zero-dependency Go core).
+
+**openresponses-gw** (by Sebastien Han) is a focused stateful gateway for the Open Responses API, adding persistence, tool execution, vector stores, file management, and web search on top of inference backends.
+
+Both projects are Go implementations targeting the same specification. This brainstorm captures features from openresponses-gw that could strengthen antwort through inspiration and selective reuse.
+
+---
+
+## 2. Feature Comparison Matrix
+
+| Feature Area | antwort | openresponses-gw | Gap Assessment |
+|---|---|---|---|
+| **Storage backends** | PostgreSQL, in-memory | PostgreSQL, SQLite, in-memory | SQLite missing |
+| **Vector store backends** | Qdrant only | Milvus, in-memory | Different backends, both limited |
+| **Web search providers** | SearXNG only | Brave, Tavily | More provider options |
+| **File management** | External ingestion assumed | Full Files API (upload, list, get, delete) + S3/filesystem backends | Significant gap |
+| **Content extraction** | None | PDF, text, JSON, HTML, CSV extractors | Significant gap |
+| **Annotations/citations** | Data model exists, no generation | url_citation, file_citation auto-generated | Generation logic missing |
+| **Conversations API** | Implicit via response chains | Explicit CRUD + item management + pagination | Different approach |
+| **Prompts API** | None | Template storage with {{variables}}, versioning | New capability |
+| **Connectors API** | MCP client (spec 011) | MCP via Connectors API (register, list, delete) | Different management model |
+| **Provider registry pattern** | Interface-based provider abstraction | Generic `Registry[T]` with factory/init() pattern | Architectural pattern difference |
+| **Embedding service** | External (query-time only) | Configurable embedding endpoint + model | Similar approach |
+| **Chunking** | External pipeline | Built-in chunker (fixed-size, overlap) | Missing for self-contained file search |
+| **Multi-tenancy** | First-class, every layer | Not prominent | Antwort stronger |
+| **Sandbox/code execution** | Kubernetes CRD-based, multi-runtime | None | Antwort unique |
+| **Auth** | JWT/OIDC + API key | None mentioned | Antwort stronger |
+| **Observability** | Prometheus + OpenTelemetry (GenAI conventions) | Basic | Antwort stronger |
+
+---
+
+## 3. High-Value Features to Incorporate
+
+### 3.1 Files API + Content Extraction (HIGH PRIORITY)
+
+**What**: Full file lifecycle management with upload, storage, content extraction, and chunking for vector embedding.
+
+**Why**: Currently antwort's file search (spec 018) assumes an external ingestion pipeline. Adding a Files API makes antwort self-contained for RAG use cases. Users upload files, antwort extracts content, chunks it, embeds it, and stores vectors, all without external tooling.
+
+**From openresponses-gw**:
+- `POST /v1/files` (multipart upload)
+- `GET /v1/files`, `GET /v1/files/{id}`, `GET /v1/files/{id}/content`, `DELETE /v1/files/{id}`
+- File store backends: memory, filesystem, S3 (MinIO compatible)
+- Content extractors: PDF, text, JSON, HTML, CSV
+- Built-in chunker with configurable size and overlap
+
+**Integration approach**:
+- New spec (e.g., 034-files-api)
+- Reuse openresponses-gw's extractor and chunking patterns as inspiration
+- Connect to existing file search provider (spec 018) for end-to-end RAG
+- Add tenant scoping (which openresponses-gw lacks)
+- S3 backend particularly useful for Kubernetes deployments
+
+**Estimated complexity**: Medium-high (new API surface + extractors + storage backends)
+
+---
+
+### 3.2 Annotation/Citation Generation (HIGH PRIORITY)
+
+**What**: Automatically attach `url_citation` and `file_citation` annotations to response output text when search results or file content informed the answer.
+
+**Why**: The data model already supports annotations (types.go), but no generation logic exists. Citations are essential for trustworthy RAG and web search responses. Users need to know where information came from.
+
+**From openresponses-gw**:
+- `url_citation` with title, URL, start_index, end_index
+- `file_citation` with file_id, quote, start_index, end_index
+- SSE event: `response.output_text_annotation.added`
+- Annotations attached during tool result processing
+
+**Integration approach**:
+- Extend the agentic loop (spec 004) to generate annotations when web search or file search results are used
+- Map search result URLs to citation positions in output text
+- Emit `response.output_text_annotation.added` SSE events (already in spec 023 tool lifecycle events)
+- Consider post-processing vs inline generation
+
+**Estimated complexity**: Medium (logic in engine, no new API surface)
+
+---
+
+### 3.3 Additional Web Search Providers (MEDIUM PRIORITY)
+
+**What**: Add Brave Search and Tavily as web search backend options alongside SearXNG.
+
+**Why**: SearXNG requires self-hosting. Brave and Tavily are hosted APIs that work out of the box with an API key, lowering the barrier for getting started.
+
+**From openresponses-gw**:
+- Brave adapter: `X-Subscription-Token` auth, `/res/v1/web/search` endpoint
+- Tavily adapter: POST with `api_key` + `max_results`
+- Both return title, URL, snippet
+
+**Integration approach**:
+- Extend the existing `SearchAdapter` interface (spec 017)
+- Add `brave` and `tavily` adapter implementations
+- Configuration via the unified config system (spec 012)
+- Already P2 in spec 017, just needs implementation
+
+**Estimated complexity**: Low (interface already exists, adapters are straightforward)
+
+---
+
+### 3.4 SQLite Storage Backend (MEDIUM PRIORITY)
+
+**What**: Add SQLite as a storage option alongside PostgreSQL and in-memory.
+
+**Why**: PostgreSQL requires infrastructure. SQLite enables single-binary deployments for development, demos, edge deployments, and small-scale production use. Lowers the barrier to getting started significantly.
+
+**From openresponses-gw**:
+- Uses `modernc.org/sqlite` (pure Go, no CGo)
+- WAL mode for read concurrency
+- MaxOpenConns=1 (SQLite single-writer constraint)
+- Same schema as PostgreSQL with minor type differences
+
+**Integration approach**:
+- New implementation of `ResponseStore` interface
+- Reuse PostgreSQL schema with SQLite-compatible types
+- Configuration: `storage.type: sqlite`, `storage.dsn: "/data/antwort.db"` or `:memory:`
+- Keep zero-CGo constraint (use modernc.org/sqlite)
+
+**Estimated complexity**: Low-medium (interface exists, schema translatable)
+
+---
+
+### 3.5 Generic Provider Registry Pattern (MEDIUM PRIORITY)
+
+**What**: Replace ad-hoc provider/backend selection with a generic `Registry[T]` pattern using factory functions and self-registration via `init()`.
+
+**Why**: openresponses-gw's `provider.Registry[T]` follows the proven `database/sql` driver pattern. It's used consistently across vector stores, web search, file stores, and session stores. Antwort has interface-based abstractions but selection/instantiation varies per subsystem.
+
+**From openresponses-gw**:
+```go
+type Factory[T any] func(ctx context.Context, params map[string]string) (T, error)
+type Registry[T any] struct { ... }
+// Thread-safe, panic on duplicate, Available() returns sorted names
+```
+
+**Integration approach**:
+- Introduce a `pkg/registry` package with the generic pattern
+- Retrofit existing subsystems: storage backends, search adapters, vector store backends, provider selection
+- Self-registration via `init()` + blank imports in main
+- Unifies configuration: `type: "name"` + params map
+
+**Estimated complexity**: Medium (refactoring, touches multiple packages)
+
+---
+
+### 3.6 Conversations API (LOWER PRIORITY)
+
+**What**: Explicit conversation management with CRUD operations, item management, and pagination.
+
+**Why**: Antwort currently manages conversations implicitly through response chains (`previous_response_id`). An explicit Conversations API gives clients more control: create named conversations, add items, list history with pagination, delete conversations.
+
+**From openresponses-gw**:
+- `POST/GET/DELETE /v1/conversations`
+- `POST/GET /v1/conversations/{id}/items`
+- Pagination with before/after/limit/order
+
+**Integration approach**:
+- New spec (e.g., 035-conversations-api)
+- Build on existing storage layer
+- Add conversation metadata and explicit item management
+- Maintain backward compatibility with response chain approach
+
+**Estimated complexity**: Medium (new API surface, storage extensions)
+
+---
+
+### 3.7 Prompts API (LOWER PRIORITY)
+
+**What**: Server-side prompt template storage with variable substitution and versioning.
+
+**Why**: Enables prompt management as a platform concern. Teams can version, share, and update prompts without changing client code. Useful for enterprise deployments.
+
+**From openresponses-gw**:
+- `POST/GET/PUT/DELETE /v1/prompts`
+- `GET /v1/prompts/{id}/versions`
+- `POST /v1/prompts/{id}/default_version`
+- `{{variable}}` template syntax
+- Version immutability
+
+**Integration approach**:
+- New spec (e.g., 036-prompts-api)
+- Template resolution in the engine before provider forwarding
+- Storage in PostgreSQL/SQLite
+- Tenant-scoped prompt ownership
+
+**Estimated complexity**: Medium (new API surface + template engine)
+
+---
+
+### 3.8 Additional Vector Store Backends (LOWER PRIORITY)
+
+**What**: Add Milvus and potentially pgvector as alternatives to Qdrant.
+
+**Why**: Reduces infrastructure choices required. pgvector is particularly attractive since antwort already uses PostgreSQL, avoiding a separate vector database.
+
+**From openresponses-gw**:
+- Milvus backend with filter expression support
+- In-memory backend for testing
+
+**Integration approach**:
+- Implement `VectorStoreBackend` interface for Milvus and pgvector
+- pgvector: leverage existing PostgreSQL connection
+- Already P2 in spec 018
+
+**Estimated complexity**: Medium per backend
+
+---
+
+## 4. Prioritized Roadmap Suggestion
+
+### Phase 1: Self-Contained RAG (next specs)
+1. **Files API + Content Extraction** (spec 034) - makes antwort self-contained
+2. **Annotation/Citation Generation** (engine enhancement) - trustworthy outputs
+3. **Additional Web Search Providers** (spec 017 P2) - lower barrier to entry
+
+### Phase 2: Deployment Flexibility
+4. **SQLite Storage** (spec 005 extension) - single-binary deployments
+5. **Generic Registry Pattern** (internal refactoring) - cleaner architecture
+
+### Phase 3: Platform Features
+6. **Conversations API** (spec 035) - explicit conversation management
+7. **Prompts API** (spec 036) - enterprise prompt management
+8. **Additional Vector Store Backends** (spec 018 P2) - infrastructure flexibility
+
+---
+
+## 5. Architectural Patterns Worth Adopting
+
+### 5.1 Self-Registering Backends
+openresponses-gw's `init()` + blank import pattern is clean and Go-idiomatic. Each backend registers itself, main just imports. No switch statements, no factory methods with growing case lists.
+
+### 5.2 Nil-Safe Feature Composition
+Engine accepts optional capabilities (vectorSearch, webSearch, etc.) as interface pointers. `nil` gracefully disables the feature. Avoids boolean flags and feature-flag complexity.
+
+### 5.3 Dual API Mode
+Support both Chat Completions and native Responses API as backend protocols. Antwort already does this (spec 030), but openresponses-gw's `backend_api` config toggle is a clean UX pattern.
+
+---
+
+## 6. What NOT to Adopt
+
+| openresponses-gw Feature | Why Skip |
+|---|---|
+| No multi-tenancy | Antwort's first-class tenant isolation is stronger |
+| No auth | Antwort's JWT/OIDC + API key (spec 007) is production-grade |
+| No Kubernetes integration | Antwort's CRD-based sandbox is a differentiator |
+| Basic observability | Antwort's GenAI semantic conventions are richer |
+| No SDD methodology | Antwort's spec-first approach is a core strength |
+
+---
+
+## 7. Open Questions
+
+1. **File storage location**: S3 vs PVC-backed filesystem for Kubernetes? Both?
+2. **Embedding service coupling**: Should antwort bundle an embedding service or keep it external?
+3. **Citation accuracy**: Post-hoc text matching vs model-generated citations? Model-generated is more accurate but depends on model capability.
+4. **Chunking strategy**: Fixed-size only, or also semantic chunking?
+5. **Prompt versioning scope**: Per-tenant or global? Migration between versions?
+
+---
+
+## 8. References
+
+- [openresponses-gw repository](https://github.com/leseb/openresponses-gw)
+- [openresponses-gw ARCHITECTURE.md](https://github.com/leseb/openresponses-gw/blob/main/docs/ARCHITECTURE.md)
+- [openresponses-gw ecosystem alignment](https://github.com/leseb/openresponses-gw/blob/main/docs/DESIGN-ecosystem-alignment.md)
+- [vSR Responses API separation proposal](https://github.com/leseb/openresponses-gw/blob/main/docs/proposal-vsr-responses-api-separation.md)
+- Antwort specs 017 (web search), 018 (file search), 003 (core engine), 005 (storage)
