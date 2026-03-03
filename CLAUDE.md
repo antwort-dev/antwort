@@ -41,6 +41,8 @@ Auto-generated from all feature plans. Last updated: 2026-02-16
 - In-memory ConversationStore (default). PostgreSQL adapter (future, extends existing pgx store). (037-conversations-api)
 - Go 1.22+ + Go standard library only (strings, regexp for template substitution) (038-agent-profiles)
 - Config file only (no database, no runtime CRUD) (038-agent-profiles)
+- Go 1.22+ + stdlib + `pgvector-go` (pgvector adapter only) (039-vectorstore-unification)
+- pgvector uses existing PostgreSQL, in-memory is ephemeral (039-vectorstore-unification)
 
 - Go 1.22+ + None (Go standard library only: `encoding/json`, `crypto/rand`, `errors`, `fmt`, `strings`, `regexp`) (001-core-protocol)
 
@@ -60,9 +62,9 @@ tests/
 Go 1.22+: Follow standard conventions
 
 ## Recent Changes
+- 039-vectorstore-unification: Added Go 1.22+ + stdlib + `pgvector-go` (pgvector adapter only)
 - 038-agent-profiles: Added Go 1.22+ + Go standard library only (strings, regexp for template substitution)
 - 037-conversations-api: Added Go 1.22+ + Go standard library only
-- 036-web-search-providers: Added Go 1.22+ + Go standard library only (`net/http`, `encoding/json`, `net/url`)
 
 
 <!-- MANUAL ADDITIONS START -->
