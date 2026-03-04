@@ -11,12 +11,14 @@ import (
 )
 
 // vsOwnerAllowed checks if the caller is allowed to access a vector store.
-func vsOwnerAllowed(r *http.Request, storedOwner, resourceID, operation string) bool {
+// Admin bypass only applies to read/delete operations (writeOp=false).
+// Per FR-007, admin users must NOT modify resources owned by other users.
+func vsOwnerAllowed(r *http.Request, storedOwner, resourceID, operation string, writeOp bool) bool {
 	callerOwner := storage.GetOwner(r.Context())
 	if callerOwner == "" {
 		return true
 	}
-	if storage.GetAdmin(r.Context()) {
+	if !writeOp && storage.GetAdmin(r.Context()) {
 		return true
 	}
 	if storedOwner == "" {
@@ -182,7 +184,7 @@ func (p *FileSearchProvider) handleGetStore(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Owner isolation check.
-	if !vsOwnerAllowed(r, vs.Owner, storeID, "GetStore") {
+	if !vsOwnerAllowed(r, vs.Owner, storeID, "GetStore", false) {
 		writeJSONError(w, "vector store not found", http.StatusNotFound)
 		return
 	}
@@ -218,7 +220,7 @@ func (p *FileSearchProvider) handleDeleteStore(w http.ResponseWriter, r *http.Re
 	}
 
 	// Owner isolation check.
-	if !vsOwnerAllowed(r, vs.Owner, storeID, "DeleteStore") {
+	if !vsOwnerAllowed(r, vs.Owner, storeID, "DeleteStore", false) {
 		writeJSONError(w, "vector store not found", http.StatusNotFound)
 		return
 	}

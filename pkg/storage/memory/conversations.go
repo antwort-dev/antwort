@@ -14,12 +14,14 @@ import (
 )
 
 // convOwnerAllowed checks if the caller is allowed to access a conversation with the given owner.
-func convOwnerAllowed(ctx context.Context, storedOwner, resourceID, operation string) bool {
+// Admin bypass only applies to read/delete operations (writeOp=false).
+// Per FR-007, admin users must NOT modify resources owned by other users.
+func convOwnerAllowed(ctx context.Context, storedOwner, resourceID, operation string, writeOp bool) bool {
 	callerOwner := storage.GetOwner(ctx)
 	if callerOwner == "" {
 		return true
 	}
-	if storage.GetAdmin(ctx) {
+	if !writeOp && storage.GetAdmin(ctx) {
 		return true
 	}
 	if storedOwner == "" {
@@ -74,7 +76,7 @@ func (s *ConversationStore) SaveConversation(ctx context.Context, conv *api.Conv
 		if tenantID != "" && existing.tenantID != tenantID {
 			return storage.ErrNotFound
 		}
-		if !convOwnerAllowed(ctx, existing.owner, conv.ID, "SaveConversation") {
+		if !convOwnerAllowed(ctx, existing.owner, conv.ID, "SaveConversation", true) {
 			return storage.ErrNotFound
 		}
 		existing.conv = conv
@@ -103,7 +105,7 @@ func (s *ConversationStore) GetConversation(ctx context.Context, id string) (*ap
 		return nil, storage.ErrNotFound
 	}
 
-	if !convOwnerAllowed(ctx, e.owner, id, "GetConversation") {
+	if !convOwnerAllowed(ctx, e.owner, id, "GetConversation", false) {
 		return nil, storage.ErrNotFound
 	}
 
@@ -124,7 +126,7 @@ func (s *ConversationStore) DeleteConversation(ctx context.Context, id string) e
 		return storage.ErrNotFound
 	}
 
-	if !convOwnerAllowed(ctx, e.owner, id, "DeleteConversation") {
+	if !convOwnerAllowed(ctx, e.owner, id, "DeleteConversation", false) {
 		return storage.ErrNotFound
 	}
 
@@ -217,7 +219,7 @@ func (s *ConversationStore) AddItems(ctx context.Context, conversationID string,
 		return storage.ErrNotFound
 	}
 
-	if !convOwnerAllowed(ctx, e.owner, conversationID, "AddItems") {
+	if !convOwnerAllowed(ctx, e.owner, conversationID, "AddItems", true) {
 		return storage.ErrNotFound
 	}
 
@@ -252,7 +254,7 @@ func (s *ConversationStore) ListItems(ctx context.Context, conversationID string
 		return nil, storage.ErrNotFound
 	}
 
-	if !convOwnerAllowed(ctx, e.owner, conversationID, "ListItems") {
+	if !convOwnerAllowed(ctx, e.owner, conversationID, "ListItems", false) {
 		return nil, storage.ErrNotFound
 	}
 
@@ -333,7 +335,7 @@ func (s *ConversationStore) AllItems(ctx context.Context, conversationID string)
 		return nil, fmt.Errorf("conversation %q not found", conversationID)
 	}
 
-	if !convOwnerAllowed(ctx, e.owner, conversationID, "AllItems") {
+	if !convOwnerAllowed(ctx, e.owner, conversationID, "AllItems", false) {
 		return nil, fmt.Errorf("conversation %q not found", conversationID)
 	}
 

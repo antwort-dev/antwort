@@ -17,16 +17,17 @@ import (
 )
 
 // ownerAllowed checks if the caller in ctx is allowed to access a resource with the given owner.
-// Returns true if: no identity is present (NoOp auth), caller is admin, stored owner is empty
-// (legacy data), or owner matches.
-func ownerAllowed(ctx context.Context, storedOwner, resourceID, operation string) bool {
+// Returns true if: no identity is present (NoOp auth), stored owner is empty (legacy data),
+// or owner matches. Admin bypass only applies to read/delete operations (writeOp=false).
+// Per FR-007, admin users must NOT modify resources owned by other users.
+func ownerAllowed(ctx context.Context, storedOwner, resourceID, operation string, writeOp bool) bool {
 	callerOwner := storage.GetOwner(ctx)
 	// No identity in context (NoOp auth): skip owner checks.
 	if callerOwner == "" {
 		return true
 	}
-	// Admin bypasses owner checks.
-	if storage.GetAdmin(ctx) {
+	// Admin bypasses owner checks for read/delete only (FR-007).
+	if !writeOp && storage.GetAdmin(ctx) {
 		return true
 	}
 	// Legacy data with empty owner matches all authenticated users.
@@ -122,7 +123,7 @@ func (s *Store) GetResponse(ctx context.Context, id string) (*api.Response, erro
 	}
 
 	// Owner scoping.
-	if !ownerAllowed(ctx, e.owner, id, "GetResponse") {
+	if !ownerAllowed(ctx, e.owner, id, "GetResponse", false) {
 		return nil, storage.ErrNotFound
 	}
 
@@ -147,7 +148,7 @@ func (s *Store) GetResponseForChain(ctx context.Context, id string) (*api.Respon
 	}
 
 	// Owner scoping (prevent chaining to another user's response).
-	if !ownerAllowed(ctx, e.owner, id, "GetResponseForChain") {
+	if !ownerAllowed(ctx, e.owner, id, "GetResponseForChain", false) {
 		return nil, storage.ErrNotFound
 	}
 
@@ -172,7 +173,7 @@ func (s *Store) DeleteResponse(ctx context.Context, id string) error {
 	}
 
 	// Owner scoping.
-	if !ownerAllowed(ctx, e.owner, id, "DeleteResponse") {
+	if !ownerAllowed(ctx, e.owner, id, "DeleteResponse", false) {
 		return storage.ErrNotFound
 	}
 
@@ -310,7 +311,7 @@ func (s *Store) GetInputItems(ctx context.Context, responseID string, opts trans
 	}
 
 	// Owner scoping.
-	if !ownerAllowed(ctx, e.owner, responseID, "GetInputItems") {
+	if !ownerAllowed(ctx, e.owner, responseID, "GetInputItems", false) {
 		return nil, storage.ErrNotFound
 	}
 
