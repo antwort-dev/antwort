@@ -35,17 +35,76 @@ func vsOwnerAllowed(r *http.Request, storedOwner, resourceID, operation string, 
 	return false
 }
 
+// permissionsRequest represents the JSON permissions object on create/update.
+type permissionsRequest struct {
+	Group  string `json:"group"`
+	Others string `json:"others"`
+}
+
+// toCompactPermissions converts a permissionsRequest to the compact string format.
+// Owner is always "rwd". Group and others default to "---" if not set.
+func toCompactPermissions(pr *permissionsRequest) string {
+	if pr == nil {
+		return DefaultPermissions
+	}
+	g := normalizePermSegment(pr.Group)
+	o := normalizePermSegment(pr.Others)
+	return "rwd|" + g + "|" + o
+}
+
+// normalizePermSegment ensures a permission segment only contains valid chars (r, w, d).
+func normalizePermSegment(s string) string {
+	if s == "" {
+		return "---"
+	}
+	result := [3]byte{'-', '-', '-'}
+	for _, c := range s {
+		switch c {
+		case 'r':
+			result[0] = 'r'
+		case 'w':
+			result[1] = 'w'
+		case 'd':
+			result[2] = 'd'
+		}
+	}
+	return string(result[:])
+}
+
+// canAccessResource checks if a caller can read a resource based on its permissions string.
+// permissions format: "owner|group|others" where each segment is a subset of "rwd".
+func canAccessResource(permissions, callerOwner, resourceOwner, callerTenant, resourceTenant string) bool {
+	if callerOwner == resourceOwner {
+		return true
+	}
+	if permissions == "" {
+		permissions = DefaultPermissions
+	}
+	parts := strings.Split(permissions, "|")
+	if len(parts) != 3 {
+		return false
+	}
+	// Same tenant: check group permissions.
+	if callerTenant != "" && callerTenant == resourceTenant {
+		return strings.Contains(parts[1], "r")
+	}
+	// Different tenant: check others permissions.
+	return strings.Contains(parts[2], "r")
+}
+
 // createStoreRequest is the JSON request body for creating a vector store.
 type createStoreRequest struct {
-	Name string `json:"name"`
+	Name        string              `json:"name"`
+	Permissions *permissionsRequest `json:"permissions,omitempty"`
 }
 
 // vectorStoreResponse is the OpenAI-compatible JSON response for a vector store.
 type vectorStoreResponse struct {
-	ID        string `json:"id"`
-	Object    string `json:"object"`
-	Name      string `json:"name"`
-	CreatedAt int64  `json:"created_at"`
+	ID          string `json:"id"`
+	Object      string `json:"object"`
+	Name        string `json:"name"`
+	Permissions string `json:"permissions"`
+	CreatedAt   int64  `json:"created_at"`
 }
 
 // vectorStoreListResponse is the OpenAI-compatible JSON response for listing vector stores.
@@ -55,11 +114,16 @@ type vectorStoreListResponse struct {
 }
 
 func toResponse(vs *VectorStore) vectorStoreResponse {
+	perms := vs.Permissions
+	if perms == "" {
+		perms = DefaultPermissions
+	}
 	return vectorStoreResponse{
-		ID:        vs.ID,
-		Object:    "vector_store",
-		Name:      vs.Name,
-		CreatedAt: vs.CreatedAt,
+		ID:          vs.ID,
+		Object:      "vector_store",
+		Name:        vs.Name,
+		Permissions: perms,
+		CreatedAt:   vs.CreatedAt,
 	}
 }
 
@@ -96,6 +160,7 @@ func (p *FileSearchProvider) handleCreateStore(w http.ResponseWriter, r *http.Re
 		Name:           req.Name,
 		TenantID:       tenantID,
 		Owner:          owner,
+		Permissions:    toCompactPermissions(req.Permissions),
 		CollectionName: collName,
 		CreatedAt:      time.Now().Unix(),
 	}
@@ -133,17 +198,35 @@ func (p *FileSearchProvider) handleListStores(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	tenantID := storage.GetTenant(r.Context())
-	stores := p.metadata.List(tenantID)
-
+	callerTenant := storage.GetTenant(r.Context())
 	callerOwner := storage.GetOwner(r.Context())
 	isAdminCaller := storage.GetAdmin(r.Context())
 
+	// Get same-tenant stores plus cross-tenant stores with "others" read permission.
+	var stores []*VectorStore
+	if callerTenant != "" {
+		// Start with same-tenant stores.
+		stores = p.metadata.List(callerTenant)
+		// Add cross-tenant stores that grant "others" read permission.
+		for _, vs := range p.metadata.ListAll() {
+			if vs.TenantID != callerTenant && canAccessResource(vs.Permissions, callerOwner, vs.Owner, callerTenant, vs.TenantID) {
+				stores = append(stores, vs)
+			}
+		}
+	} else {
+		stores = p.metadata.List("")
+	}
+
 	data := make([]vectorStoreResponse, 0, len(stores))
 	for _, vs := range stores {
-		// Owner filtering for list.
-		if callerOwner != "" && !isAdminCaller && vs.Owner != "" && vs.Owner != callerOwner {
-			continue
+		// Admin bypass: full read access for same-tenant admins.
+		if callerOwner != "" && !isAdminCaller {
+			if vs.Owner != "" && vs.Owner != callerOwner {
+				// Check group/others permissions for non-owners.
+				if !canAccessResource(vs.Permissions, callerOwner, vs.Owner, callerTenant, vs.TenantID) {
+					continue
+				}
+			}
 		}
 		data = append(data, toResponse(vs))
 	}
@@ -176,17 +259,24 @@ func (p *FileSearchProvider) handleGetStore(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Tenant isolation check.
+	// Tenant isolation check (hard boundary unless others permissions allow).
 	tenantID := storage.GetTenant(r.Context())
-	if tenantID != "" && vs.TenantID != tenantID {
-		writeJSONError(w, "vector store not found", http.StatusNotFound)
-		return
-	}
+	callerOwner := storage.GetOwner(r.Context())
 
-	// Owner isolation check.
-	if !vsOwnerAllowed(r, vs.Owner, storeID, "GetStore", false) {
-		writeJSONError(w, "vector store not found", http.StatusNotFound)
-		return
+	if tenantID != "" && vs.TenantID != tenantID {
+		// Cross-tenant: only allow if others permissions include read.
+		if !canAccessResource(vs.Permissions, callerOwner, vs.Owner, tenantID, vs.TenantID) {
+			writeJSONError(w, "vector store not found", http.StatusNotFound)
+			return
+		}
+	} else {
+		// Same tenant: check owner or admin bypass or group permissions.
+		if !vsOwnerAllowed(r, vs.Owner, storeID, "GetStore", false) {
+			if !canAccessResource(vs.Permissions, callerOwner, vs.Owner, tenantID, vs.TenantID) {
+				writeJSONError(w, "vector store not found", http.StatusNotFound)
+				return
+			}
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")

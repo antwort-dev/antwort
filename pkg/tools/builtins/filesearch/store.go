@@ -7,12 +7,17 @@ import (
 	"sync"
 )
 
+// DefaultPermissions is the default permissions string for new resources.
+// Format: "owner|group|others" where each segment is a subset of "rwd".
+const DefaultPermissions = "rwd|---|---"
+
 // VectorStore represents metadata about a vector store instance.
 type VectorStore struct {
 	ID             string `json:"id"`
 	Name           string `json:"name"`
 	TenantID       string `json:"tenant_id,omitempty"`
 	Owner          string `json:"owner,omitempty"`
+	Permissions    string `json:"permissions,omitempty"`
 	CollectionName string `json:"collection_name"`
 	CreatedAt      int64  `json:"created_at"`
 }
@@ -75,6 +80,19 @@ func (m *MetadataStore) List(tenantID string) []*VectorStore {
 		if tenantID == "" || store.TenantID == tenantID {
 			result = append(result, store)
 		}
+	}
+	return result
+}
+
+// ListAll returns all VectorStores across all tenants.
+// Used for discovering cross-tenant shared stores.
+func (m *MetadataStore) ListAll() []*VectorStore {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	result := make([]*VectorStore, 0, len(m.stores))
+	for _, store := range m.stores {
+		result = append(result, store)
 	}
 	return result
 }

@@ -247,6 +247,10 @@ func (p *FileSearchProvider) Execute(ctx context.Context, call tools.ToolCall) (
 	}
 
 	// Determine which stores to search.
+	callerOwner := storage.GetOwner(ctx)
+	callerTenant := storage.GetTenant(ctx)
+	isAdmin := storage.GetAdmin(ctx)
+
 	var stores []*VectorStore
 	if len(args.VectorStoreIDs) > 0 {
 		for _, id := range args.VectorStoreIDs {
@@ -254,17 +258,38 @@ func (p *FileSearchProvider) Execute(ctx context.Context, call tools.ToolCall) (
 			if err != nil {
 				continue // Skip unknown stores.
 			}
-			// Tenant isolation.
-			tenantID := storage.GetTenant(ctx)
-			if tenantID != "" && vs.TenantID != tenantID {
-				continue
+			// Tenant isolation (unless others permissions allow cross-tenant).
+			if callerTenant != "" && vs.TenantID != callerTenant {
+				if !canAccessResource(vs.Permissions, callerOwner, vs.Owner, callerTenant, vs.TenantID) {
+					continue
+				}
+			}
+			// Owner check: skip if not owner, not admin, and no permission.
+			if callerOwner != "" && !isAdmin && vs.Owner != "" && vs.Owner != callerOwner {
+				if !canAccessResource(vs.Permissions, callerOwner, vs.Owner, callerTenant, vs.TenantID) {
+					continue
+				}
 			}
 			stores = append(stores, vs)
 		}
 	} else {
-		// Search all stores for the tenant.
-		tenantID := storage.GetTenant(ctx)
-		stores = p.metadata.List(tenantID)
+		// Search all stores for the tenant plus cross-tenant shared stores.
+		allStores := p.metadata.List(callerTenant)
+		if callerTenant != "" {
+			for _, vs := range p.metadata.ListAll() {
+				if vs.TenantID != callerTenant && canAccessResource(vs.Permissions, callerOwner, vs.Owner, callerTenant, vs.TenantID) {
+					allStores = append(allStores, vs)
+				}
+			}
+		}
+		for _, vs := range allStores {
+			if callerOwner != "" && !isAdmin && vs.Owner != "" && vs.Owner != callerOwner {
+				if !canAccessResource(vs.Permissions, callerOwner, vs.Owner, callerTenant, vs.TenantID) {
+					continue
+				}
+			}
+			stores = append(stores, vs)
+		}
 	}
 
 	if len(stores) == 0 {
