@@ -186,6 +186,23 @@ For annotated examples and usage guidance, see xref:configuration.adoc[].
 |
 | JWT claim to use for authorization scopes.
 
+| `auth.jwt.roles_claim`
+| string
+| `realm_access.roles`
+|
+| Dot-path to the JWT claim containing user roles (e.g., Keycloak `realm_access.roles`).
+Used together with `auth.authorization.admin_role` for admin detection.
+
+5+h| Authorization
+
+| `auth.authorization.admin_role`
+| string
+|
+|
+| Role name that grants admin access.
+When set, users whose JWT roles include this value can read and delete any resource within their tenant, bypassing per-user ownership checks.
+Admin users cannot modify (write to) resources owned by other users.
+
 5+h| MCP
 
 | `mcp.servers`
