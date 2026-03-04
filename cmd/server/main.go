@@ -24,6 +24,7 @@ import (
 	"github.com/rhuss/antwort/pkg/auth/apikey"
 	authjwt "github.com/rhuss/antwort/pkg/auth/jwt"
 	"github.com/rhuss/antwort/pkg/auth/noop"
+	"github.com/rhuss/antwort/pkg/auth/scope"
 	"github.com/rhuss/antwort/pkg/config"
 	"github.com/rhuss/antwort/pkg/debug"
 	"github.com/rhuss/antwort/pkg/engine"
@@ -166,6 +167,17 @@ func run() error {
 	// Wrap with metrics middleware (before auth so all requests are counted).
 	if cfg.Observability.Metrics.Enabled {
 		handler = observability.MetricsMiddleware(handler)
+	}
+
+	// Wrap with scope middleware (after auth, before server starts).
+	if len(cfg.Auth.Authorization.RoleScopes) > 0 {
+		expandedRoles, err := scope.ExpandRoles(cfg.Auth.Authorization.RoleScopes)
+		if err != nil {
+			return fmt.Errorf("expanding role scopes: %w", err)
+		}
+		scopeMiddleware := scope.Middleware(expandedRoles, scope.DefaultEndpointScopes)
+		handler = scopeMiddleware(handler)
+		slog.Info("scope-based authorization enabled", "roles", len(expandedRoles))
 	}
 
 	// Wrap with auth middleware.
