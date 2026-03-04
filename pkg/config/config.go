@@ -9,7 +9,11 @@
 //  6. Validation
 package config
 
-import "time"
+import (
+	"time"
+
+	"github.com/rhuss/antwort/pkg/audit"
+)
 
 // Config holds all configuration for the antwort gateway.
 type Config struct {
@@ -20,6 +24,7 @@ type Config struct {
 	MCP           MCPConfig                   `yaml:"mcp"`
 	Providers     map[string]ProviderConfig   `yaml:"providers"`
 	Agents        map[string]AgentProfileConfig `yaml:"agents"`
+	Audit         audit.Config                 `yaml:"audit"`
 	Observability ObservabilityConfig         `yaml:"observability"`
 	Logging       LoggingConfig               `yaml:"logging"`
 }
