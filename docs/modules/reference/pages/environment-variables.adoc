@@ -76,6 +76,22 @@ This makes it straightforward to customize a shared config file per environment 
 | `ANTWORT_MCP_SERVERS`
 | `mcp.servers`
 | JSON-encoded array. See <<json-encoded-variables>>.
+
+| `ANTWORT_AUDIT_ENABLED`
+| `audit.enabled`
+| Set to `true` to enable audit logging.
+
+| `ANTWORT_AUDIT_FORMAT`
+| `audit.format`
+| Audit log format: `json` or `text`. Default: `json`.
+
+| `ANTWORT_AUDIT_OUTPUT`
+| `audit.output`
+| Audit log destination: `stdout` or `file`. Default: `stdout`.
+
+| `ANTWORT_AUDIT_FILE`
+| `audit.file`
+| File path for audit log output. Required when `ANTWORT_AUDIT_OUTPUT` is `file`.
 |===
 
 [[json-encoded-variables]]
