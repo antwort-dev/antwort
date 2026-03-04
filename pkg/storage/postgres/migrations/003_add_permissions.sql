@@ -1,2 +1,4 @@
-ALTER TABLE vector_stores ADD COLUMN IF NOT EXISTS permissions TEXT NOT NULL DEFAULT 'rwd|---|---';
-ALTER TABLE files ADD COLUMN IF NOT EXISTS permissions TEXT NOT NULL DEFAULT 'rwd|---|---';
+-- Permissions column for future PostgreSQL-backed vector stores and files.
+-- Currently these resources use in-memory storage, so no tables to alter.
+-- This migration is a placeholder for when PostgreSQL backends are added.
+-- The in-memory stores handle permissions in their struct fields directly.

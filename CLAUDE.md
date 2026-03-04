@@ -64,9 +64,9 @@ tests/
 Go 1.22+: Follow standard conventions
 
 ## Recent Changes
+- 041-scope-permissions: Added Go 1.22+ + Go standard library only (consistent with constitution Principle II)
 - 040-resource-ownership: Added Go 1.22+ + Go standard library only (consistent with constitution Principle II)
 - 039-vectorstore-unification: Added Go 1.22+ + stdlib + `pgvector-go` (pgvector adapter only)
-- 038-agent-profiles: Added Go 1.22+ + Go standard library only (strings, regexp for template substitution)
 
 
 <!-- MANUAL ADDITIONS START -->
