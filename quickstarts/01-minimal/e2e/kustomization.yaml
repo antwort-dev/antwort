@@ -1,0 +1,38 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../ci
+
+patches:
+  # Add auth and audit settings to antwort config
+  - target:
+      kind: ConfigMap
+      name: antwort-config
+    patch: |
+      - op: replace
+        path: /data/config.yaml
+        value: |
+          server:
+            port: 8080
+          engine:
+            provider: vllm
+            backend_url: http://mock-backend:9090
+            default_model: mock-model
+            max_turns: 10
+          storage:
+            type: memory
+            max_size: 10000
+          auth:
+            type: apikey
+            api_keys:
+              - key: alice-key
+                subject: alice
+              - key: bob-key
+                subject: bob
+              - key: test
+                subject: test-user
+          observability:
+            metrics:
+              enabled: true
+              path: /metrics

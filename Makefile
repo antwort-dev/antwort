@@ -9,7 +9,7 @@ IMAGE_TAG  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
 
 KUBE_NAMESPACE ?= antwort
 
-.PHONY: build test vet conformance api-test ci-sdk-test clean image-build image-push image-latest sandbox-build sandbox-push deploy deploy-openshift docs docs-serve
+.PHONY: build test vet conformance api-test ci-sdk-test e2e clean image-build image-push image-latest sandbox-build sandbox-push deploy deploy-openshift docs docs-serve
 
 # Build all binaries.
 build:
@@ -54,6 +54,21 @@ sandbox-build:
 # Push sandbox container image.
 sandbox-push: sandbox-build
 	podman push $(SANDBOX_IMAGE_REPO):$(IMAGE_TAG)
+
+# Run E2E tests locally (starts replay-backend + antwort).
+e2e: build
+	@echo "Starting replay backend..."
+	@MOCK_PORT=9090 $(BIN_DIR)/mock-backend --recordings-dir test/e2e/recordings & \
+	MOCK_PID=$$!; \
+	echo "Starting antwort..."; \
+	ANTWORT_BACKEND_URL=http://localhost:9090 ANTWORT_MODEL=mock-model ANTWORT_PORT=8080 ANTWORT_STORAGE=memory $(BIN_DIR)/server & \
+	SERVER_PID=$$!; \
+	sleep 2; \
+	echo "Running E2E tests..."; \
+	go test -tags e2e ./test/e2e/ -v -timeout 60s; \
+	EXIT_CODE=$$?; \
+	kill $$MOCK_PID $$SERVER_PID 2>/dev/null; \
+	exit $$EXIT_CODE
 
 # Build container image.
 image-build:

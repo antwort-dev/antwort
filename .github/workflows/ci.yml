@@ -261,6 +261,16 @@ jobs:
           curl -v http://localhost:8080/healthz || true
           exit 1
 
+      - name: Run E2E tests
+        run: |
+          go test -tags e2e ./test/e2e/ -v -timeout 120s \
+            -run 'TestE2E|TestReplay' \
+            || true  # Non-blocking while E2E overlay is not deployed yet
+        env:
+          ANTWORT_BASE_URL: http://localhost:8080/v1
+          ANTWORT_API_KEY: test
+          ANTWORT_MODEL: mock-model
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
