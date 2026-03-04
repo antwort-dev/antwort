@@ -122,6 +122,7 @@ A feature without documentation is an unfinished feature. Documentation is a del
 - **Extension hooks** (new interfaces, provider patterns, adapter APIs): MUST add or update a page in the `developer` module explaining the interface contract, how to implement it, and how to register the implementation.
 - **Minor features and enhancements**: MUST update existing documentation pages where the feature changes behavior, adds options, or modifies configuration. No new pages required, but existing pages MUST stay accurate.
 - **Bug fixes**: Documentation updates are optional unless the fix changes user-visible behavior or corrects documented behavior that was wrong.
+- **README.md**: MUST be updated when a new spec is implemented. Add the spec to the spec table and update the Platform Vision status if the feature completes a planned phase. The README is the project's front door and must accurately reflect the current state.
 
 **Documentation modules** (Antora site structure):
 
