@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/rhuss/antwort/pkg/audit"
 	"github.com/rhuss/antwort/pkg/auth"
 	"github.com/rhuss/antwort/pkg/auth/apikey"
 	authjwt "github.com/rhuss/antwort/pkg/auth/jwt"
@@ -67,6 +68,13 @@ func run() error {
 
 	// Initialize debug logging from config (env overrides config).
 	debug.Init(cfg.Logging.Debug, cfg.Logging.Level)
+
+	// Create audit logger from config.
+	auditLogger, err := audit.New(cfg.Audit)
+	if err != nil {
+		slog.Error("failed to create audit logger", "error", err)
+		return err
+	}
 
 	// Create provider from config.
 	prov, err := createProvider(cfg)
@@ -184,6 +192,16 @@ func run() error {
 	if authChain != nil {
 		authMiddleware := auth.Middleware(authChain, nil, auth.DefaultBypassEndpoints, cfg.Auth.Authorization.AdminRole)
 		handler = authMiddleware(handler)
+	}
+
+	// Emit audit startup event after all components are initialized.
+	if auditLogger != nil {
+		auditLogger.Log(context.Background(), "config.startup",
+			"auth_enabled", cfg.Auth.Type != "none",
+			"audit_enabled", cfg.Audit.Enabled,
+			"role_count", len(cfg.Auth.Authorization.RoleScopes),
+			"scope_enforcement", len(cfg.Auth.Authorization.RoleScopes) > 0,
+		)
 	}
 
 	// Create server with configured timeouts.
