@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/rhuss/antwort/pkg/api"
+	"github.com/rhuss/antwort/pkg/audit"
 	"github.com/rhuss/antwort/pkg/storage"
 	"github.com/rhuss/antwort/pkg/transport"
 )
@@ -20,7 +21,7 @@ import (
 // Returns true if: no identity is present (NoOp auth), stored owner is empty (legacy data),
 // or owner matches. Admin bypass only applies to read/delete operations (writeOp=false).
 // Per FR-007, admin users must NOT modify resources owned by other users.
-func ownerAllowed(ctx context.Context, storedOwner, resourceID, operation string, writeOp bool) bool {
+func ownerAllowed(ctx context.Context, storedOwner, resourceType, resourceID, operation string, writeOp bool, auditLogger *audit.Logger) bool {
 	callerOwner := storage.GetOwner(ctx)
 	// No identity in context (NoOp auth): skip owner checks.
 	if callerOwner == "" {
@@ -28,6 +29,12 @@ func ownerAllowed(ctx context.Context, storedOwner, resourceID, operation string
 	}
 	// Admin bypasses owner checks for read/delete only (FR-007).
 	if !writeOp && storage.GetAdmin(ctx) {
+		auditLogger.Log(ctx, "authz.admin_override",
+			"resource_type", resourceType,
+			"resource_id", resourceID,
+			"resource_owner", storedOwner,
+			"operation", operation,
+		)
 		return true
 	}
 	// Legacy data with empty owner matches all authenticated users.
@@ -39,6 +46,11 @@ func ownerAllowed(ctx context.Context, storedOwner, resourceID, operation string
 	}
 	slog.Debug("ownership denied",
 		"subject", callerOwner,
+		"resource_id", resourceID,
+		"operation", operation,
+	)
+	auditLogger.Log(ctx, "authz.ownership_denied",
+		"resource_type", resourceType,
 		"resource_id", resourceID,
 		"operation", operation,
 	)
@@ -56,10 +68,16 @@ type entry struct {
 
 // Store is an in-memory ResponseStore with optional LRU eviction.
 type Store struct {
-	mu       sync.RWMutex
-	entries  map[string]*entry
-	lruList  *list.List // front = most recently used, back = least recently used
-	maxSize  int        // 0 = unlimited
+	mu          sync.RWMutex
+	entries     map[string]*entry
+	lruList     *list.List     // front = most recently used, back = least recently used
+	maxSize     int            // 0 = unlimited
+	auditLogger *audit.Logger
+}
+
+// SetAuditLogger sets the audit logger for ownership audit events.
+func (s *Store) SetAuditLogger(l *audit.Logger) {
+	s.auditLogger = l
 }
 
 // Ensure Store implements transport.ResponseStore at compile time.
@@ -123,7 +141,7 @@ func (s *Store) GetResponse(ctx context.Context, id string) (*api.Response, erro
 	}
 
 	// Owner scoping.
-	if !ownerAllowed(ctx, e.owner, id, "GetResponse", false) {
+	if !ownerAllowed(ctx, e.owner, "response", id, "GetResponse", false, s.auditLogger) {
 		return nil, storage.ErrNotFound
 	}
 
@@ -148,7 +166,7 @@ func (s *Store) GetResponseForChain(ctx context.Context, id string) (*api.Respon
 	}
 
 	// Owner scoping (prevent chaining to another user's response).
-	if !ownerAllowed(ctx, e.owner, id, "GetResponseForChain", false) {
+	if !ownerAllowed(ctx, e.owner, "response", id, "GetResponseForChain", false, s.auditLogger) {
 		return nil, storage.ErrNotFound
 	}
 
@@ -173,7 +191,7 @@ func (s *Store) DeleteResponse(ctx context.Context, id string) error {
 	}
 
 	// Owner scoping.
-	if !ownerAllowed(ctx, e.owner, id, "DeleteResponse", false) {
+	if !ownerAllowed(ctx, e.owner, "response", id, "DeleteResponse", false, s.auditLogger) {
 		return storage.ErrNotFound
 	}
 
@@ -311,7 +329,7 @@ func (s *Store) GetInputItems(ctx context.Context, responseID string, opts trans
 	}
 
 	// Owner scoping.
-	if !ownerAllowed(ctx, e.owner, responseID, "GetInputItems", false) {
+	if !ownerAllowed(ctx, e.owner, "response", responseID, "GetInputItems", false, s.auditLogger) {
 		return nil, storage.ErrNotFound
 	}
 

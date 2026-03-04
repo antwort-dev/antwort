@@ -1,12 +1,26 @@
 package scope
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/rhuss/antwort/pkg/auth"
 )
+
+// auditLogger defines the interface for audit event emission.
+// This avoids an import cycle between auth/scope and audit packages.
+type auditLogger interface {
+	Log(ctx context.Context, event string, attrs ...any)
+	LogWarn(ctx context.Context, event string, attrs ...any)
+}
+
+// noopAuditLogger is a no-op implementation used when no audit logger is provided.
+type noopAuditLogger struct{}
+
+func (noopAuditLogger) Log(context.Context, string, ...any)     {}
+func (noopAuditLogger) LogWarn(context.Context, string, ...any) {}
 
 // DefaultEndpointScopes maps HTTP method + path pattern to required scope.
 // Path parameters are represented as segments starting with "{".
@@ -43,7 +57,12 @@ type endpointPattern struct {
 // Middleware creates HTTP middleware that enforces scope-based authorization.
 // If expandedRoles is nil or empty, all requests pass through (no enforcement).
 // The endpointScopes map defines which scope is required for each endpoint pattern.
-func Middleware(expandedRoles map[string]map[string]bool, endpointScopes map[string]string) func(http.Handler) http.Handler {
+func Middleware(expandedRoles map[string]map[string]bool, endpointScopes map[string]string, loggers ...auditLogger) func(http.Handler) http.Handler {
+	var al auditLogger = noopAuditLogger{}
+	if len(loggers) > 0 && loggers[0] != nil {
+		al = loggers[0]
+	}
+
 	if len(expandedRoles) == 0 {
 		return func(next http.Handler) http.Handler { return next }
 	}
@@ -85,6 +104,11 @@ func Middleware(expandedRoles map[string]map[string]bool, endpointScopes map[str
 			}
 
 			// Forbidden.
+			al.LogWarn(r.Context(), "authz.scope_denied",
+				"endpoint", r.Method+" "+r.URL.Path,
+				"required_scope", requiredScope,
+				"effective_scopes", formatScopes(effectiveScopes),
+			)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusForbidden)
 			fmt.Fprintf(w, `{"error":{"type":"forbidden","message":"insufficient scope: requires %s"}}`, requiredScope)
@@ -168,4 +192,13 @@ func computeEffectiveScopes(identity *auth.Identity, expandedRoles map[string]ma
 	}
 
 	return effective
+}
+
+// formatScopes converts a scope set to a comma-separated string for logging.
+func formatScopes(scopes map[string]bool) string {
+	parts := make([]string, 0, len(scopes))
+	for s := range scopes {
+		parts = append(parts, s)
+	}
+	return strings.Join(parts, ",")
 }

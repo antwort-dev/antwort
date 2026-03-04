@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"context"
+
 	"github.com/rhuss/antwort/pkg/agent"
 	"github.com/rhuss/antwort/pkg/tools"
 )
@@ -28,7 +30,25 @@ type Config struct {
 	// ProfileResolver resolves agent profiles by name.
 	// When nil, the agent and prompt fields on requests are rejected.
 	ProfileResolver agent.ProfileResolver
+
+	// AuditLogger emits structured audit events for tool execution.
+	// When nil, no audit events are emitted.
+	AuditLogger AuditLogger
 }
+
+// AuditLogger defines the interface for emitting audit events.
+// This avoids an import cycle between engine and audit packages.
+// The audit.Logger type satisfies this interface.
+type AuditLogger interface {
+	Log(ctx context.Context, event string, attrs ...any)
+	LogWarn(ctx context.Context, event string, attrs ...any)
+}
+
+// noopAuditLogger is a no-op implementation used when no audit logger is configured.
+type noopAuditLogger struct{}
+
+func (noopAuditLogger) Log(context.Context, string, ...any)     {}
+func (noopAuditLogger) LogWarn(context.Context, string, ...any) {}
 
 // maxTurns returns the effective max turns value, defaulting to 10.
 func (c Config) maxTurns() int {

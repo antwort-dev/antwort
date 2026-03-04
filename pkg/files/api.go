@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/rhuss/antwort/pkg/api"
+	"github.com/rhuss/antwort/pkg/audit"
 	"github.com/rhuss/antwort/pkg/storage"
 )
 
@@ -27,6 +28,7 @@ type FilesAPI struct {
 	vsCollectionLookup func(vsID string) (string, error)
 	maxUploadSize      int64
 	logger             *slog.Logger
+	auditLogger        *audit.Logger
 }
 
 func (a *FilesAPI) handleUpload(w http.ResponseWriter, r *http.Request) {
@@ -132,6 +134,8 @@ func (a *FilesAPI) handleUpload(w http.ResponseWriter, r *http.Request) {
 	// Record upload metric.
 	filesUploadedTotal.WithLabelValues(fileMIMEType).Inc()
 
+	a.auditLogger.Log(r.Context(), "resource.created", "resource_type", "file", "resource_id", fileID)
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(file)
@@ -218,6 +222,8 @@ func (a *FilesAPI) handleDeleteFile(w http.ResponseWriter, r *http.Request) {
 	// Delete content and metadata.
 	_ = a.fileStore.Delete(r.Context(), fileID)
 	_ = a.metadata.Delete(r.Context(), fileID)
+
+	a.auditLogger.Log(r.Context(), "resource.deleted", "resource_type", "file", "resource_id", fileID)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{

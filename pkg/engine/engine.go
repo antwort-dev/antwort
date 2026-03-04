@@ -18,10 +18,11 @@ import (
 // Engine orchestrates request processing between the transport layer
 // and the provider backend. It implements transport.ResponseCreator.
 type Engine struct {
-	provider  provider.Provider
-	store     transport.ResponseStore
-	executors []tools.ToolExecutor
-	cfg       Config
+	provider    provider.Provider
+	store       transport.ResponseStore
+	executors   []tools.ToolExecutor
+	auditLogger AuditLogger
+	cfg         Config
 }
 
 // Ensure Engine implements transport.ResponseCreator at compile time.
@@ -33,11 +34,16 @@ func New(p provider.Provider, store transport.ResponseStore, cfg Config) (*Engin
 	if p == nil {
 		return nil, fmt.Errorf("engine: provider must not be nil")
 	}
+	al := cfg.AuditLogger
+	if al == nil {
+		al = noopAuditLogger{}
+	}
 	return &Engine{
-		provider:  p,
-		store:     store,
-		executors: cfg.Executors,
-		cfg:       cfg,
+		provider:    p,
+		store:       store,
+		executors:   cfg.Executors,
+		auditLogger: al,
+		cfg:         cfg,
 	}, nil
 }
 
