@@ -2,4 +2,5 @@
 * xref:getting-started.adoc[Getting Started]
 * xref:first-tools.adoc[Adding Tools]
 * xref:code-execution.adoc[Code Execution]
+* xref:authorization.adoc[Authorization]
 * xref:going-production.adoc[Going to Production]

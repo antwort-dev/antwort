@@ -1,0 +1,163 @@
+= Authorization
+:navtitle: Authorization
+
+This tutorial covers how to configure scope-based authorization and resource permissions in Antwort.
+By the end, you will understand how to restrict API access by role, and how to share vector stores and files between users.
+
+== Prerequisites
+
+* A running Antwort deployment with JWT or API key authentication enabled (see xref:getting-started.adoc[] and the xref:operations:security.adoc[] guide)
+* `curl` and `jq` installed locally
+
+== Scope-Based Authorization
+
+Antwort can enforce fine-grained access control by mapping user roles to API scopes.
+Each API endpoint requires a specific scope, and users are only allowed to access endpoints covered by their effective scopes.
+
+When `auth.authorization.role_scopes` is not configured (or empty), scope enforcement is disabled.
+All authenticated users can access all endpoints.
+
+=== Configuring Role Scopes
+
+Define a role-to-scope mapping in your configuration:
+
+[source,yaml]
+----
+auth:
+  type: jwt
+  jwt:
+    jwks_url: https://idp.example.com/.well-known/jwks.json
+    roles_claim: realm_access.roles
+  authorization:
+    admin_role: antwort-admin
+    role_scopes:                              # <1>
+      viewer:                                 # <2>
+        - "responses:read"
+        - "vector_stores:read"
+        - "files:read"
+      editor:                                 # <3>
+        - "responses:create"
+        - "responses:read"
+        - "vector_stores:create"
+        - "vector_stores:read"
+        - "files:create"
+        - "files:read"
+      admin:                                  # <4>
+        - "*"
+----
+<1> The `role_scopes` map enables scope enforcement.
+<2> The `viewer` role can only read responses, vector stores, and files.
+<3> The `editor` role can create and read, but not delete.
+<4> The wildcard scope `*` grants access to all endpoints.
+
+=== How Scopes Are Resolved
+
+When a request arrives, the middleware determines effective scopes by combining:
+
+. Direct scopes from the identity's `scope` claim (for JWT) or statically configured scopes
+. Expanded scopes from the user's roles, as defined in the `role_scopes` mapping
+
+If any effective scope matches the endpoint's required scope (or includes `*`), the request proceeds.
+Otherwise, the gateway returns HTTP 403 Forbidden.
+
+=== Available Scopes
+
+Each API endpoint maps to a scope using the `resource:action` pattern:
+
+[cols="2,2", options="header"]
+|===
+| Endpoint Pattern | Required Scope
+
+| `POST /v1/responses`
+| `responses:create`
+
+| `GET /v1/responses`
+| `responses:read`
+
+| `DELETE /v1/responses/{id}`
+| `responses:delete`
+
+| `POST /v1/vector_stores`
+| `vector_stores:create`
+
+| `GET /v1/vector_stores`
+| `vector_stores:read`
+
+| `DELETE /v1/vector_stores/{id}`
+| `vector_stores:delete`
+
+| `POST /v1/files`
+| `files:create`
+
+| `GET /v1/files`
+| `files:read`
+
+| `DELETE /v1/files/{id}`
+| `files:delete`
+|===
+
+== Resource Permissions
+
+Vector stores and files support a Unix-style permissions model that controls access at the resource level.
+Permissions are specified as a three-segment string: `owner|group|others`, where each segment contains a subset of `r` (read), `w` (write), and `d` (delete).
+
+=== Default Permissions
+
+New resources are created with `rwd|---|---` by default.
+This means only the owner can read, write, and delete the resource.
+
+=== Sharing a Vector Store
+
+To share a vector store with all users in the same tenant, set group-read permissions when creating it:
+
+[source,bash]
+----
+curl -s http://localhost:8080/v1/vector_stores \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "shared-knowledge-base",
+    "permissions": {
+      "group": "r"
+    }
+  }' | jq .
+----
+
+This creates a vector store with permissions `rwd|r--|---`.
+All authenticated users in the same tenant can search this vector store, but only the owner can modify or delete it.
+
+To also allow cross-tenant access, set the `others` segment:
+
+[source,bash]
+----
+curl -s http://localhost:8080/v1/vector_stores \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "public-knowledge-base",
+    "permissions": {
+      "group": "r",
+      "others": "r"
+    }
+  }' | jq .
+----
+
+=== Permissions and Agent Profiles
+
+Agent profiles can reference vector store IDs.
+When a profile includes `vector_store_ids`, these are merged (union) with any vector store IDs the model specifies in its file_search tool call.
+This allows profiles to pre-configure knowledge bases while letting individual requests add additional stores.
+
+[source,yaml]
+----
+agents:
+  research-assistant:
+    model: qwen-2.5-7b
+    instructions: "You are a research assistant with access to the knowledge base."
+    tools:
+      - type: file_search
+        name: file_search
+    vector_store_ids:
+      - vs_shared_knowledge
+      - vs_research_papers
+----

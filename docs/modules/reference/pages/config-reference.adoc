@@ -203,6 +203,16 @@ Used together with `auth.authorization.admin_role` for admin detection.
 When set, users whose JWT roles include this value can read and delete any resource within their tenant, bypassing per-user ownership checks.
 Admin users cannot modify (write to) resources owned by other users.
 
+| `auth.authorization.role_scopes`
+| map[string][]string
+| `{}`
+|
+| Role-to-scope mapping for scope-based authorization.
+Each key is a role name, and its value is a list of scopes granted to that role.
+Scopes follow a reference-based hierarchy using `resource:action` format (e.g., `responses:create`, `vector_stores:read`).
+The special scope `*` grants access to all endpoints.
+When this map is empty or not configured, scope enforcement is disabled and all authenticated requests pass through.
+
 5+h| MCP
 
 | `mcp.servers`

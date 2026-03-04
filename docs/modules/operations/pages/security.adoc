@@ -306,6 +306,55 @@ auth:
 With JWT authentication, the tenant claim is extracted automatically from the token.
 Configure the `tenant_claim` field to match the claim name used by your identity provider.
 
+== Scope Enforcement
+
+Antwort supports scope-based authorization that restricts API access based on user roles.
+When the `auth.authorization.role_scopes` map is configured, each API endpoint requires a specific scope, and only users whose effective scopes include the required scope are allowed through.
+
+Scopes use the `resource:action` pattern (e.g., `responses:create`, `vector_stores:read`).
+The special scope `*` grants unrestricted access.
+
+When `role_scopes` is empty or not configured, scope enforcement is disabled and all authenticated requests pass through to the next middleware layer.
+This preserves full backward compatibility with existing deployments.
+
+[source,yaml]
+----
+auth:
+  authorization:
+    role_scopes:
+      viewer:
+        - "responses:read"
+        - "vector_stores:read"
+        - "files:read"
+      editor:
+        - "responses:create"
+        - "responses:read"
+        - "files:create"
+        - "files:read"
+      admin:
+        - "*"
+----
+
+Effective scopes are computed as the union of:
+
+. Direct scopes from the identity (JWT `scope` claim or API key scopes)
+. Role-expanded scopes from the `role_scopes` mapping, based on the user's roles
+
+For more details and examples, see the xref:tutorial:authorization.adoc[] tutorial.
+
+== Resource Permissions
+
+Vector stores and files support a Unix-style permissions model with three access levels: owner, group (same tenant), and others (cross-tenant).
+Each level can grant read (`r`), write (`w`), and delete (`d`) permissions.
+
+The permissions string format is `owner|group|others` (e.g., `rwd|r--|---`).
+New resources default to `rwd|---|---` (owner-only access).
+
+This model enables controlled resource sharing.
+For example, an admin can create a shared vector store with group-read permissions (`rwd|r--|---`), allowing all users in the same tenant to search it while restricting modifications to the owner.
+
+See the xref:tutorial:authorization.adoc[] tutorial for configuration examples.
+
 == Resource Ownership
 
 Antwort enforces per-user resource ownership for responses, conversations, and vector stores.
