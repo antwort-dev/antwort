@@ -175,6 +175,8 @@ func (p *FileSearchProvider) handleCreateStore(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	p.auditLogger.Log(r.Context(), "resource.created", "resource_type", "vector_store", "resource_id", vs.ID)
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(toResponse(vs))
@@ -317,6 +319,8 @@ func (p *FileSearchProvider) handleDeleteStore(w http.ResponseWriter, r *http.Re
 		writeJSONError(w, "internal error", http.StatusInternalServerError)
 		return
 	}
+
+	p.auditLogger.Log(r.Context(), "resource.deleted", "resource_type", "vector_store", "resource_id", storeID)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{

@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/rhuss/antwort/pkg/api"
+	"github.com/rhuss/antwort/pkg/audit"
 	"github.com/rhuss/antwort/pkg/storage"
 	"github.com/rhuss/antwort/pkg/transport"
 )
@@ -23,6 +24,7 @@ type Adapter struct {
 	inflight        *transport.InFlightRegistry
 	mux             *http.ServeMux
 	config          Config
+	auditLogger     *audit.Logger
 }
 
 // Config holds configuration for the HTTP adapter.
@@ -87,6 +89,11 @@ func (a *Adapter) SetConversationStore(store transport.ConversationStore) {
 // SetProfileResolver enables agent profile listing on the adapter.
 func (a *Adapter) SetProfileResolver(resolver interface{}) {
 	a.profileResolver = resolver
+}
+
+// SetAuditLogger sets the audit logger for resource mutation events.
+func (a *Adapter) SetAuditLogger(l *audit.Logger) {
+	a.auditLogger = l
 }
 
 
@@ -194,10 +201,14 @@ func (a *Adapter) handleCreateResponse(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Non-streaming: create ResponseWriter and dispatch.
-	rw := newSSEResponseWriter(w, nil)
+	var createdID string
+	rw := newSSEResponseWriter(w, func(id string) { createdID = id })
 	if err := a.creator.CreateResponse(r.Context(), &req, rw); err != nil {
 		a.writeHandlerError(w, rw, err)
 		return
+	}
+	if createdID != "" {
+		a.auditLogger.Log(r.Context(), "resource.created", "resource_type", "response", "resource_id", createdID)
 	}
 }
 
@@ -221,6 +232,10 @@ func (a *Adapter) handleStreamingResponse(w http.ResponseWriter, r *http.Request
 
 	if err != nil {
 		a.writeHandlerError(w, rw, err)
+		return
+	}
+	if registeredID != "" {
+		a.auditLogger.Log(r.Context(), "resource.created", "resource_type", "response", "resource_id", registeredID)
 	}
 }
 
@@ -304,6 +319,7 @@ func (a *Adapter) handleDeleteResponse(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	a.auditLogger.Log(r.Context(), "resource.deleted", "resource_type", "response", "resource_id", id)
 	w.WriteHeader(http.StatusNoContent)
 }
 

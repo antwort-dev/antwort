@@ -1,13 +1,18 @@
 package memory
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/rhuss/antwort/pkg/api"
+	"github.com/rhuss/antwort/pkg/audit"
 	"github.com/rhuss/antwort/pkg/storage"
 	"github.com/rhuss/antwort/pkg/transport"
 )
@@ -417,10 +422,115 @@ func TestOwnerAllowedFunction(t *testing.T) {
 				ctx = storage.SetAdmin(ctx, true)
 			}
 
-			got := ownerAllowed(ctx, tt.storedOwner, "test-id", "test-op", tt.writeOp)
+			got := ownerAllowed(ctx, tt.storedOwner, "response", "test-id", "test-op", tt.writeOp, nil)
 			if got != tt.want {
 				t.Errorf("ownerAllowed() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+// --- Audit event tests (T011) ---
+
+func newAuditLogger() (*audit.Logger, *bytes.Buffer) {
+	var buf bytes.Buffer
+	return audit.NewFromHandler(slog.NewJSONHandler(&buf, nil)), &buf
+}
+
+func TestAudit_OwnershipDenied(t *testing.T) {
+	al, buf := newAuditLogger()
+	s := New(0)
+	s.SetAuditLogger(al)
+
+	ctxUser1 := ctxWithOwner("user-1")
+	ctxUser2 := ctxWithOwner("user-2")
+
+	s.SaveResponse(ctxUser1, makeResp("resp_audit_denied", 1000))
+
+	// user-2 tries to access user-1's response.
+	_, err := s.GetResponse(ctxUser2, "resp_audit_denied")
+	if !errors.Is(err, storage.ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+
+	var m map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &m); err != nil {
+		t.Fatalf("failed to parse audit JSON: %v\nbody: %s", err, buf.String())
+	}
+
+	if m["event"] != "authz.ownership_denied" {
+		t.Errorf("event = %q, want %q", m["event"], "authz.ownership_denied")
+	}
+	if m["resource_type"] != "response" {
+		t.Errorf("resource_type = %q, want %q", m["resource_type"], "response")
+	}
+	if m["resource_id"] != "resp_audit_denied" {
+		t.Errorf("resource_id = %q, want %q", m["resource_id"], "resp_audit_denied")
+	}
+	if m["operation"] != "GetResponse" {
+		t.Errorf("operation = %q, want %q", m["operation"], "GetResponse")
+	}
+}
+
+func TestAudit_AdminOverride(t *testing.T) {
+	al, buf := newAuditLogger()
+	s := New(0)
+	s.SetAuditLogger(al)
+
+	ctxUser := ctxWithTenantOwner("tenant-a", "user-1")
+	ctxAdmin := ctxWithAdmin("tenant-a", "admin-user")
+
+	s.SaveResponse(ctxUser, makeResp("resp_audit_admin", 1000))
+
+	// Admin reads user-1's response (admin override).
+	_, err := s.GetResponse(ctxAdmin, "resp_audit_admin")
+	if err != nil {
+		t.Fatalf("admin should read response: %v", err)
+	}
+
+	// Find the admin override event.
+	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+	var found bool
+	for _, line := range lines {
+		var m map[string]any
+		if err := json.Unmarshal([]byte(line), &m); err != nil {
+			continue
+		}
+		if m["event"] == "authz.admin_override" {
+			found = true
+			if m["resource_type"] != "response" {
+				t.Errorf("resource_type = %q, want %q", m["resource_type"], "response")
+			}
+			if m["resource_id"] != "resp_audit_admin" {
+				t.Errorf("resource_id = %q, want %q", m["resource_id"], "resp_audit_admin")
+			}
+			if m["resource_owner"] != "user-1" {
+				t.Errorf("resource_owner = %q, want %q", m["resource_owner"], "user-1")
+			}
+			if m["operation"] != "GetResponse" {
+				t.Errorf("operation = %q, want %q", m["operation"], "GetResponse")
+			}
+			break
+		}
+	}
+	if !found {
+		t.Errorf("authz.admin_override event not found in output: %s", buf.String())
+	}
+}
+
+func TestAudit_NilAuditLogger_NoPanic(t *testing.T) {
+	// Store with nil audit logger should not panic on ownership checks.
+	s := New(0)
+	// No SetAuditLogger call, so s.auditLogger is nil.
+
+	ctxUser1 := ctxWithOwner("user-1")
+	ctxUser2 := ctxWithOwner("user-2")
+
+	s.SaveResponse(ctxUser1, makeResp("resp_nil_audit", 1000))
+
+	// This should not panic even with nil audit logger.
+	_, err := s.GetResponse(ctxUser2, "resp_nil_audit")
+	if !errors.Is(err, storage.ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
 }

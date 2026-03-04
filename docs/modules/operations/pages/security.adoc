@@ -448,3 +448,206 @@ This design prioritizes availability over strict enforcement.
 For multi-replica deployments, each replica maintains its own rate limit counters.
 This means the effective rate limit per client is multiplied by the number of replicas.
 For strict per-client rate limiting across replicas, use an external rate limiter (such as an API gateway or service mesh).
+
+== Audit Logging
+
+Audit logging records security-relevant events and state-changing operations separately from operational logs.
+It is disabled by default and designed to be nil-safe, meaning zero overhead when turned off.
+When enabled, audit events are emitted through a dedicated `slog.Logger` instance that writes to a configurable output destination.
+
+=== Configuration
+
+Enable audit logging through the configuration file or environment variables.
+
+[source,yaml]
+----
+audit:
+  enabled: true       # <1>
+  format: json         # <2>
+  output: stdout       # <3>
+  file: /var/log/antwort/audit.log  # <4>
+----
+<1> Enable audit event emission. Default: `false`.
+<2> Output format: `json` (structured, machine-readable) or `text` (human-readable). Default: `json`.
+<3> Output destination: `stdout` or `file`. Default: `stdout`.
+<4> File path for audit logs. Required when `output` is `file`.
+
+Equivalent environment variables:
+
+[source,bash]
+----
+export ANTWORT_AUDIT_ENABLED=true
+export ANTWORT_AUDIT_FORMAT=json
+export ANTWORT_AUDIT_OUTPUT=stdout
+----
+
+=== Event Catalog
+
+Antwort emits 12 audit event types, organized into five categories.
+Each event includes an `event` field identifying the event type, along with category-specific fields.
+The `msg` field also contains the event name (standard slog behavior).
+
+==== Authentication Events
+
+[cols="2,1,3", options="header"]
+|===
+| Event | Level | Fields
+
+| `auth.success`
+| INFO
+| `auth_method`, `remote_addr`
+
+| `auth.failure`
+| WARN
+| `auth_method`, `remote_addr`, `error`
+
+| `auth.rate_limited`
+| WARN
+| `tier`, `remote_addr`
+|===
+
+==== Authorization Events
+
+[cols="2,1,3", options="header"]
+|===
+| Event | Level | Fields
+
+| `authz.scope_denied`
+| WARN
+| `endpoint`, `required_scope`, `effective_scopes`
+
+| `authz.ownership_denied`
+| INFO
+| `resource_type`, `resource_id`, `operation`
+
+| `authz.admin_override`
+| INFO
+| `resource_type`, `resource_id`, `resource_owner`, `operation`
+|===
+
+==== Resource Mutation Events
+
+[cols="2,1,3", options="header"]
+|===
+| Event | Level | Fields
+
+| `resource.created`
+| INFO
+| `resource_type`, `resource_id`
+
+| `resource.deleted`
+| INFO
+| `resource_type`, `resource_id`
+
+| `resource.permissions_changed`
+| INFO
+| `resource_type`, `resource_id`, `old_permissions`, `new_permissions`
+|===
+
+==== Tool Events
+
+[cols="2,1,3", options="header"]
+|===
+| Event | Level | Fields
+
+| `tool.executed`
+| INFO
+| `tool_type`, `tool_name`
+
+| `tool.failed`
+| WARN
+| `tool_type`, `tool_name`, `error`
+|===
+
+==== System Events
+
+[cols="2,1,3", options="header"]
+|===
+| Event | Level | Fields
+
+| `config.startup`
+| INFO
+| `auth_enabled`, `audit_enabled`, `role_count`, `scope_enforcement`
+|===
+
+=== Example Output
+
+A successful authentication event in JSON format:
+
+[source,json]
+----
+{
+  "time": "2026-03-04T10:15:30Z",
+  "level": "INFO",
+  "msg": "auth.success",
+  "event": "auth.success",
+  "subject": "alice",
+  "auth_method": "jwt",
+  "remote_addr": "10.0.1.42:54321"
+}
+----
+
+A resource creation event:
+
+[source,json]
+----
+{
+  "time": "2026-03-04T10:15:31Z",
+  "level": "INFO",
+  "msg": "resource.created",
+  "event": "resource.created",
+  "subject": "alice",
+  "resource_type": "response",
+  "resource_id": "resp_abc123"
+}
+----
+
+An admin override event:
+
+[source,json]
+----
+{
+  "time": "2026-03-04T10:16:00Z",
+  "level": "INFO",
+  "msg": "authz.admin_override",
+  "event": "authz.admin_override",
+  "subject": "admin-user",
+  "resource_type": "response",
+  "resource_id": "resp_abc123",
+  "resource_owner": "bob",
+  "operation": "GetResponse"
+}
+----
+
+=== Integration with Log Aggregation
+
+When `audit.output` is set to `stdout` (the default), audit log entries are written to standard output alongside operational logs.
+In Kubernetes, DaemonSet-based log agents (such as Fluentd, Fluent Bit, or Vector) automatically collect stdout output from all containers without any custom configuration.
+
+To separate audit logs from operational logs in your aggregation pipeline, filter on the `event` field.
+For example, with Vector:
+
+[source,toml]
+----
+[transforms.audit_filter]
+type = "filter"
+inputs = ["kubernetes_logs"]
+condition = 'exists(.event)'
+----
+
+When `audit.output` is set to `file`, audit logs are written to a dedicated file at the path specified by `audit.file`.
+Mount a persistent volume or emptyDir at the log directory to ensure logs survive Pod restarts.
+
+=== Troubleshooting
+
+**No audit output visible**::
+Verify that `audit.enabled` is set to `true`.
+Check the effective configuration by looking for the `config.startup` event in the operational logs, which reports whether audit logging is active.
+
+**File permission errors**::
+When using file output, ensure the Antwort process has write permissions to the directory specified in `audit.file`.
+In Kubernetes, use an `emptyDir` volume or a PersistentVolumeClaim with appropriate access modes.
+
+**High log volume**::
+Audit logging emits one entry per security-relevant event.
+In high-traffic deployments, consider routing audit logs to a dedicated file and configuring log rotation, or use a log aggregation pipeline with sampling.

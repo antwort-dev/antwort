@@ -44,6 +44,8 @@ func (a *Adapter) handleCreateConversation(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	a.auditLogger.Log(r.Context(), "resource.created", "resource_type", "conversation", "resource_id", conv.ID)
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(conv)
@@ -116,6 +118,8 @@ func (a *Adapter) handleDeleteConversation(w http.ResponseWriter, r *http.Reques
 		}
 		return
 	}
+
+	a.auditLogger.Log(r.Context(), "resource.deleted", "resource_type", "conversation", "resource_id", id)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{

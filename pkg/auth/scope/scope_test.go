@@ -1,6 +1,10 @@
 package scope
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -283,5 +287,107 @@ func TestMiddleware_PathParamMatching(t *testing.T) {
 
 	if rr.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", rr.Code)
+	}
+}
+
+// --- Audit event tests (T010) ---
+
+// testScopeAuditLogger implements auditLogger for testing.
+type testScopeAuditLogger struct {
+	buf *bytes.Buffer
+}
+
+func newTestScopeAuditLogger() (*testScopeAuditLogger, *bytes.Buffer) {
+	var buf bytes.Buffer
+	return &testScopeAuditLogger{buf: &buf}, &buf
+}
+
+func (l *testScopeAuditLogger) Log(_ context.Context, event string, attrs ...any) {
+	h := slog.NewJSONHandler(l.buf, nil)
+	logger := slog.New(h)
+	logger.Info(event, append([]any{"event", event}, attrs...)...)
+}
+
+func (l *testScopeAuditLogger) LogWarn(_ context.Context, event string, attrs ...any) {
+	h := slog.NewJSONHandler(l.buf, nil)
+	logger := slog.New(h)
+	logger.Warn(event, append([]any{"event", event}, attrs...)...)
+}
+
+func TestMiddleware_AuditScopeDenied(t *testing.T) {
+	al, buf := newTestScopeAuditLogger()
+	expandedRoles := map[string]map[string]bool{
+		"viewer": {"responses:read": true},
+	}
+	handler := Middleware(expandedRoles, DefaultEndpointScopes, al)(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}),
+	)
+
+	req := httptest.NewRequest("POST", "/v1/responses", nil)
+	ctx := auth.SetIdentity(req.Context(), &auth.Identity{
+		Subject:  "user1",
+		Metadata: map[string]string{"roles": "viewer"},
+	})
+	req = req.WithContext(ctx)
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", rr.Code)
+	}
+
+	var m map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &m); err != nil {
+		t.Fatalf("failed to parse audit JSON: %v\nbody: %s", err, buf.String())
+	}
+
+	if m["event"] != "authz.scope_denied" {
+		t.Errorf("event = %q, want %q", m["event"], "authz.scope_denied")
+	}
+	if m["endpoint"] != "POST /v1/responses" {
+		t.Errorf("endpoint = %q, want %q", m["endpoint"], "POST /v1/responses")
+	}
+	if m["required_scope"] != "responses:create" {
+		t.Errorf("required_scope = %q, want %q", m["required_scope"], "responses:create")
+	}
+	// effective_scopes should contain "responses:read"
+	effectiveStr, ok := m["effective_scopes"].(string)
+	if !ok {
+		t.Fatal("effective_scopes should be a string")
+	}
+	if effectiveStr != "responses:read" {
+		t.Errorf("effective_scopes = %q, want %q", effectiveStr, "responses:read")
+	}
+	if m["level"] != "WARN" {
+		t.Errorf("level = %q, want %q", m["level"], "WARN")
+	}
+}
+
+func TestMiddleware_AuditNilLogger_NoPanic(t *testing.T) {
+	expandedRoles := map[string]map[string]bool{
+		"viewer": {"responses:read": true},
+	}
+	// No audit logger passed (variadic is empty), should not panic.
+	handler := Middleware(expandedRoles, DefaultEndpointScopes)(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}),
+	)
+
+	req := httptest.NewRequest("POST", "/v1/responses", nil)
+	ctx := auth.SetIdentity(req.Context(), &auth.Identity{
+		Subject:  "user1",
+		Metadata: map[string]string{"roles": "viewer"},
+	})
+	req = req.WithContext(ctx)
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Errorf("expected 403, got %d", rr.Code)
 	}
 }

@@ -3,32 +3,65 @@
 // request content analysis, matching the 6 official OpenResponses
 // compliance test scenarios.
 //
+// In replay mode (--recordings-dir), it serves pre-recorded responses
+// matched by request hash. In record mode, it proxies to a real backend
+// and saves the responses for later replay.
+//
 // Configuration:
 //
 //	MOCK_PORT - Listen port (default: 9090)
 package main
 
 import (
+	"bufio"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
+	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
 )
 
+var (
+	recordingsDir = flag.String("recordings-dir", "", "Directory with recording JSON files (enables replay mode)")
+	mode          = flag.String("mode", "replay", "Operating mode: replay, record, record-if-missing")
+	recordTarget  = flag.String("record-target", "", "Backend URL for record mode")
+)
+
 func main() {
+	flag.Parse()
+
 	port := os.Getenv("MOCK_PORT")
 	if port == "" {
 		port = "9090"
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST /v1/chat/completions", handleChatCompletions)
+
+	if *recordingsDir != "" {
+		recordings, err := loadRecordings(*recordingsDir)
+		if err != nil {
+			slog.Error("failed to load recordings", "dir", *recordingsDir, "error", err)
+			os.Exit(1)
+		}
+		slog.Info("loaded recordings", "count", len(recordings), "dir", *recordingsDir, "mode", *mode)
+
+		handler := makeReplayHandler(recordings, *recordingsDir)
+		mux.HandleFunc("POST /v1/chat/completions", handler)
+		mux.HandleFunc("POST /v1/responses", handler)
+	} else {
+		mux.HandleFunc("POST /v1/chat/completions", handleChatCompletions)
+	}
+
 	mux.HandleFunc("GET /v1/models", handleModels)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -53,6 +86,297 @@ func main() {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	srv.Shutdown(shutdownCtx)
+}
+
+// --- Recording types ---
+
+// Recording represents a single captured request/response pair.
+type Recording struct {
+	Request   RecordingRequest  `json:"request"`
+	Response  RecordingResponse `json:"response"`
+	Streaming bool              `json:"streaming"`
+	Chunks    []string          `json:"chunks,omitempty"`
+	Metadata  map[string]string `json:"metadata,omitempty"`
+}
+
+// RecordingRequest captures the essentials of an HTTP request.
+type RecordingRequest struct {
+	Method string          `json:"method"`
+	Path   string          `json:"path"`
+	Body   json.RawMessage `json:"body"`
+}
+
+// RecordingResponse captures the essentials of an HTTP response.
+type RecordingResponse struct {
+	Status  int               `json:"status"`
+	Headers map[string]string `json:"headers"`
+	Body    json.RawMessage   `json:"body,omitempty"`
+}
+
+// --- Normalization and hashing ---
+
+// normalizeJSON recursively sorts JSON object keys and returns compact JSON.
+// It removes the "stream_options" key to ensure consistent hashing.
+func normalizeJSON(data []byte) ([]byte, error) {
+	var raw any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+	normalized := normalizeValue(raw)
+	return json.Marshal(normalized)
+}
+
+func normalizeValue(v any) any {
+	switch val := v.(type) {
+	case map[string]any:
+		sorted := make(map[string]any, len(val))
+		keys := make([]string, 0, len(val))
+		for k := range val {
+			if k == "stream_options" {
+				continue
+			}
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			sorted[k] = normalizeValue(val[k])
+		}
+		return sorted
+	case []any:
+		result := make([]any, len(val))
+		for i, item := range val {
+			result[i] = normalizeValue(item)
+		}
+		return result
+	default:
+		return v
+	}
+}
+
+// computeRequestHash returns SHA256 hex of "method\npath\nnormalized_body".
+func computeRequestHash(method, path string, body []byte) string {
+	normalized, err := normalizeJSON(body)
+	if err != nil {
+		normalized = body
+	}
+	input := method + "\n" + path + "\n" + string(normalized)
+	sum := sha256.Sum256([]byte(input))
+	return fmt.Sprintf("%x", sum)
+}
+
+// --- Recording loader ---
+
+// loadRecordings reads all .json files from dir and indexes by request hash.
+func loadRecordings(dir string) (map[string]*Recording, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("reading recordings dir: %w", err)
+	}
+
+	recordings := make(map[string]*Recording)
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+			continue
+		}
+		path := filepath.Join(dir, entry.Name())
+		data, err := os.ReadFile(path)
+		if err != nil {
+			slog.Warn("skipping recording file", "path", path, "error", err)
+			continue
+		}
+		var rec Recording
+		if err := json.Unmarshal(data, &rec); err != nil {
+			slog.Warn("skipping corrupt recording", "path", path, "error", err)
+			continue
+		}
+		hash := computeRequestHash(rec.Request.Method, rec.Request.Path, rec.Request.Body)
+		recordings[hash] = &rec
+		slog.Debug("loaded recording", "file", entry.Name(), "hash", hash[:12])
+	}
+	return recordings, nil
+}
+
+// --- Replay handler ---
+
+func makeReplayHandler(recordings map[string]*Recording, recDir string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, `{"error":"failed to read request body"}`, http.StatusInternalServerError)
+			return
+		}
+
+		hash := computeRequestHash(r.Method, r.URL.Path, body)
+
+		rec, found := recordings[hash]
+
+		// In record or record-if-missing mode, forward to backend if needed.
+		if *mode == "record" || (*mode == "record-if-missing" && !found) {
+			if *recordTarget == "" {
+				http.Error(w, `{"error":"record-target not configured"}`, http.StatusInternalServerError)
+				return
+			}
+			newRec, err := recordRequest(r.Method, r.URL.Path, body)
+			if err != nil {
+				slog.Error("recording failed", "error", err)
+				http.Error(w, fmt.Sprintf(`{"error":"recording failed: %s"}`, err), http.StatusBadGateway)
+				return
+			}
+			recordings[hash] = newRec
+			rec = newRec
+			found = true
+
+			// Save to disk.
+			if err := saveRecording(recDir, hash, newRec); err != nil {
+				slog.Error("failed to save recording", "error", err)
+			}
+		}
+
+		if !found {
+			available := make([]string, 0, len(recordings))
+			for h := range recordings {
+				available = append(available, h[:12])
+			}
+			sort.Strings(available)
+			errResp := map[string]any{
+				"error":     "no recording found",
+				"hash":      hash,
+				"available": available,
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(errResp)
+			return
+		}
+
+		// Serve the recording.
+		if rec.Streaming {
+			serveStreamingRecording(w, rec)
+		} else {
+			serveRecording(w, rec)
+		}
+	}
+}
+
+func serveRecording(w http.ResponseWriter, rec *Recording) {
+	for k, v := range rec.Response.Headers {
+		w.Header().Set(k, v)
+	}
+	if w.Header().Get("Content-Type") == "" {
+		w.Header().Set("Content-Type", "application/json")
+	}
+	status := rec.Response.Status
+	if status == 0 {
+		status = http.StatusOK
+	}
+	w.WriteHeader(status)
+	w.Write(rec.Response.Body)
+}
+
+func serveStreamingRecording(w http.ResponseWriter, rec *Recording) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	for k, v := range rec.Response.Headers {
+		w.Header().Set(k, v)
+	}
+	if w.Header().Get("Content-Type") == "" {
+		w.Header().Set("Content-Type", "text/event-stream")
+	}
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	status := rec.Response.Status
+	if status == 0 {
+		status = http.StatusOK
+	}
+	w.WriteHeader(status)
+
+	for _, chunk := range rec.Chunks {
+		w.Write([]byte(chunk))
+		flusher.Flush()
+		time.Sleep(1 * time.Millisecond)
+	}
+}
+
+// --- Record mode ---
+
+func recordRequest(method, path string, body []byte) (*Recording, error) {
+	targetURL := strings.TrimRight(*recordTarget, "/") + path
+
+	req, err := http.NewRequest(method, targetURL, strings.NewReader(string(body)))
+	if err != nil {
+		return nil, fmt.Errorf("creating request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 120 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("forwarding request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	headers := make(map[string]string)
+	for k := range resp.Header {
+		headers[k] = resp.Header.Get(k)
+	}
+
+	isStreaming := strings.Contains(resp.Header.Get("Content-Type"), "text/event-stream")
+
+	rec := &Recording{
+		Request: RecordingRequest{
+			Method: method,
+			Path:   path,
+			Body:   json.RawMessage(body),
+		},
+		Response: RecordingResponse{
+			Status:  resp.StatusCode,
+			Headers: headers,
+		},
+		Streaming: isStreaming,
+		Metadata: map[string]string{
+			"recorded_at": time.Now().UTC().Format(time.RFC3339),
+		},
+	}
+
+	if isStreaming {
+		scanner := bufio.NewScanner(resp.Body)
+		var chunks []string
+		var currentChunk string
+		for scanner.Scan() {
+			line := scanner.Text()
+			currentChunk += line + "\n"
+			if line == "" && currentChunk != "\n" {
+				chunks = append(chunks, currentChunk)
+				currentChunk = ""
+			}
+		}
+		if currentChunk != "" {
+			chunks = append(chunks, currentChunk)
+		}
+		rec.Chunks = chunks
+	} else {
+		respBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("reading response: %w", err)
+		}
+		rec.Response.Body = json.RawMessage(respBody)
+	}
+
+	return rec, nil
+}
+
+func saveRecording(dir, hash string, rec *Recording) error {
+	data, err := json.MarshalIndent(rec, "", "  ")
+	if err != nil {
+		return err
+	}
+	path := filepath.Join(dir, hash+".json")
+	return os.WriteFile(path, data, 0644)
 }
 
 // --- Request types ---
@@ -80,9 +404,9 @@ type chatResponse struct {
 }
 
 type chatChoice struct {
-	Index        int         `json:"index"`
-	Message      chatMsg     `json:"message"`
-	FinishReason string      `json:"finish_reason"`
+	Index        int     `json:"index"`
+	Message      chatMsg `json:"message"`
+	FinishReason string  `json:"finish_reason"`
 }
 
 type chatMsg struct {

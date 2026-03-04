@@ -10,6 +10,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rhuss/antwort/pkg/agent"
 	"github.com/rhuss/antwort/pkg/api"
+	"github.com/rhuss/antwort/pkg/audit"
 	"github.com/rhuss/antwort/pkg/storage"
 	"github.com/rhuss/antwort/pkg/tools"
 	"github.com/rhuss/antwort/pkg/tools/registry"
@@ -43,7 +44,8 @@ type FileSearchProvider struct {
 	backend    VectorStoreBackend
 	embedding  EmbeddingClient
 	metadata   *MetadataStore
-	maxResults int
+	maxResults  int
+	auditLogger *audit.Logger
 
 	// Prometheus metrics.
 	searchLatency *prometheus.HistogramVec
@@ -398,6 +400,11 @@ func (p *FileSearchProvider) Routes() []registry.Route {
 // Collectors returns the custom Prometheus metrics for this provider.
 func (p *FileSearchProvider) Collectors() []prometheus.Collector {
 	return []prometheus.Collector{p.searchLatency, p.embedLatency, p.searchCount}
+}
+
+// SetAuditLogger sets the audit logger for resource mutation events.
+func (p *FileSearchProvider) SetAuditLogger(l *audit.Logger) {
+	p.auditLogger = l
 }
 
 // Close is a no-op for this provider.

@@ -315,6 +315,34 @@ When this map is empty or not configured, scope enforcement is disabled and all 
 |
 | HTTP path for the Prometheus metrics endpoint.
 
+5+h| Audit
+
+| `audit.enabled`
+| bool
+| `false`
+| `ANTWORT_AUDIT_ENABLED`
+| Enable audit logging.
+When enabled, security-relevant events and state-changing operations are logged separately from operational logs.
+
+| `audit.format`
+| string
+| `json`
+| `ANTWORT_AUDIT_FORMAT`
+| Output format for audit log entries: `json` or `text`.
+
+| `audit.output`
+| string
+| `stdout`
+| `ANTWORT_AUDIT_OUTPUT`
+| Output destination for audit logs: `stdout` or `file`.
+
+| `audit.file`
+| string
+|
+| `ANTWORT_AUDIT_FILE`
+| File path for audit log output.
+Required when `audit.output` is `file`.
+
 5+h| Logging
 
 | `logging.level`
@@ -342,3 +370,6 @@ The gateway validates the configuration on startup and exits with an error if an
 * `auth.type` must be `none`, `apikey`, `jwt`, or `chain`.
 * When `auth.type` is `jwt` or `chain`, `auth.jwt.jwks_url` must be set.
 * `engine.provider` (if set) must be `vllm`, `litellm`, or `vllm-responses`.
+* `audit.format` (if set) must be `json` or `text`.
+* `audit.output` (if set) must be `stdout` or `file`.
+* When `audit.output` is `file`, `audit.file` must be non-empty.

@@ -1,0 +1,57 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/v1/chat/completions",
+    "body": {
+      "model": "mock-model",
+      "messages": [{"role": "user", "content": "What is the weather in San Francisco?"}],
+      "tools": [{
+        "type": "function",
+        "function": {
+          "name": "get_weather",
+          "description": "Get the current weather for a location",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "location": {"type": "string", "description": "City name"},
+              "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]}
+            },
+            "required": ["location"]
+          }
+        }
+      }],
+      "stream": false
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {"Content-Type": "application/json"},
+    "body": {
+      "id": "chatcmpl-mock-tool",
+      "object": "chat.completion",
+      "model": "mock-model",
+      "choices": [{
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [{
+            "id": "call_mock_1",
+            "type": "function",
+            "function": {
+              "name": "get_weather",
+              "arguments": "{\"location\":\"San Francisco\",\"unit\":\"celsius\"}"
+            }
+          }]
+        },
+        "finish_reason": "tool_calls"
+      }],
+      "usage": {"prompt_tokens": 20, "completion_tokens": 15, "total_tokens": 35}
+    }
+  },
+  "streaming": false,
+  "metadata": {
+    "test_id": "TestE2EToolCall",
+    "recorded_at": "2026-03-04T00:00:00Z"
+  }
+}

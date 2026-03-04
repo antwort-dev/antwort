@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/rhuss/antwort/pkg/audit"
 	"github.com/rhuss/antwort/pkg/auth"
 	"github.com/rhuss/antwort/pkg/auth/apikey"
 	authjwt "github.com/rhuss/antwort/pkg/auth/jwt"
@@ -67,6 +68,13 @@ func run() error {
 
 	// Initialize debug logging from config (env overrides config).
 	debug.Init(cfg.Logging.Debug, cfg.Logging.Level)
+
+	// Create audit logger from config.
+	auditLogger, err := audit.New(cfg.Audit)
+	if err != nil {
+		slog.Error("failed to create audit logger", "error", err)
+		return err
+	}
 
 	// Create provider from config.
 	prov, err := createProvider(cfg)
@@ -116,6 +124,7 @@ func run() error {
 		MaxAgenticTurns: cfg.Engine.MaxTurns,
 		Executors:       executors,
 		ProfileResolver: profileResolver,
+		AuditLogger:     auditLogger,
 	})
 	if err != nil {
 		return fmt.Errorf("creating engine: %w", err)
@@ -133,6 +142,17 @@ func run() error {
 	// Enable agent profile listing if profiles are configured.
 	if profileResolver != nil {
 		adapter.SetProfileResolver(profileResolver)
+	}
+
+	// Wire audit logger to resource handlers.
+	adapter.SetAuditLogger(auditLogger)
+	for _, p := range funcRegistry.Providers() {
+		if fsp, ok := p.(*filesearch.FileSearchProvider); ok {
+			fsp.SetAuditLogger(auditLogger)
+		}
+		if fp, ok := p.(*files.FilesProvider); ok {
+			fp.SetAuditLogger(auditLogger)
+		}
 	}
 
 	// Build auth chain from config.
@@ -175,15 +195,25 @@ func run() error {
 		if err != nil {
 			return fmt.Errorf("expanding role scopes: %w", err)
 		}
-		scopeMiddleware := scope.Middleware(expandedRoles, scope.DefaultEndpointScopes)
+		scopeMiddleware := scope.Middleware(expandedRoles, scope.DefaultEndpointScopes, auditLogger)
 		handler = scopeMiddleware(handler)
 		slog.Info("scope-based authorization enabled", "roles", len(expandedRoles))
 	}
 
 	// Wrap with auth middleware.
 	if authChain != nil {
-		authMiddleware := auth.Middleware(authChain, nil, auth.DefaultBypassEndpoints, cfg.Auth.Authorization.AdminRole)
+		authMiddleware := auth.Middleware(authChain, nil, auth.DefaultBypassEndpoints, auditLogger, cfg.Auth.Authorization.AdminRole)
 		handler = authMiddleware(handler)
+	}
+
+	// Emit audit startup event after all components are initialized.
+	if auditLogger != nil {
+		auditLogger.Log(context.Background(), "config.startup",
+			"auth_enabled", cfg.Auth.Type != "none",
+			"audit_enabled", cfg.Audit.Enabled,
+			"role_count", len(cfg.Auth.Authorization.RoleScopes),
+			"scope_enforcement", len(cfg.Auth.Authorization.RoleScopes) > 0,
+		)
 	}
 
 	// Create server with configured timeouts.

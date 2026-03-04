@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 
@@ -8,12 +9,29 @@ import (
 	"github.com/rhuss/antwort/pkg/storage"
 )
 
+// AuditLogger defines the interface for audit event emission.
+// This avoids an import cycle between auth and audit packages.
+// The *audit.Logger type satisfies this interface.
+type AuditLogger interface {
+	Log(ctx context.Context, event string, attrs ...any)
+	LogWarn(ctx context.Context, event string, attrs ...any)
+}
+
+// noopAuditLogger is a no-op implementation used when no audit logger is provided.
+type noopAuditLogger struct{}
+
+func (noopAuditLogger) Log(context.Context, string, ...any)     {}
+func (noopAuditLogger) LogWarn(context.Context, string, ...any) {}
+
 // Middleware creates HTTP middleware from an AuthChain and optional RateLimiter.
 // It checks the bypass list, runs authentication, injects tenant and owner context,
 // and optionally enforces rate limits.
 // The adminRole parameter is used to check if the authenticated user has admin
 // privileges. Pass empty string to disable admin detection.
-func Middleware(chain *AuthChain, limiter RateLimiter, bypassEndpoints []string, adminRole ...string) func(http.Handler) http.Handler {
+func Middleware(chain *AuthChain, limiter RateLimiter, bypassEndpoints []string, al AuditLogger, adminRole ...string) func(http.Handler) http.Handler {
+	if al == nil {
+		al = noopAuditLogger{}
+	}
 	bypass := make(map[string]bool, len(bypassEndpoints))
 	for _, ep := range bypassEndpoints {
 		bypass[ep] = true
@@ -36,6 +54,11 @@ func Middleware(chain *AuthChain, limiter RateLimiter, bypassEndpoints []string,
 					"remote_addr", r.RemoteAddr,
 					"error", result.Err,
 				)
+				al.LogWarn(r.Context(), "auth.failure",
+					"auth_method", "unknown",
+					"remote_addr", r.RemoteAddr,
+					"error", result.Err.Error(),
+				)
 				http.Error(w, `{"error":{"type":"invalid_request","message":"authentication required"}}`, http.StatusUnauthorized)
 				return
 			}
@@ -57,6 +80,10 @@ func Middleware(chain *AuthChain, limiter RateLimiter, bypassEndpoints []string,
 				"path", r.URL.Path,
 				"remote_addr", r.RemoteAddr,
 			)
+			al.Log(r.Context(), "auth.success",
+				"auth_method", determineAuthMethod(result),
+				"remote_addr", r.RemoteAddr,
+			)
 
 			// Rate limiting (if configured).
 			if limiter != nil {
@@ -64,6 +91,10 @@ func Middleware(chain *AuthChain, limiter RateLimiter, bypassEndpoints []string,
 					slog.Warn("rate limit exceeded",
 						"subject", result.Identity.Subject,
 						"tier", result.Identity.ServiceTier,
+					)
+					al.LogWarn(r.Context(), "auth.rate_limited",
+						"tier", result.Identity.ServiceTier,
+						"remote_addr", r.RemoteAddr,
 					)
 					observability.RateLimitRejectedTotal.WithLabelValues(result.Identity.ServiceTier).Inc()
 					http.Error(w, `{"error":{"type":"too_many_requests","message":"rate limit exceeded"}}`, http.StatusTooManyRequests)
@@ -94,3 +125,28 @@ func Middleware(chain *AuthChain, limiter RateLimiter, bypassEndpoints []string,
 
 // DefaultBypassEndpoints lists endpoints that skip authentication.
 var DefaultBypassEndpoints = []string{"/healthz", "/readyz", "/metrics"}
+
+// determineAuthMethod returns the authentication method used based on the
+// identity metadata. Returns "jwt" if metadata contains JWT-related keys,
+// "apikey" if it contains an API key marker, or "unknown" otherwise.
+func determineAuthMethod(result AuthResult) string {
+	if result.Identity == nil {
+		return "unknown"
+	}
+	if result.Identity.Metadata != nil {
+		if _, ok := result.Identity.Metadata["jwt_issuer"]; ok {
+			return "jwt"
+		}
+		if _, ok := result.Identity.Metadata["jwt"]; ok {
+			return "jwt"
+		}
+		if _, ok := result.Identity.Metadata["api_key"]; ok {
+			return "apikey"
+		}
+	}
+	// If the identity has scopes (typically from JWT), assume JWT.
+	if len(result.Identity.Scopes) > 0 {
+		return "jwt"
+	}
+	return "unknown"
+}

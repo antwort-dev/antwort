@@ -8,6 +8,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rhuss/antwort/pkg/api"
+	"github.com/rhuss/antwort/pkg/audit"
 	"github.com/rhuss/antwort/pkg/tools"
 	"github.com/rhuss/antwort/pkg/tools/registry"
 )
@@ -215,6 +216,11 @@ func (p *FilesProvider) Collectors() []prometheus.Collector {
 		filesExtractionDuration,
 		filesChunksTotal,
 	}
+}
+
+// SetAuditLogger sets the audit logger for resource mutation events.
+func (p *FilesProvider) SetAuditLogger(l *audit.Logger) {
+	p.filesAPI.auditLogger = l
 }
 
 func (p *FilesProvider) Close() error { return nil }

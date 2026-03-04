@@ -16,7 +16,7 @@ Any existing OpenAI SDK (Python, Node, Go, Rust) works without modification. Poi
 
 Antwort started as a proof-of-concept for [Specification-Driven Development (SDD)](https://github.com/rhuss/cc-sdd-plugin), exploring how an AI-assisted, spec-first methodology works for building a non-trivial system from scratch. The project has since grown beyond that original scope into a full agentic AI platform targeting production Kubernetes environments.
 
-All 30 specifications have been implemented through the SDD process. Each spec produces a complete artifact set (spec, plan, tasks, research, review) before any code is written.
+All 42 specifications have been implemented through the SDD process. Each spec produces a complete artifact set (spec, plan, tasks, research, review) before any code is written.
 
 | Spec | Description |
 |------|-------------|
@@ -51,6 +51,18 @@ All 30 specifications have been implemented through the SDD process. Each spec p
 | 028 List Endpoints | GET /v1/responses, GET /v1/responses/{id}/input_items |
 | 029 Structured Output | JSON/JSON Schema constrained decoding via text.format |
 | 030 Responses API Provider | Native Responses API backend adapter (vllm-responses) |
+| 031 Quickstart Updates | Updated deployment guides with kustomize manifests |
+| 032 Documentation Site | Antora-based documentation with search |
+| 033 CI Pipeline | GitHub Actions with conformance, SDK, and OAS diff tests |
+| 034 Files API | File upload, content extraction, chunking, ingestion |
+| 035 Annotations | Citation generation with substring matching |
+| 036 Web Search Providers | Brave and Tavily web search integration |
+| 037 Conversations API | Conversation management with soft-delete |
+| 038 Agent Profiles | Server-side agent configuration with template substitution |
+| 039 Vector Store Unification | Unified backend interface for vector stores |
+| 040 Resource Ownership | Per-user resource isolation with admin override |
+| 041 Scope Permissions | Scope-based authorization with role-to-scope mapping |
+| 042 Audit Logging | Structured audit trail for security events and mutations |
 
 ### Platform Vision (Next Phases)
 
@@ -59,8 +71,8 @@ Antwort is evolving into a server-native agent platform that brings the best ide
 | Phase | Capability | Status |
 |-------|-----------|--------|
 | 1 | Kubernetes Sandbox Executor (code_interpreter via agent-sandbox CRDs) | Implemented |
-| 2 | Agent Profiles (server-side SOUL.md, `/v1/agents` API) | Planned |
-| 3 | Memory & Knowledge (pluggable vector stores, file_search) | Planned |
+| 2 | Agent Profiles (server-side config, `/v1/agents` API) | Implemented |
+| 3 | Memory & Knowledge (pluggable vector stores, file_search, RAG) | Implemented |
 | 4 | Ambient Agents (webhooks, cron triggers, completion hooks) | Planned |
 | 5 | Delivery Channels (Slack, Teams, email, webhooks) | Planned |
 | 6 | Tool Registry (curated, audited, per-tenant permissions) | Planned |

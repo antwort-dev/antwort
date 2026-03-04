@@ -534,6 +534,7 @@ func (e *Engine) executeToolsConcurrently(ctx context.Context, calls []tools.Too
 					IsError: true,
 				}
 				observability.ToolExecutionsTotal.WithLabelValues(tc.Name, "error").Inc()
+				e.auditLogger.LogWarn(ctx, "tool.failed", "tool_type", "unknown", "tool_name", tc.Name, "error", "no executor found")
 				return
 			}
 
@@ -550,6 +551,7 @@ func (e *Engine) executeToolsConcurrently(ctx context.Context, calls []tools.Too
 					IsError: true,
 				}
 				observability.ToolExecutionsTotal.WithLabelValues(tc.Name, "error").Inc()
+				e.auditLogger.LogWarn(ctx, "tool.failed", "tool_type", classifyToolType(tc.Name, exec), "tool_name", tc.Name, "error", err.Error())
 				return
 			}
 
@@ -558,6 +560,12 @@ func (e *Engine) executeToolsConcurrently(ctx context.Context, calls []tools.Too
 				status = "error"
 			}
 			observability.ToolExecutionsTotal.WithLabelValues(tc.Name, status).Inc()
+
+			if result.IsError {
+				e.auditLogger.LogWarn(ctx, "tool.failed", "tool_type", classifyToolType(tc.Name, exec), "tool_name", tc.Name, "error", result.Output)
+			} else {
+				e.auditLogger.Log(ctx, "tool.executed", "tool_type", classifyToolType(tc.Name, exec), "tool_name", tc.Name)
+			}
 
 			results[idx] = *result
 		}(i, call)
@@ -593,6 +601,7 @@ func (e *Engine) executeToolsSequentially(ctx context.Context, calls []tools.Too
 				IsError: true,
 			}
 			observability.ToolExecutionsTotal.WithLabelValues(tc.Name, "error").Inc()
+			e.auditLogger.LogWarn(ctx, "tool.failed", "tool_type", "unknown", "tool_name", tc.Name, "error", "no executor found")
 			continue
 		}
 
@@ -609,6 +618,7 @@ func (e *Engine) executeToolsSequentially(ctx context.Context, calls []tools.Too
 				IsError: true,
 			}
 			observability.ToolExecutionsTotal.WithLabelValues(tc.Name, "error").Inc()
+			e.auditLogger.LogWarn(ctx, "tool.failed", "tool_type", classifyToolType(tc.Name, exec), "tool_name", tc.Name, "error", err.Error())
 			continue
 		}
 
@@ -617,6 +627,12 @@ func (e *Engine) executeToolsSequentially(ctx context.Context, calls []tools.Too
 			status = "error"
 		}
 		observability.ToolExecutionsTotal.WithLabelValues(tc.Name, status).Inc()
+
+		if result.IsError {
+			e.auditLogger.LogWarn(ctx, "tool.failed", "tool_type", classifyToolType(tc.Name, exec), "tool_name", tc.Name, "error", result.Output)
+		} else {
+			e.auditLogger.Log(ctx, "tool.executed", "tool_type", classifyToolType(tc.Name, exec), "tool_name", tc.Name)
+		}
 		results[i] = *result
 	}
 	return results
@@ -719,6 +735,7 @@ func (e *Engine) executeToolsWithEvents(ctx context.Context, calls []tools.ToolC
 				IsError: true,
 			}
 			observability.ToolExecutionsTotal.WithLabelValues(tc.Name, "error").Inc()
+			e.auditLogger.LogWarn(ctx, "tool.failed", "tool_type", "unknown", "tool_name", tc.Name, "error", "no executor found")
 			if failed != "" {
 				_ = w.WriteEvent(ctx, api.StreamEvent{
 					Type:           failed,
@@ -743,6 +760,7 @@ func (e *Engine) executeToolsWithEvents(ctx context.Context, calls []tools.ToolC
 				IsError: true,
 			}
 			observability.ToolExecutionsTotal.WithLabelValues(tc.Name, "error").Inc()
+			e.auditLogger.LogWarn(ctx, "tool.failed", "tool_type", classifyToolType(tc.Name, exec), "tool_name", tc.Name, "error", err.Error())
 			if failed != "" {
 				_ = w.WriteEvent(ctx, api.StreamEvent{
 					Type:           failed,
@@ -759,6 +777,12 @@ func (e *Engine) executeToolsWithEvents(ctx context.Context, calls []tools.ToolC
 			status = "error"
 		}
 		observability.ToolExecutionsTotal.WithLabelValues(tc.Name, status).Inc()
+
+		if result.IsError {
+			e.auditLogger.LogWarn(ctx, "tool.failed", "tool_type", classifyToolType(tc.Name, exec), "tool_name", tc.Name, "error", result.Output)
+		} else {
+			e.auditLogger.Log(ctx, "tool.executed", "tool_type", classifyToolType(tc.Name, exec), "tool_name", tc.Name)
+		}
 		results[idx] = *result
 
 		// Emit completed event.

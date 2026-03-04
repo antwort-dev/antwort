@@ -84,6 +84,7 @@ Request-scoped data (request IDs, user identity, tracing context) propagates thr
 - **Table-driven tests** for all validation, parsing, and translation logic. Each test case is a row with inputs, expected outputs, and a descriptive name.
 - **Nil-safe tests** for every optional capability. Tests verify correct behavior when optional dependencies are present AND when they are nil.
 - **Error path coverage** is mandatory. Every error branch in the code has a corresponding test case. Testing only happy paths is insufficient.
+- **Integration tests are mandatory for every feature.** Each feature must include at least one integration test in `test/integration/` that exercises the feature through the full HTTP stack (request in, response out). If integration testing is not feasible for a specific feature (e.g., requires infrastructure unavailable in CI, or the feature is purely internal with no user-facing surface), the spec's Assumptions section must explicitly document why integration tests are omitted and what alternative verification is used instead.
 
 ### Naming Conventions
 
@@ -121,6 +122,7 @@ A feature without documentation is an unfinished feature. Documentation is a del
 - **Extension hooks** (new interfaces, provider patterns, adapter APIs): MUST add or update a page in the `developer` module explaining the interface contract, how to implement it, and how to register the implementation.
 - **Minor features and enhancements**: MUST update existing documentation pages where the feature changes behavior, adds options, or modifies configuration. No new pages required, but existing pages MUST stay accurate.
 - **Bug fixes**: Documentation updates are optional unless the fix changes user-visible behavior or corrects documented behavior that was wrong.
+- **README.md**: MUST be updated when a new spec is implemented. Add the spec to the spec table and update the Platform Vision status if the feature completes a planned phase. The README is the project's front door and must accurately reflect the current state.
 
 **Documentation modules** (Antora site structure):
 
@@ -206,4 +208,4 @@ The engine handles both modes. Stateless mode is always available. Stateful feat
 - New specs must declare compliance with these principles. Deviations require explicit justification in the spec's Assumptions or Clarifications section.
 - Code reviews verify constitutional compliance. Non-compliant code is not merged.
 
-**Version**: 1.6.0 | **Ratified**: 2026-02-17 | **Last Amended**: 2026-03-03
+**Version**: 1.7.0 | **Ratified**: 2026-02-17 | **Last Amended**: 2026-03-04

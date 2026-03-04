@@ -136,6 +136,12 @@ func (s *sseResponseWriter) WriteResponse(ctx context.Context, resp *api.Respons
 	s.w.Header().Set("Content-Type", "application/json")
 	s.state = writerCompleted
 
+	// Notify callback with response ID (used for audit logging).
+	if resp != nil && resp.ID != "" && s.onResponseCreated != nil {
+		s.onResponseCreated(resp.ID)
+		s.onResponseCreated = nil
+	}
+
 	if err := json.NewEncoder(s.w).Encode(resp); err != nil {
 		return fmt.Errorf("failed to encode response: %w", err)
 	}

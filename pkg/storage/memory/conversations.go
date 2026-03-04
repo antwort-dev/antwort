@@ -3,39 +3,19 @@ package memory
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"sort"
 	"sync"
 	"time"
 
 	"github.com/rhuss/antwort/pkg/api"
+	"github.com/rhuss/antwort/pkg/audit"
 	"github.com/rhuss/antwort/pkg/storage"
 	"github.com/rhuss/antwort/pkg/transport"
 )
 
-// convOwnerAllowed checks if the caller is allowed to access a conversation with the given owner.
-// Admin bypass only applies to read/delete operations (writeOp=false).
-// Per FR-007, admin users must NOT modify resources owned by other users.
-func convOwnerAllowed(ctx context.Context, storedOwner, resourceID, operation string, writeOp bool) bool {
-	callerOwner := storage.GetOwner(ctx)
-	if callerOwner == "" {
-		return true
-	}
-	if !writeOp && storage.GetAdmin(ctx) {
-		return true
-	}
-	if storedOwner == "" {
-		return true
-	}
-	if callerOwner == storedOwner {
-		return true
-	}
-	slog.Debug("ownership denied",
-		"subject", callerOwner,
-		"resource_id", resourceID,
-		"operation", operation,
-	)
-	return false
+// convOwnerAllowed delegates to the shared ownerAllowed function with "conversation" resource type.
+func convOwnerAllowed(ctx context.Context, storedOwner, resourceID, operation string, writeOp bool, auditLogger *audit.Logger) bool {
+	return ownerAllowed(ctx, storedOwner, "conversation", resourceID, operation, writeOp, auditLogger)
 }
 
 // Compile-time check.
@@ -51,8 +31,14 @@ type convEntry struct {
 
 // ConversationStore is an in-memory implementation of transport.ConversationStore.
 type ConversationStore struct {
-	mu      sync.RWMutex
-	entries map[string]*convEntry
+	mu          sync.RWMutex
+	entries     map[string]*convEntry
+	auditLogger *audit.Logger
+}
+
+// SetAuditLogger sets the audit logger for ownership audit events.
+func (s *ConversationStore) SetAuditLogger(l *audit.Logger) {
+	s.auditLogger = l
 }
 
 // NewConversationStore creates an empty in-memory conversation store.
@@ -76,7 +62,7 @@ func (s *ConversationStore) SaveConversation(ctx context.Context, conv *api.Conv
 		if tenantID != "" && existing.tenantID != tenantID {
 			return storage.ErrNotFound
 		}
-		if !convOwnerAllowed(ctx, existing.owner, conv.ID, "SaveConversation", true) {
+		if !convOwnerAllowed(ctx, existing.owner, conv.ID, "SaveConversation", true, s.auditLogger) {
 			return storage.ErrNotFound
 		}
 		existing.conv = conv
@@ -105,7 +91,7 @@ func (s *ConversationStore) GetConversation(ctx context.Context, id string) (*ap
 		return nil, storage.ErrNotFound
 	}
 
-	if !convOwnerAllowed(ctx, e.owner, id, "GetConversation", false) {
+	if !convOwnerAllowed(ctx, e.owner, id, "GetConversation", false, s.auditLogger) {
 		return nil, storage.ErrNotFound
 	}
 
@@ -126,7 +112,7 @@ func (s *ConversationStore) DeleteConversation(ctx context.Context, id string) e
 		return storage.ErrNotFound
 	}
 
-	if !convOwnerAllowed(ctx, e.owner, id, "DeleteConversation", false) {
+	if !convOwnerAllowed(ctx, e.owner, id, "DeleteConversation", false, s.auditLogger) {
 		return storage.ErrNotFound
 	}
 
@@ -219,7 +205,7 @@ func (s *ConversationStore) AddItems(ctx context.Context, conversationID string,
 		return storage.ErrNotFound
 	}
 
-	if !convOwnerAllowed(ctx, e.owner, conversationID, "AddItems", true) {
+	if !convOwnerAllowed(ctx, e.owner, conversationID, "AddItems", true, s.auditLogger) {
 		return storage.ErrNotFound
 	}
 
@@ -254,7 +240,7 @@ func (s *ConversationStore) ListItems(ctx context.Context, conversationID string
 		return nil, storage.ErrNotFound
 	}
 
-	if !convOwnerAllowed(ctx, e.owner, conversationID, "ListItems", false) {
+	if !convOwnerAllowed(ctx, e.owner, conversationID, "ListItems", false, s.auditLogger) {
 		return nil, storage.ErrNotFound
 	}
 
@@ -335,7 +321,7 @@ func (s *ConversationStore) AllItems(ctx context.Context, conversationID string)
 		return nil, fmt.Errorf("conversation %q not found", conversationID)
 	}
 
-	if !convOwnerAllowed(ctx, e.owner, conversationID, "AllItems", false) {
+	if !convOwnerAllowed(ctx, e.owner, conversationID, "AllItems", false, s.auditLogger) {
 		return nil, fmt.Errorf("conversation %q not found", conversationID)
 	}
 
