@@ -306,6 +306,71 @@ auth:
 With JWT authentication, the tenant claim is extracted automatically from the token.
 Configure the `tenant_claim` field to match the claim name used by your identity provider.
 
+== Resource Ownership
+
+Antwort enforces per-user resource ownership for responses, conversations, and vector stores.
+Every resource created by an authenticated user is tagged with the user's `Identity.Subject` as the owner.
+Users can only access resources they own, with the following exceptions:
+
+* **Admin override**: Users with the configured admin role can read and delete any resource within their tenant.
+Admin users cannot modify (write to or add items to) resources owned by other users.
+* **Backward compatibility**: Resources with an empty owner field (created before ownership was enabled) are accessible to all authenticated users within the same tenant.
+* **No authentication**: When no authenticator is configured (`auth.type: none`), ownership checks are skipped entirely.
+
+Ownership denials always return HTTP 404 (not 403) to prevent information leakage about resource existence.
+
+=== Configuring Admin Access
+
+To enable admin override, configure the admin role name and the JWT roles claim:
+
+[source,yaml]
+----
+auth:
+  type: jwt
+  jwt:
+    jwks_url: https://idp.example.com/.well-known/jwks.json
+    roles_claim: realm_access.roles    # <1>
+  authorization:
+    admin_role: antwort-admin          # <2>
+----
+<1> Dot-path to the JWT claim containing user roles.
+For Keycloak, the default `realm_access.roles` works out of the box.
+<2> The role name that grants admin access within a tenant.
+
+With API key authentication, set the admin role in the key's metadata:
+
+[source,yaml]
+----
+auth:
+  type: apikey
+  authorization:
+    admin_role: admin
+  api_keys:
+    - key_file: /run/secrets/admin-key
+      subject: admin-user
+      tenant_id: org-acme
+      roles: admin                     # <1>
+----
+<1> Comma-separated list of roles for this API key user.
+
+=== Ownership Debug Logging
+
+When a user is denied access to a resource due to ownership, Antwort logs the denial at DEBUG level.
+Enable debug logging to see these messages:
+
+[source,yaml]
+----
+logging:
+  level: DEBUG
+----
+
+Example log output:
+
+[source,text]
+----
+level=DEBUG msg="ownership denied" subject=user-2 resource_id=resp_abc123 operation=GetResponse
+----
+
 == Rate Limiting
 
 Rate limiting is applied per authenticated identity based on the `service_tier` field.

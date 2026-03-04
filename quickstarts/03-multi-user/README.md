@@ -337,6 +337,59 @@ Key auth settings:
 | `tenant_claim` | JWT claim used for tenant isolation (`tenant_id`) |
 | `scopes_claim` | JWT claim for authorization scopes |
 
+## Resource Ownership Isolation
+
+In addition to tenant-level isolation, antwort enforces per-user resource ownership. Each response and conversation is tagged with the authenticated user's subject as the owner. Users within the same tenant can only see their own resources.
+
+### Verify Per-User Isolation Within a Tenant
+
+To test ownership isolation, you need two users in the same tenant. The pre-configured Keycloak realm has alice and bob in separate tenants. You can add a second user to alice's tenant via the Keycloak admin console, or configure API key auth with two keys sharing the same `tenant_id`.
+
+With API key auth (simpler for testing ownership):
+
+```yaml
+auth:
+  type: apikey
+  authorization:
+    admin_role: admin
+  api_keys:
+    - key: sk-user1
+      subject: user-1
+      tenant_id: shared-tenant
+    - key: sk-user2
+      subject: user-2
+      tenant_id: shared-tenant
+    - key: sk-admin
+      subject: admin-user
+      tenant_id: shared-tenant
+      roles: admin
+```
+
+```bash
+# User-1 creates a response
+USER1_RESP=$(curl -s -X POST "$ANTWORT_URL/v1/responses" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer sk-user1" \
+  -d '{
+    "model": "/mnt/models",
+    "input": [{"type": "message", "role": "user", "content": [{"type": "input_text", "text": "Hello from user-1"}]}]
+  }')
+RESP_ID=$(echo "$USER1_RESP" | jq -r '.id')
+
+# User-2 cannot access user-1's response (404)
+curl -s -o /dev/null -w "%{http_code}" \
+  "$ANTWORT_URL/v1/responses/$RESP_ID" \
+  -H "Authorization: Bearer sk-user2"
+# Expected: 404
+
+# Admin can read user-1's response
+curl -s "$ANTWORT_URL/v1/responses/$RESP_ID" \
+  -H "Authorization: Bearer sk-admin" | jq '.id'
+# Expected: the response ID
+```
+
+The admin can read and delete any resource in the tenant, but cannot modify (add items to) another user's conversations. This prevents accidental data corruption while allowing administrative operations.
+
 ## Next Steps
 
 Ready for more? Continue to [Quickstart 04: MCP Tools](../04-mcp-tools/) to add MCP tool calling with an agentic loop.

@@ -6,6 +6,7 @@ package memory
 import (
 	"context"
 	"container/list"
+	"log/slog"
 	"sort"
 	"sync"
 	"time"
@@ -15,10 +16,40 @@ import (
 	"github.com/rhuss/antwort/pkg/transport"
 )
 
+// ownerAllowed checks if the caller in ctx is allowed to access a resource with the given owner.
+// Returns true if: no identity is present (NoOp auth), stored owner is empty (legacy data),
+// or owner matches. Admin bypass only applies to read/delete operations (writeOp=false).
+// Per FR-007, admin users must NOT modify resources owned by other users.
+func ownerAllowed(ctx context.Context, storedOwner, resourceID, operation string, writeOp bool) bool {
+	callerOwner := storage.GetOwner(ctx)
+	// No identity in context (NoOp auth): skip owner checks.
+	if callerOwner == "" {
+		return true
+	}
+	// Admin bypasses owner checks for read/delete only (FR-007).
+	if !writeOp && storage.GetAdmin(ctx) {
+		return true
+	}
+	// Legacy data with empty owner matches all authenticated users.
+	if storedOwner == "" {
+		return true
+	}
+	if callerOwner == storedOwner {
+		return true
+	}
+	slog.Debug("ownership denied",
+		"subject", callerOwner,
+		"resource_id", resourceID,
+		"operation", operation,
+	)
+	return false
+}
+
 // entry holds a stored response and its metadata.
 type entry struct {
 	resp      *api.Response
 	tenantID  string
+	owner     string
 	deletedAt *time.Time
 	lruElem   *list.Element // position in LRU list
 }
@@ -55,6 +86,7 @@ func (s *Store) SaveResponse(ctx context.Context, resp *api.Response) error {
 	}
 
 	tenantID := storage.GetTenant(ctx)
+	owner := storage.GetOwner(ctx)
 
 	// Evict if at capacity.
 	if s.maxSize > 0 && len(s.entries) >= s.maxSize {
@@ -65,6 +97,7 @@ func (s *Store) SaveResponse(ctx context.Context, resp *api.Response) error {
 	s.entries[resp.ID] = &entry{
 		resp:     resp,
 		tenantID: tenantID,
+		owner:    owner,
 		lruElem:  elem,
 	}
 
@@ -89,6 +122,11 @@ func (s *Store) GetResponse(ctx context.Context, id string) (*api.Response, erro
 		return nil, storage.ErrNotFound
 	}
 
+	// Owner scoping.
+	if !ownerAllowed(ctx, e.owner, id, "GetResponse", false) {
+		return nil, storage.ErrNotFound
+	}
+
 	return e.resp, nil
 }
 
@@ -109,6 +147,11 @@ func (s *Store) GetResponseForChain(ctx context.Context, id string) (*api.Respon
 		return nil, storage.ErrNotFound
 	}
 
+	// Owner scoping (prevent chaining to another user's response).
+	if !ownerAllowed(ctx, e.owner, id, "GetResponseForChain", false) {
+		return nil, storage.ErrNotFound
+	}
+
 	return e.resp, nil
 }
 
@@ -126,6 +169,11 @@ func (s *Store) DeleteResponse(ctx context.Context, id string) error {
 	// Tenant scoping.
 	tenantID := storage.GetTenant(ctx)
 	if tenantID != "" && e.tenantID != tenantID {
+		return storage.ErrNotFound
+	}
+
+	// Owner scoping.
+	if !ownerAllowed(ctx, e.owner, id, "DeleteResponse", false) {
 		return storage.ErrNotFound
 	}
 
@@ -151,6 +199,8 @@ func (s *Store) ListResponses(ctx context.Context, opts transport.ListOptions) (
 	defer s.mu.RUnlock()
 
 	tenantID := storage.GetTenant(ctx)
+	callerOwner := storage.GetOwner(ctx)
+	isAdminCaller := storage.GetAdmin(ctx)
 
 	// Collect matching entries.
 	var matches []*api.Response
@@ -159,6 +209,10 @@ func (s *Store) ListResponses(ctx context.Context, opts transport.ListOptions) (
 			continue
 		}
 		if tenantID != "" && e.tenantID != tenantID {
+			continue
+		}
+		// Owner filtering for list: skip entries not owned by caller.
+		if callerOwner != "" && !isAdminCaller && e.owner != "" && e.owner != callerOwner {
 			continue
 		}
 		if opts.Model != "" && e.resp.Model != opts.Model {
@@ -253,6 +307,11 @@ func (s *Store) GetInputItems(ctx context.Context, responseID string, opts trans
 
 	tenantID := storage.GetTenant(ctx)
 	if tenantID != "" && e.tenantID != tenantID {
+		return nil, storage.ErrNotFound
+	}
+
+	// Owner scoping.
+	if !ownerAllowed(ctx, e.owner, responseID, "GetInputItems", false) {
 		return nil, storage.ErrNotFound
 	}
 

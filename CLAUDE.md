@@ -43,6 +43,8 @@ Auto-generated from all feature plans. Last updated: 2026-02-16
 - Config file only (no database, no runtime CRUD) (038-agent-profiles)
 - Go 1.22+ + stdlib + `pgvector-go` (pgvector adapter only) (039-vectorstore-unification)
 - pgvector uses existing PostgreSQL, in-memory is ephemeral (039-vectorstore-unification)
+- Go 1.22+ + Go standard library only (consistent with constitution Principle II) (040-resource-ownership)
+- In-memory (development), PostgreSQL 14+ (production) (040-resource-ownership)
 
 - Go 1.22+ + None (Go standard library only: `encoding/json`, `crypto/rand`, `errors`, `fmt`, `strings`, `regexp`) (001-core-protocol)
 
@@ -62,9 +64,9 @@ tests/
 Go 1.22+: Follow standard conventions
 
 ## Recent Changes
+- 040-resource-ownership: Added Go 1.22+ + Go standard library only (consistent with constitution Principle II)
 - 039-vectorstore-unification: Added Go 1.22+ + stdlib + `pgvector-go` (pgvector adapter only)
 - 038-agent-profiles: Added Go 1.22+ + Go standard library only (strings, regexp for template substitution)
-- 037-conversations-api: Added Go 1.22+ + Go standard library only
 
 
 <!-- MANUAL ADDITIONS START -->

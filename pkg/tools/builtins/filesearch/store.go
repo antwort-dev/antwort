@@ -12,6 +12,7 @@ type VectorStore struct {
 	ID             string `json:"id"`
 	Name           string `json:"name"`
 	TenantID       string `json:"tenant_id,omitempty"`
+	Owner          string `json:"owner,omitempty"`
 	CollectionName string `json:"collection_name"`
 	CreatedAt      int64  `json:"created_at"`
 }

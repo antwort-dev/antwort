@@ -1,8 +1,21 @@
-# Brainstorm 33: Fine-Grained Authorization with Keycloak
+# Brainstorm 33: Fine-Grained Authorization
 
-**Date**: 2026-03-03
+**Date**: 2026-03-03 (updated 2026-03-04)
 **Participants**: Roland Huss
 **Goal**: Design a three-layer authorization model: endpoint-level scopes, CRUD-level roles, and resource-level ownership with Unix-style permissions.
+
+## Terminology (from Constitution)
+
+The constitution defines three isolation levels that compose:
+
+- **Multi-user**: A single antwort instance serving multiple individual users. Data isolated by ownership (`Identity.Subject`).
+- **Multi-tenant**: A single antwort instance serving multiple user groups (tenants). Data isolated in-process by `tenant_id`. Users in one tenant cannot see resources from another tenant.
+- **Multi-instance**: Multiple antwort Deployments for hard isolation (different organizations, compliance boundaries). Isolation at infrastructure level.
+
+In authorization terms:
+- **Owner** = `Identity.Subject` (the individual user, e.g., "alice")
+- **Group** = `Identity.Metadata["tenant_id"]` (the tenant within this instance, e.g., "team-backend")
+- **Others** = users in different tenants within the same instance
 
 ## Core Principle
 
@@ -10,11 +23,11 @@
 
 ## Current State
 
-Antwort has authentication (JWT/OIDC via Keycloak, API keys) and tenant isolation (storage filtered by `tenant_id` from JWT claims). But within a tenant, every user can see every other user's data. There is no user-level ownership enforcement.
+Antwort has authentication (JWT/OIDC, API keys) and user-group scoping (storage filtered by `tenant_id` from JWT claims). But within a user group, every user can see every other user's data. There is no per-user ownership enforcement.
 
 ```
-Today:    Authn ✅ → Tenant isolation ✅ → User isolation ❌ → Authorization ❌
-Target:   Authn ✅ → Tenant isolation ✅ → User isolation ✅ → Authorization ✅
+Today:    Authn ✅ → User-group scoping ✅ → User isolation ❌ → Authorization ❌
+Target:   Authn ✅ → User-group scoping ✅ → User isolation ✅ → Authorization ✅
 ```
 
 ## Three-Layer Design
@@ -67,7 +80,7 @@ GET /v1/conversations → returns only conversations where owner == current user
 
 This is not a permission check. It is the storage query. There is no "show all files" endpoint for regular users. You see your own data, period.
 
-### Layer 2: Unix-Style Permissions (Per Resource)
+### Layer 2: Three-Level Permissions (Per Resource)
 
 Each resource has a permission triple:
 
@@ -78,8 +91,8 @@ owner|group|others
 
 Where:
 - **owner**: The user who created the resource (always `rwd` for the creator)
-- **group**: The tenant (organization) the owner belongs to
-- **others**: Cross-tenant access (always `---` due to tenant isolation)
+- **group**: All users sharing the same `tenant_id` within this instance
+- **others**: Users in different `tenant_id` values within the same instance
 
 Permissions:
 - **r** (read): Can view/download/search the resource
@@ -93,35 +106,45 @@ Permissions:
 | Files | `rwd\|---\|---` | Strictly private |
 | Conversations | `rwd\|---\|---` | Strictly private |
 | Responses | `rwd\|---\|---` | Strictly private |
-| Vector Stores | `rwd\|---\|---` | Private (can be shared) |
+| Vector Stores | `rwd\|---\|---` | Private (can be shared within or across tenants) |
 
-**Changing permissions**: The owner can set group permissions when creating or updating a resource:
+**Changing permissions**: The owner can set group and others permissions when creating or updating a resource:
 
 ```json
 POST /v1/vector_stores
 {
-  "name": "company-docs",
+  "name": "team-docs",
   "permissions": {"group": "r"}
 }
 ```
 
-This makes the vector store searchable by all users in the tenant.
+This makes the vector store searchable by all users sharing the same `tenant_id`.
+
+```json
+POST /v1/vector_stores
+{
+  "name": "company-wide-policies",
+  "permissions": {"group": "r", "others": "r"}
+}
+```
+
+This makes the vector store searchable by all users in the instance, regardless of `tenant_id`.
 
 ### Layer 3: Role-Based Admin Access (Keycloak)
 
-The `admin` role in Keycloak grants elevated access within the tenant:
+The `admin` role (from JWT claims) grants elevated access within the admin's own tenant:
 
 - Admins can read all resources in their tenant (overrides `group: ---`)
 - Admins can delete any resource in their tenant
 - Admin access is determined by a JWT claim (e.g., `realm_access.roles` contains `"admin"`)
 
-The admin role is a Keycloak concept, not an antwort concept. Antwort reads the role from the JWT and applies the override logic.
+The admin role comes from JWT claims (e.g., Keycloak realm roles). Antwort reads the role and applies the override logic. The OIDC provider is not prescribed.
 
 **Role hierarchy**:
 
-| Role | Own data | Group data (shared) | All tenant data |
-|------|----------|-------------------|-----------------|
-| user (default) | rwd | r (if group=r) | No access |
+| Role | Own data | Group data (shared) | All data in own tenant |
+|------|----------|-------------------|------------------------|
+| user (default) | rwd | per group permissions | No override |
 | admin | rwd | rwd | read + delete |
 
 ### Implementation Sketch
@@ -131,7 +154,7 @@ The admin role is a Keycloak concept, not an antwort concept. Antwort reads the 
 ```
 Owner:       string    // Identity.Subject of creator
 TenantID:    string    // Tenant of creator
-Permissions: string    // "rwd|---|---" (compact string representation)
+Permissions: string    // "rwd|---|---" (compact string, three levels: owner|group|others)
 ```
 
 **2. Authorization check** (new middleware or helper):
@@ -143,17 +166,18 @@ func CanAccess(identity *Identity, resource Resource, operation Op) bool {
         return true
     }
 
-    // Admin role: read + delete on all tenant data
+    // Admin role: read + delete on resources in the admin's own tenant
     if hasRole(identity, "admin") && resource.TenantID == identity.TenantID() {
         return operation == Read || operation == Delete
     }
 
-    // Group permissions: check if user is in same tenant
+    // Group permissions: check if user shares the same tenant_id
     if resource.TenantID == identity.TenantID() {
-        return resource.GroupPermissions.Has(operation)
+        return resource.Permissions.Group.Has(operation)
     }
 
-    return false
+    // Others permissions: user is in a different tenant within the same instance
+    return resource.Permissions.Others.Has(operation)
 }
 ```
 
@@ -238,7 +262,7 @@ auth:
       admin: ["*"]
 ```
 
-## Keycloak Reference Architecture
+## OIDC Provider Reference Architecture (Keycloak Example)
 
 ```
 Keycloak Realm: antwort
@@ -276,16 +300,71 @@ Keycloak Realm: antwort
 - Keycloak configuration for roles claim
 
 ### Out of Scope
-- Cross-tenant sharing (always blocked by tenant isolation)
+- Cross-instance sharing (blocked by separate Deployments, outside authorization scope)
 - Per-resource ACLs (explicit user lists, not just owner/group/others)
 - Permission inheritance (folder-like hierarchies)
 - Audit logging (separate concern)
 - OAuth2 scope-based endpoint authorization (deferred)
 - Custom roles beyond user/admin
 
-## Open Questions
+## Resolved Questions (2026-03-04 session)
 
-1. Should the permissions string be stored as a compact string ("rwd|r--|---") or as a structured type?
-2. Should admin override be configurable (e.g., admin_can_read_all: true/false)?
-3. Should shared vector stores be searchable via file_search without explicitly listing them in vector_store_ids?
-4. How does this interact with agent profiles? Should profiles be tenant-scoped or global?
+### Q1: Permission storage format
+**Decision: Compact string, three levels.** Store as `rwd|---|---`. Human-readable in DB queries, easy to log, negligible parse cost. Three levels match the three isolation boundaries: owner (user), group (tenant within instance), others (cross-tenant within instance).
+
+```sql
+-- PostgreSQL column
+permissions TEXT NOT NULL DEFAULT 'rwd|---|---'
+```
+
+```go
+type Permissions struct {
+    Owner  PermSet  // parsed from segment 0
+    Group  PermSet  // parsed from segment 1
+    Others PermSet  // parsed from segment 2
+}
+
+func ParsePermissions(s string) Permissions
+func (p Permissions) String() string
+```
+
+### Q2: Admin override configurability
+**Decision: Fixed behavior.** Admin always gets read + delete on all resources in the instance. Cannot write/modify other users' resources. No config knob beyond the role name itself (`auth.authorization.admin_role: admin`).
+
+### Q3: Shared vector stores and file_search
+**Decision: Explicit in vector_store_ids + agent profile defaults (union merge).**
+
+Agent profiles provide a base set of vector stores (operator-configured). User requests can add more via `vector_store_ids`. The merge rule is **union** (combine both lists, deduplicate). Permissions are enforced at search time: if a user references a store they can't access, it's skipped.
+
+```
+Profile:   [vs_company_docs, vs_policies]
+Request:   [vs_my_notes]
+Effective: [vs_company_docs, vs_policies, vs_my_notes]
+```
+
+No auto-discovery of group-readable stores. Users discover shared stores via `GET /v1/vector_stores` (returns both owned and group-readable stores).
+
+### Q4: Agent profile scoping
+**Decision: Instance-wide.** Profiles are server config, visible to all users of the Deployment. Per-user-group profile visibility is not needed because separate tenants get separate Deployments with their own config (per constitution's multi-tenant definition).
+
+## Spec Phasing
+
+### P1: Resource Ownership (spec candidate now)
+- Owner (`Identity.Subject`) field on responses, conversations, vector stores
+- Storage queries filter by owner (not just user-group/tenant_id)
+- Admin role: read + delete all resources in instance
+- 404 for unauthorized access (don't leak resource existence)
+- Extract admin role from JWT claims (configurable claim path)
+- Backward compatible: single-user deployments (no auth) continue to work unchanged
+
+### P2: Scopes and Sharing (next spec)
+- Scope middleware: per-endpoint scope enforcement
+- Role-to-scope mapping config (viewer, user, manager, admin)
+- Three-level permissions on vector stores (group sharing via `rwd|r--|---`, instance-wide via `rwd|r--|r--`)
+- `permissions` field on create/update API for shareable resources
+- Vector store union merge with agent profile defaults
+
+## Open Questions (remaining)
+
+1. Should `GET /v1/vector_stores` list results include a `permissions` field in the response, or only show the effective access level (`can_read`, `can_write`, `can_delete`)?
+2. How should the P1 migration work for existing data? Set owner to empty string (matches all) or require a migration that assigns ownership?

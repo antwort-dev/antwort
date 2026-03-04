@@ -170,7 +170,7 @@ func run() error {
 
 	// Wrap with auth middleware.
 	if authChain != nil {
-		authMiddleware := auth.Middleware(authChain, nil, auth.DefaultBypassEndpoints)
+		authMiddleware := auth.Middleware(authChain, nil, auth.DefaultBypassEndpoints, cfg.Auth.Authorization.AdminRole)
 		handler = authMiddleware(handler)
 	}
 
@@ -467,6 +467,7 @@ func buildJWTAuthenticator(cfg *config.Config) *authjwt.Authenticator {
 		UserClaim:   cfg.Auth.JWT.UserClaim,
 		TenantClaim: cfg.Auth.JWT.TenantClaim,
 		ScopesClaim: cfg.Auth.JWT.ScopesClaim,
+		RolesClaim:  cfg.Auth.JWT.RolesClaim,
 	})
 }
 
