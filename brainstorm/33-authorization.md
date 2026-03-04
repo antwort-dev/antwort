@@ -364,7 +364,83 @@ No auto-discovery of group-readable stores. Users discover shared stores via `GE
 - `permissions` field on create/update API for shareable resources
 - Vector store union merge with agent profile defaults
 
+## P2 Design Decisions (2026-03-04 session)
+
+### Scope Middleware
+
+- Sits after auth middleware (needs `Identity` in context). Chain: auth -> scope -> handler.
+- Checks required scope for each endpoint against the user's effective scopes.
+- **Effective scopes = JWT scopes (union) role-expanded scopes**. Both sources combined.
+- **403 Forbidden** for scope denial (not 404). Includes the required scope in the error message.
+- **Nil-safe**: when no scope config is present, middleware is a no-op (backward compat).
+- **`*` wildcard** in admin role means all scopes. Middleware checks for `*` first.
+
+### Role-to-Scope Mapping
+
+- Reference-based hierarchy: roles can reference other roles.
+- Expansion happens at startup (not per-request). Circular references are detected and rejected.
+- Config:
+
+```yaml
+auth:
+  authorization:
+    admin_role: admin
+    role_scopes:
+      viewer: [responses:read, files:read, vector_stores:read, conversations:read, agents:read]
+      user: [viewer, responses:create, files:create, conversations:create, conversations:write]
+      manager: [user, vector_stores:create, vector_stores:write, vector_stores:delete, files:delete, conversations:delete, responses:delete]
+      admin: ["*"]
+```
+
+### Endpoint-to-Scope Mapping
+
+- **Hardcoded** in code (not configurable). Endpoints are fixed, so their required scopes are too.
+- Complete mapping:
+
+| Endpoint | Required Scope |
+|----------|---------------|
+| `POST /v1/responses` | `responses:create` |
+| `GET /v1/responses` | `responses:read` |
+| `GET /v1/responses/{id}` | `responses:read` |
+| `GET /v1/responses/{id}/input_items` | `responses:read` |
+| `DELETE /v1/responses/{id}` | `responses:delete` |
+| `POST /v1/conversations` | `conversations:create` |
+| `GET /v1/conversations` | `conversations:read` |
+| `GET /v1/conversations/{id}` | `conversations:read` |
+| `DELETE /v1/conversations/{id}` | `conversations:delete` |
+| `GET /v1/conversations/{id}/items` | `conversations:read` |
+| `POST /v1/conversations/{id}/items` | `conversations:write` |
+| `GET /v1/vector_stores` | `vector_stores:read` |
+| `GET /v1/vector_stores/{id}` | `vector_stores:read` |
+| `POST /v1/vector_stores` | `vector_stores:create` |
+| `DELETE /v1/vector_stores/{id}` | `vector_stores:delete` |
+| `GET /v1/agents` | `agents:read` |
+
+### Permissions in API Responses
+
+- **Raw compact string** in API responses: `"permissions": "rwd|r--|---"`.
+- Settable on create/update via `"permissions": {"group": "r"}` (JSON object for input, compact string in response).
+- Only vector stores and files support settable permissions. Responses and conversations are always `rwd|---|---`.
+
+### Shareable Resource Types
+
+| Resource | Default Permissions | Changeable | Why |
+|----------|-------------------|------------|-----|
+| Vector Stores | `rwd\|---\|---` | Yes | Shared RAG knowledge bases |
+| Files | `rwd\|---\|---` | Yes | Shared files avoid broken citations when vector store is shared |
+| Responses | `rwd\|---\|---` | No | Private by nature |
+| Conversations | `rwd\|---\|---` | No | Private by nature |
+
+When a vector store has `group:r`, file_search results from that store are readable by group members. Individual file `GET` follows the file's own permissions.
+
+### Vector Store Union Merge with Agent Profiles
+
+- Agent profiles provide a base set of `vector_store_ids` (operator-configured).
+- User requests can add more via `vector_store_ids` in the tool config.
+- Merge rule: **union** (combine both lists, deduplicate).
+- Permissions checked at search time. If user can't access a store (not owner, no group/others permission), it's silently skipped.
+- Users discover shared stores via `GET /v1/vector_stores` (returns owned + group-readable + others-readable).
+
 ## Open Questions (remaining)
 
-1. Should `GET /v1/vector_stores` list results include a `permissions` field in the response, or only show the effective access level (`can_read`, `can_write`, `can_delete`)?
-2. How should the P1 migration work for existing data? Set owner to empty string (matches all) or require a migration that assigns ownership?
+None. All design decisions for P2 are resolved. Ready for `/speckit.specify`.
