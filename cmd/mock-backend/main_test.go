@@ -282,6 +282,236 @@ func TestReplayStreaming(t *testing.T) {
 	}
 }
 
+func TestRecordMode(t *testing.T) {
+	// Start a simple httptest.Server as the "real backend" that returns canned responses.
+	cannedResponse := map[string]any{
+		"id":     "chatcmpl-recorded",
+		"object": "chat.completion",
+		"model":  "mock-model",
+		"choices": []map[string]any{
+			{
+				"index": 0,
+				"message": map[string]any{
+					"role":    "assistant",
+					"content": "Recorded response from real backend",
+				},
+				"finish_reason": "stop",
+			},
+		},
+		"usage": map[string]any{
+			"prompt_tokens":     10,
+			"completion_tokens": 6,
+			"total_tokens":      16,
+		},
+	}
+	realBackend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(cannedResponse)
+	}))
+	defer realBackend.Close()
+
+	// Create a temp directory for recordings.
+	tempDir := t.TempDir()
+
+	// Set up record mode flags via package-level vars.
+	oldMode := *mode
+	oldTarget := *recordTarget
+	*mode = "record"
+	*recordTarget = realBackend.URL
+	defer func() {
+		*mode = oldMode
+		*recordTarget = oldTarget
+	}()
+
+	// Create the replay handler with an empty recordings map.
+	recordings := map[string]*Recording{}
+	handler := makeReplayHandler(recordings, tempDir)
+	srv := httptest.NewServer(handler)
+	defer srv.Close()
+
+	// Send a request through the recording handler.
+	body := `{"model":"mock-model","messages":[{"role":"user","content":"record me"}],"stream":false}`
+	resp, err := http.Post(srv.URL+"/v1/chat/completions", "application/json", strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		got, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, got)
+	}
+
+	// Verify the response came from the real backend.
+	var result map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatalf("invalid response JSON: %v", err)
+	}
+	if result["id"] != "chatcmpl-recorded" {
+		t.Errorf("expected id chatcmpl-recorded, got %v", result["id"])
+	}
+
+	// Verify a recording JSON file was created in the temp directory.
+	entries, err := os.ReadDir(tempDir)
+	if err != nil {
+		t.Fatalf("failed to read temp dir: %v", err)
+	}
+	var jsonFiles []string
+	for _, entry := range entries {
+		if strings.HasSuffix(entry.Name(), ".json") {
+			jsonFiles = append(jsonFiles, entry.Name())
+		}
+	}
+	if len(jsonFiles) != 1 {
+		t.Fatalf("expected 1 recording file, got %d", len(jsonFiles))
+	}
+
+	// Verify the recording file has correct format.
+	data, err := os.ReadFile(filepath.Join(tempDir, jsonFiles[0]))
+	if err != nil {
+		t.Fatalf("failed to read recording file: %v", err)
+	}
+	var rec Recording
+	if err := json.Unmarshal(data, &rec); err != nil {
+		t.Fatalf("invalid recording JSON: %v", err)
+	}
+	if rec.Request.Method != "POST" {
+		t.Errorf("expected request method POST, got %s", rec.Request.Method)
+	}
+	if rec.Request.Path != "/v1/chat/completions" {
+		t.Errorf("expected request path /v1/chat/completions, got %s", rec.Request.Path)
+	}
+	if rec.Response.Status != 200 {
+		t.Errorf("expected response status 200, got %d", rec.Response.Status)
+	}
+	if rec.Streaming {
+		t.Error("expected non-streaming recording")
+	}
+}
+
+func TestRecordIfMissingMode(t *testing.T) {
+	// Start a real backend.
+	realBackendHits := 0
+	cannedResponse := map[string]any{
+		"id":     "chatcmpl-from-real",
+		"object": "chat.completion",
+		"model":  "mock-model",
+		"choices": []map[string]any{
+			{
+				"index": 0,
+				"message": map[string]any{
+					"role":    "assistant",
+					"content": "From real backend",
+				},
+				"finish_reason": "stop",
+			},
+		},
+		"usage": map[string]any{
+			"prompt_tokens": 10, "completion_tokens": 4, "total_tokens": 14,
+		},
+	}
+	realBackend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		realBackendHits++
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(cannedResponse)
+	}))
+	defer realBackend.Close()
+
+	// Create temp dir and copy an existing recording.
+	tempDir := t.TempDir()
+	existingBody := json.RawMessage(`{"model":"mock-model","messages":[{"role":"user","content":"existing"}],"stream":false}`)
+	existingRec := Recording{
+		Request: RecordingRequest{
+			Method: "POST",
+			Path:   "/v1/chat/completions",
+			Body:   existingBody,
+		},
+		Response: RecordingResponse{
+			Status:  200,
+			Headers: map[string]string{"Content-Type": "application/json"},
+			Body:    json.RawMessage(`{"id":"chatcmpl-existing","object":"chat.completion","model":"mock-model","choices":[{"index":0,"message":{"role":"assistant","content":"Existing response"},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":3,"total_tokens":13}}`),
+		},
+	}
+	existingData, _ := json.MarshalIndent(existingRec, "", "  ")
+	if err := os.WriteFile(filepath.Join(tempDir, "existing.json"), existingData, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Load recordings and set up handler.
+	recordings, err := loadRecordings(tempDir)
+	if err != nil {
+		t.Fatalf("loadRecordings: %v", err)
+	}
+	if len(recordings) != 1 {
+		t.Fatalf("expected 1 loaded recording, got %d", len(recordings))
+	}
+
+	oldMode := *mode
+	oldTarget := *recordTarget
+	*mode = "record-if-missing"
+	*recordTarget = realBackend.URL
+	defer func() {
+		*mode = oldMode
+		*recordTarget = oldTarget
+	}()
+
+	handler := makeReplayHandler(recordings, tempDir)
+	srv := httptest.NewServer(handler)
+	defer srv.Close()
+
+	// Send the matching request. It should be replayed (not forwarded).
+	resp, err := http.Post(srv.URL+"/v1/chat/completions", "application/json", strings.NewReader(string(existingBody)))
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var replayResult map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&replayResult); err != nil {
+		t.Fatalf("invalid replay response: %v", err)
+	}
+	if replayResult["id"] != "chatcmpl-existing" {
+		t.Errorf("expected replayed id chatcmpl-existing, got %v (was forwarded instead)", replayResult["id"])
+	}
+	if realBackendHits != 0 {
+		t.Errorf("expected 0 real backend hits for existing recording, got %d", realBackendHits)
+	}
+
+	// Send a new request. It should be forwarded and recorded.
+	newBody := `{"model":"mock-model","messages":[{"role":"user","content":"new request"}],"stream":false}`
+	resp2, err := http.Post(srv.URL+"/v1/chat/completions", "application/json", strings.NewReader(newBody))
+	if err != nil {
+		t.Fatalf("new request failed: %v", err)
+	}
+	defer resp2.Body.Close()
+
+	var forwardResult map[string]any
+	if err := json.NewDecoder(resp2.Body).Decode(&forwardResult); err != nil {
+		t.Fatalf("invalid forward response: %v", err)
+	}
+	if forwardResult["id"] != "chatcmpl-from-real" {
+		t.Errorf("expected forwarded id chatcmpl-from-real, got %v", forwardResult["id"])
+	}
+	if realBackendHits != 1 {
+		t.Errorf("expected 1 real backend hit for new request, got %d", realBackendHits)
+	}
+
+	// Verify a new recording file was saved.
+	entries, err := os.ReadDir(tempDir)
+	if err != nil {
+		t.Fatalf("failed to read temp dir: %v", err)
+	}
+	jsonCount := 0
+	for _, entry := range entries {
+		if strings.HasSuffix(entry.Name(), ".json") {
+			jsonCount++
+		}
+	}
+	if jsonCount < 2 {
+		t.Errorf("expected at least 2 recording files (original + new), got %d", jsonCount)
+	}
+}
+
 func TestBackwardCompatibility(t *testing.T) {
 	// Without recordings-dir, the deterministic handler should work.
 	mux := http.NewServeMux()
