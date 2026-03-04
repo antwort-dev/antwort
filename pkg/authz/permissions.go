@@ -81,6 +81,24 @@ func (p Permissions) String() string {
 	return p.Owner.String() + "|" + p.Group.String() + "|" + p.Others.String()
 }
 
+// CanAccessResource checks if a caller can read a resource based on its permissions string,
+// owner identity, and tenant membership.
+// If the caller is the resource owner, access is always granted.
+// For same-tenant callers, group read permission is checked.
+// For cross-tenant callers, others read permission is checked.
+func CanAccessResource(permissions, callerOwner, resourceOwner, callerTenant, resourceTenant string) bool {
+	if callerOwner != "" && callerOwner == resourceOwner {
+		return true
+	}
+	perms := ParsePermissions(permissions)
+	// Same tenant: check group permissions.
+	if callerTenant != "" && callerTenant == resourceTenant {
+		return perms.Group.CanRead()
+	}
+	// Different tenant: check others permissions.
+	return perms.Others.CanRead()
+}
+
 // parsePermSet parses a 3-character permission segment.
 func parsePermSet(s string) PermSet {
 	if len(s) != 3 {

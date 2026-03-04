@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rhuss/antwort/pkg/authz"
 	"github.com/rhuss/antwort/pkg/storage"
 )
 
@@ -72,24 +73,12 @@ func normalizePermSegment(s string) string {
 }
 
 // canAccessResource checks if a caller can read a resource based on its permissions string.
-// permissions format: "owner|group|others" where each segment is a subset of "rwd".
+// Delegates to authz.CanAccessResource after applying default permissions.
 func canAccessResource(permissions, callerOwner, resourceOwner, callerTenant, resourceTenant string) bool {
-	if callerOwner != "" && callerOwner == resourceOwner {
-		return true
-	}
 	if permissions == "" {
 		permissions = DefaultPermissions
 	}
-	parts := strings.Split(permissions, "|")
-	if len(parts) != 3 {
-		return false
-	}
-	// Same tenant: check group permissions.
-	if callerTenant != "" && callerTenant == resourceTenant {
-		return strings.Contains(parts[1], "r")
-	}
-	// Different tenant: check others permissions.
-	return strings.Contains(parts[2], "r")
+	return authz.CanAccessResource(permissions, callerOwner, resourceOwner, callerTenant, resourceTenant)
 }
 
 // createStoreRequest is the JSON request body for creating a vector store.
