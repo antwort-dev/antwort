@@ -484,7 +484,8 @@ export ANTWORT_AUDIT_OUTPUT=stdout
 === Event Catalog
 
 Antwort emits 12 audit event types, organized into five categories.
-Each event includes a `audit.event` field identifying the event type, along with category-specific fields.
+Each event includes an `event` field identifying the event type, along with category-specific fields.
+The `msg` field also contains the event name (standard slog behavior).
 
 ==== Authentication Events
 
@@ -578,11 +579,11 @@ A successful authentication event in JSON format:
 {
   "time": "2026-03-04T10:15:30Z",
   "level": "INFO",
-  "msg": "audit",
-  "audit.event": "auth.success",
+  "msg": "auth.success",
+  "event": "auth.success",
+  "subject": "alice",
   "auth_method": "jwt",
-  "remote_addr": "10.0.1.42:54321",
-  "subject": "alice"
+  "remote_addr": "10.0.1.42:54321"
 }
 ----
 
@@ -593,11 +594,11 @@ A resource creation event:
 {
   "time": "2026-03-04T10:15:31Z",
   "level": "INFO",
-  "msg": "audit",
-  "audit.event": "resource.created",
+  "msg": "resource.created",
+  "event": "resource.created",
+  "subject": "alice",
   "resource_type": "response",
-  "resource_id": "resp_abc123",
-  "subject": "alice"
+  "resource_id": "resp_abc123"
 }
 ----
 
@@ -608,13 +609,13 @@ An admin override event:
 {
   "time": "2026-03-04T10:16:00Z",
   "level": "INFO",
-  "msg": "audit",
-  "audit.event": "authz.admin_override",
+  "msg": "authz.admin_override",
+  "event": "authz.admin_override",
+  "subject": "admin-user",
   "resource_type": "response",
   "resource_id": "resp_abc123",
   "resource_owner": "bob",
-  "operation": "GetResponse",
-  "subject": "admin-user"
+  "operation": "GetResponse"
 }
 ----
 
@@ -623,7 +624,7 @@ An admin override event:
 When `audit.output` is set to `stdout` (the default), audit log entries are written to standard output alongside operational logs.
 In Kubernetes, DaemonSet-based log agents (such as Fluentd, Fluent Bit, or Vector) automatically collect stdout output from all containers without any custom configuration.
 
-To separate audit logs from operational logs in your aggregation pipeline, filter on the `audit.event` field.
+To separate audit logs from operational logs in your aggregation pipeline, filter on the `event` field.
 For example, with Vector:
 
 [source,toml]
@@ -631,7 +632,7 @@ For example, with Vector:
 [transforms.audit_filter]
 type = "filter"
 inputs = ["kubernetes_logs"]
-condition = 'exists(.audit.event)'
+condition = 'exists(.event)'
 ----
 
 When `audit.output` is set to `file`, audit logs are written to a dedicated file at the path specified by `audit.file`.
