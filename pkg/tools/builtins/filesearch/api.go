@@ -10,6 +10,29 @@ import (
 	"github.com/rhuss/antwort/pkg/storage"
 )
 
+// vsOwnerAllowed checks if the caller is allowed to access a vector store.
+func vsOwnerAllowed(r *http.Request, storedOwner, resourceID, operation string) bool {
+	callerOwner := storage.GetOwner(r.Context())
+	if callerOwner == "" {
+		return true
+	}
+	if storage.GetAdmin(r.Context()) {
+		return true
+	}
+	if storedOwner == "" {
+		return true
+	}
+	if callerOwner == storedOwner {
+		return true
+	}
+	slog.Debug("ownership denied",
+		"subject", callerOwner,
+		"resource_id", resourceID,
+		"operation", operation,
+	)
+	return false
+}
+
 // createStoreRequest is the JSON request body for creating a vector store.
 type createStoreRequest struct {
 	Name string `json:"name"`
@@ -57,6 +80,7 @@ func (p *FileSearchProvider) handleCreateStore(w http.ResponseWriter, r *http.Re
 	}
 
 	tenantID := storage.GetTenant(r.Context())
+	owner := storage.GetOwner(r.Context())
 
 	// Generate a collection name from the store name.
 	collName, err := generateID("col_")
@@ -69,6 +93,7 @@ func (p *FileSearchProvider) handleCreateStore(w http.ResponseWriter, r *http.Re
 	vs := &VectorStore{
 		Name:           req.Name,
 		TenantID:       tenantID,
+		Owner:          owner,
 		CollectionName: collName,
 		CreatedAt:      time.Now().Unix(),
 	}
@@ -109,8 +134,15 @@ func (p *FileSearchProvider) handleListStores(w http.ResponseWriter, r *http.Req
 	tenantID := storage.GetTenant(r.Context())
 	stores := p.metadata.List(tenantID)
 
+	callerOwner := storage.GetOwner(r.Context())
+	isAdminCaller := storage.GetAdmin(r.Context())
+
 	data := make([]vectorStoreResponse, 0, len(stores))
 	for _, vs := range stores {
+		// Owner filtering for list.
+		if callerOwner != "" && !isAdminCaller && vs.Owner != "" && vs.Owner != callerOwner {
+			continue
+		}
 		data = append(data, toResponse(vs))
 	}
 
@@ -149,6 +181,12 @@ func (p *FileSearchProvider) handleGetStore(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// Owner isolation check.
+	if !vsOwnerAllowed(r, vs.Owner, storeID, "GetStore") {
+		writeJSONError(w, "vector store not found", http.StatusNotFound)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(toResponse(vs))
 }
@@ -175,6 +213,12 @@ func (p *FileSearchProvider) handleDeleteStore(w http.ResponseWriter, r *http.Re
 	// Tenant isolation check.
 	tenantID := storage.GetTenant(r.Context())
 	if tenantID != "" && vs.TenantID != tenantID {
+		writeJSONError(w, "vector store not found", http.StatusNotFound)
+		return
+	}
+
+	// Owner isolation check.
+	if !vsOwnerAllowed(r, vs.Owner, storeID, "DeleteStore") {
 		writeJSONError(w, "vector store not found", http.StatusNotFound)
 		return
 	}

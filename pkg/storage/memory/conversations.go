@@ -3,6 +3,7 @@ package memory
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sort"
 	"sync"
 	"time"
@@ -12,12 +13,36 @@ import (
 	"github.com/rhuss/antwort/pkg/transport"
 )
 
+// convOwnerAllowed checks if the caller is allowed to access a conversation with the given owner.
+func convOwnerAllowed(ctx context.Context, storedOwner, resourceID, operation string) bool {
+	callerOwner := storage.GetOwner(ctx)
+	if callerOwner == "" {
+		return true
+	}
+	if storage.GetAdmin(ctx) {
+		return true
+	}
+	if storedOwner == "" {
+		return true
+	}
+	if callerOwner == storedOwner {
+		return true
+	}
+	slog.Debug("ownership denied",
+		"subject", callerOwner,
+		"resource_id", resourceID,
+		"operation", operation,
+	)
+	return false
+}
+
 // Compile-time check.
 var _ transport.ConversationStore = (*ConversationStore)(nil)
 
 type convEntry struct {
 	conv      *api.Conversation
 	tenantID  string
+	owner     string
 	items     []api.ConversationItem
 	deletedAt *time.Time
 }
@@ -40,12 +65,16 @@ func (s *ConversationStore) SaveConversation(ctx context.Context, conv *api.Conv
 	defer s.mu.Unlock()
 
 	tenantID := storage.GetTenant(ctx)
+	owner := storage.GetOwner(ctx)
 
 	if existing, ok := s.entries[conv.ID]; ok {
 		if existing.deletedAt != nil {
 			return storage.ErrNotFound
 		}
 		if tenantID != "" && existing.tenantID != tenantID {
+			return storage.ErrNotFound
+		}
+		if !convOwnerAllowed(ctx, existing.owner, conv.ID, "SaveConversation") {
 			return storage.ErrNotFound
 		}
 		existing.conv = conv
@@ -55,6 +84,7 @@ func (s *ConversationStore) SaveConversation(ctx context.Context, conv *api.Conv
 	s.entries[conv.ID] = &convEntry{
 		conv:     conv,
 		tenantID: tenantID,
+		owner:    owner,
 	}
 	return nil
 }
@@ -70,6 +100,10 @@ func (s *ConversationStore) GetConversation(ctx context.Context, id string) (*ap
 
 	tenantID := storage.GetTenant(ctx)
 	if tenantID != "" && e.tenantID != tenantID {
+		return nil, storage.ErrNotFound
+	}
+
+	if !convOwnerAllowed(ctx, e.owner, id, "GetConversation") {
 		return nil, storage.ErrNotFound
 	}
 
@@ -90,6 +124,10 @@ func (s *ConversationStore) DeleteConversation(ctx context.Context, id string) e
 		return storage.ErrNotFound
 	}
 
+	if !convOwnerAllowed(ctx, e.owner, id, "DeleteConversation") {
+		return storage.ErrNotFound
+	}
+
 	now := time.Now()
 	e.deletedAt = &now
 	return nil
@@ -100,6 +138,8 @@ func (s *ConversationStore) ListConversations(ctx context.Context, opts transpor
 	defer s.mu.RUnlock()
 
 	tenantID := storage.GetTenant(ctx)
+	callerOwner := storage.GetOwner(ctx)
+	isAdminCaller := storage.GetAdmin(ctx)
 
 	var all []*api.Conversation
 	for _, e := range s.entries {
@@ -107,6 +147,10 @@ func (s *ConversationStore) ListConversations(ctx context.Context, opts transpor
 			continue
 		}
 		if tenantID != "" && e.tenantID != tenantID {
+			continue
+		}
+		// Owner filtering for list.
+		if callerOwner != "" && !isAdminCaller && e.owner != "" && e.owner != callerOwner {
 			continue
 		}
 		all = append(all, e.conv)
@@ -173,6 +217,10 @@ func (s *ConversationStore) AddItems(ctx context.Context, conversationID string,
 		return storage.ErrNotFound
 	}
 
+	if !convOwnerAllowed(ctx, e.owner, conversationID, "AddItems") {
+		return storage.ErrNotFound
+	}
+
 	// Assign positions starting from current length.
 	basePos := len(e.items)
 	now := time.Now().Unix()
@@ -201,6 +249,10 @@ func (s *ConversationStore) ListItems(ctx context.Context, conversationID string
 
 	tenantID := storage.GetTenant(ctx)
 	if tenantID != "" && e.tenantID != tenantID {
+		return nil, storage.ErrNotFound
+	}
+
+	if !convOwnerAllowed(ctx, e.owner, conversationID, "ListItems") {
 		return nil, storage.ErrNotFound
 	}
 
@@ -278,6 +330,10 @@ func (s *ConversationStore) AllItems(ctx context.Context, conversationID string)
 
 	tenantID := storage.GetTenant(ctx)
 	if tenantID != "" && e.tenantID != tenantID {
+		return nil, fmt.Errorf("conversation %q not found", conversationID)
+	}
+
+	if !convOwnerAllowed(ctx, e.owner, conversationID, "AllItems") {
 		return nil, fmt.Errorf("conversation %q not found", conversationID)
 	}
 

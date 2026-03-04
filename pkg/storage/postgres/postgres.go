@@ -65,6 +65,7 @@ func New(ctx context.Context, cfg Config) (*Store, error) {
 // SaveResponse persists a completed response.
 func (s *Store) SaveResponse(ctx context.Context, resp *api.Response) error {
 	tenantID := storage.GetTenant(ctx)
+	owner := storage.GetOwner(ctx)
 
 	inputJSON, err := json.Marshal(resp.Input)
 	if err != nil {
@@ -101,13 +102,13 @@ func (s *Store) SaveResponse(ctx context.Context, resp *api.Response) error {
 
 	_, err = s.pool.Exec(ctx, `
 		INSERT INTO responses (
-			id, tenant_id, status, model, previous_response_id,
+			id, tenant_id, owner, status, model, previous_response_id,
 			input, output,
 			usage_input_tokens, usage_output_tokens, usage_total_tokens,
 			error, extensions, created_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 	`,
-		resp.ID, tenantID, string(resp.Status), resp.Model, resp.PreviousResponseID,
+		resp.ID, tenantID, owner, string(resp.Status), resp.Model, resp.PreviousResponseID,
 		inputJSON, outputJSON,
 		usageIn, usageOut, usageTotal,
 		nullJSON(errorJSON), nullJSON(extensionsJSON), resp.CreatedAt,
@@ -137,6 +138,8 @@ func (s *Store) GetResponseForChain(ctx context.Context, id string) (*api.Respon
 // getResponse is the internal retrieval implementation.
 func (s *Store) getResponse(ctx context.Context, id string, excludeDeleted bool) (*api.Response, error) {
 	tenantID := storage.GetTenant(ctx)
+	owner := storage.GetOwner(ctx)
+	isAdminCaller := storage.GetAdmin(ctx)
 
 	query := `
 		SELECT id, status, model, previous_response_id,
@@ -156,6 +159,13 @@ func (s *Store) getResponse(ctx context.Context, id string, excludeDeleted bool)
 	if tenantID != "" {
 		query += fmt.Sprintf(" AND tenant_id = $%d", argIdx)
 		args = append(args, tenantID)
+		argIdx++
+	}
+
+	// Owner filtering: skip if no identity, admin, or empty owner (legacy).
+	if owner != "" && !isAdminCaller {
+		query += fmt.Sprintf(" AND (owner = '' OR owner = $%d)", argIdx)
+		args = append(args, owner)
 	}
 
 	var resp api.Response
@@ -215,13 +225,22 @@ func (s *Store) getResponse(ctx context.Context, id string, excludeDeleted bool)
 // DeleteResponse soft-deletes a response by setting deleted_at.
 func (s *Store) DeleteResponse(ctx context.Context, id string) error {
 	tenantID := storage.GetTenant(ctx)
+	owner := storage.GetOwner(ctx)
+	isAdminCaller := storage.GetAdmin(ctx)
 
 	query := "UPDATE responses SET deleted_at = $1 WHERE id = $2 AND deleted_at IS NULL"
 	args := []any{time.Now(), id}
+	argIdx := 3
 
 	if tenantID != "" {
-		query += " AND tenant_id = $3"
+		query += fmt.Sprintf(" AND tenant_id = $%d", argIdx)
 		args = append(args, tenantID)
+		argIdx++
+	}
+
+	if owner != "" && !isAdminCaller {
+		query += fmt.Sprintf(" AND (owner = '' OR owner = $%d)", argIdx)
+		args = append(args, owner)
 	}
 
 	result, err := s.pool.Exec(ctx, query, args...)
