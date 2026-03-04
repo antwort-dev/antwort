@@ -1,7 +1,10 @@
 // Package scope provides scope-based authorization for API endpoints.
 package scope
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // ExpandRoles resolves role definitions with possible references to other roles.
 // Each role maps to a list of scopes. If a scope matches another role name, it is
@@ -65,6 +68,9 @@ func resolveRole(
 			for s := range expanded {
 				scopes[s] = true
 			}
+		} else if isRoleReference(entry) {
+			// Looks like a role reference but doesn't exist.
+			return nil, fmt.Errorf("undefined role reference: %s", entry)
 		} else {
 			scopes[entry] = true
 		}
@@ -73,4 +79,11 @@ func resolveRole(
 	cache[name] = scopes
 	delete(visited, name)
 	return scopes, nil
+}
+
+// isRoleReference returns true if the entry looks like a role name rather than
+// a scope. Scopes use "resource:action" format (contain ":"), while role
+// references are plain identifiers without colons.
+func isRoleReference(entry string) bool {
+	return !strings.Contains(entry, ":")
 }
