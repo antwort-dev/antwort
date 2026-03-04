@@ -37,7 +37,7 @@
 - [ ] T007 Add `--recordings-dir`, `--mode`, and `--record-target` CLI flags to `cmd/mock-backend/main.go`. When `--recordings-dir` is empty, use existing deterministic mock behavior (backward compatible). Parse flags using `flag` package.
 - [ ] T008 Add record mode to `cmd/mock-backend/main.go`: when `--mode record` or `--mode record-if-missing`, forward requests to `--record-target` URL, capture the response, save as JSON recording file in `--recordings-dir`. For streaming responses, buffer all SSE chunks before saving.
 - [ ] T009 Write tests for replay logic in `cmd/mock-backend/main_test.go`: test request normalization (key sorting, stream_options removal), hash computation (deterministic for same input), recording loading (valid JSON, corrupt file, empty dir), replay matching (hit, miss, streaming), and backward compatibility (no recordings-dir = deterministic mock).
-- [ ] T010 Create initial recording files in `test/e2e/recordings/`: at minimum `chat-basic.json` (non-streaming Chat Completion), `chat-streaming.json` (streaming with SSE chunks), `chat-tool-call.json` (tool call turn), `chat-tool-result.json` (final response after tool result). These can be handcrafted from the existing mock-backend response format or converted from llama-stack.
+- [ ] T010 Handcraft initial recording files in `test/e2e/recordings/` based on the existing mock-backend response format (see `cmd/mock-backend/main.go` response structures). Create at minimum: `chat-basic.json` (non-streaming Chat Completion with model, choices, usage), `chat-streaming.json` (streaming with SSE chunks including role, content deltas, finish, and [DONE]), `chat-tool-call.json` (tool call turn with get_weather function), `chat-tool-result.json` (final text response after tool result). Use the recording format from `test/e2e/recordings/README.md`. Llama-stack conversion (T027) is a separate, later task.
 
 **Checkpoint**: Mock-backend supports replay mode. Recordings exist. Can start the replay backend and get deterministic LLM responses.
 
@@ -116,8 +116,8 @@
 
 ### Implementation for User Story 4
 
-- [ ] T024 [US4] Write `test/e2e/audit_test.go` with `TestE2EAuditEvents`: make authenticated requests (create, delete), read the audit log file (path from ANTWORT_AUDIT_FILE env var), parse JSON lines, verify auth.success and resource.created/resource.deleted events with correct fields.
-- [ ] T025 [US4] Add `TestE2EAuditAuthFailure` to `test/e2e/audit_test.go`: send request with invalid key, read audit file, verify auth.failure event.
+- [ ] T024 [US4] Write `test/e2e/audit_test.go` with `TestE2EAuditEvents`: make authenticated requests (create, delete), then retrieve the audit log via `kubectl exec <pod> -- cat /tmp/audit.log` (use ANTWORT_POD_NAME env var or discover via `kubectl get pods -l app.kubernetes.io/name=antwort`). Parse JSON lines, verify auth.success and resource.created/resource.deleted events with correct fields. For local dev mode (no cluster), read the file directly from ANTWORT_AUDIT_FILE path.
+- [ ] T025 [US4] Add `TestE2EAuditAuthFailure` to `test/e2e/audit_test.go`: send request with invalid key, retrieve audit log via same mechanism as T024, verify auth.failure event.
 
 **Checkpoint**: Audit logging works in deployed environment.
 
