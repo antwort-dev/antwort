@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/rhuss/antwort/pkg/agent"
 	"github.com/rhuss/antwort/pkg/api"
 	"github.com/rhuss/antwort/pkg/storage"
 	"github.com/rhuss/antwort/pkg/tools"
@@ -244,6 +245,21 @@ func (p *FileSearchProvider) Execute(ctx context.Context, call tools.ToolCall) (
 			Output:  "query must not be empty",
 			IsError: true,
 		}, nil
+	}
+
+	// Merge profile-level vector store IDs with argument-provided ones (Spec 041 US4).
+	profileStoreIDs := agent.GetVectorStoreIDs(ctx)
+	if len(profileStoreIDs) > 0 {
+		seen := make(map[string]bool, len(args.VectorStoreIDs))
+		for _, id := range args.VectorStoreIDs {
+			seen[id] = true
+		}
+		for _, id := range profileStoreIDs {
+			if !seen[id] {
+				args.VectorStoreIDs = append(args.VectorStoreIDs, id)
+				seen[id] = true
+			}
+		}
 	}
 
 	// Determine which stores to search.
