@@ -175,14 +175,20 @@ api (pkg/api/)  <-- shared types, depended on by all layers
 - `pkg/engine/` implements the handler interfaces. Depends on `pkg/api/` and `pkg/transport/` (for interface types only).
 - `pkg/provider/` defines the provider interface and adapters. Depends on `pkg/api/` only. Does not import `pkg/transport/`.
 
-### Multi-User vs Multi-Tenant
+### Multi-User, Multi-Tenant, and Multi-Instance
 
 These terms have distinct meanings in the antwort project. All specs, documentation, and code must use them precisely.
 
-- **Multi-user**: A single antwort instance serving multiple individual users. Users are authenticated (via API key or JWT) and their data is isolated within the same instance. Each user has their own identity, responses, and conversation history. The auth middleware, `Identity.Subject`, and storage scoping enforce this isolation. Quickstart 03-multi-user demonstrates this model.
-- **Multi-tenant**: Multiple antwort instances, each serving a different user group (tenant). A tenant is a group of users that share a common organizational boundary (team, department, organization). Tenants are isolated at the infrastructure level: separate Deployments, separate storage databases, separate configuration. Cross-tenant access is impossible because the instances do not share state.
+- **Multi-user**: A single antwort instance serving multiple individual users. Users are authenticated (via API key or JWT) and their data is isolated by ownership (`Identity.Subject`). Each user has their own responses, conversations, files, and vector stores. Quickstart 03-multi-user demonstrates this model.
+- **Multi-tenant**: A single antwort instance serving multiple user groups (tenants). A tenant is a group of users that share a common organizational boundary (team, department, organization). The `Identity.Metadata["tenant_id"]` field identifies which tenant a user belongs to. Storage queries scope by `tenant_id`, so users in one tenant cannot see resources created by users in another tenant. Tenants share the same instance, database, and configuration, but their data is isolated in-process.
+- **Multi-instance**: Multiple antwort Deployments, each serving a different organization or compliance boundary. Instances are isolated at the infrastructure level: separate Deployments, separate storage databases, separate configuration. Cross-instance access is impossible because the instances do not share state. Use this for hard isolation requirements (different companies, different SLAs, regulatory boundaries).
 
-In practice: multi-user isolation happens inside a single process via identity-scoped queries. Multi-tenant isolation happens outside the process via separate Kubernetes Deployments. The `Identity.Metadata["tenant_id"]` field identifies which tenant a user belongs to within a multi-user instance, enabling per-tenant rate limiting and access control. It does not create multi-tenant isolation on its own.
+These models compose. A single instance can be both multi-user and multi-tenant (users within each tenant are isolated from each other, and tenants are isolated from other tenants). Separate instances provide an additional layer of infrastructure-level isolation on top.
+
+The authorization model uses three levels matching these boundaries:
+- **Owner** (`Identity.Subject`): The individual user who created a resource. Always has full access.
+- **Group** (`tenant_id`): Users sharing the same tenant within this instance. Access controlled by per-resource group permissions.
+- **Others**: Users in different tenants within the same instance. Access controlled by per-resource others permissions (typically denied).
 
 ### Two-Tier API
 
