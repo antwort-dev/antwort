@@ -31,6 +31,7 @@ func NewConfigResolver(agents map[string]config.AgentProfileConfig) (*ConfigReso
 			TopP:            cfg.TopP,
 			MaxOutputTokens: cfg.MaxOutputTokens,
 			MaxToolCalls:    cfg.MaxToolCalls,
+			VectorStoreIDs:  cfg.VectorStoreIDs,
 		}
 
 		// Convert tool configs to ToolDefinitions.

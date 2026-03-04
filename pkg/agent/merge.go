@@ -5,9 +5,10 @@ import "github.com/rhuss/antwort/pkg/api"
 // MergeProfileIntoRequest applies profile defaults to a request.
 // Request-level fields always take precedence over profile defaults.
 // Tools are merged (union of profile tools and request tools).
-func MergeProfileIntoRequest(profile *AgentProfile, req *api.CreateResponseRequest, variables map[string]string) {
+// Returns the profile's VectorStoreIDs (if any) for context injection.
+func MergeProfileIntoRequest(profile *AgentProfile, req *api.CreateResponseRequest, variables map[string]string) []string {
 	if profile == nil {
-		return
+		return nil
 	}
 
 	// Model: profile provides default, request overrides.
@@ -51,4 +52,6 @@ func MergeProfileIntoRequest(profile *AgentProfile, req *api.CreateResponseReque
 	if req.Reasoning == nil && profile.Reasoning != nil {
 		req.Reasoning = profile.Reasoning
 	}
+
+	return profile.VectorStoreIDs
 }

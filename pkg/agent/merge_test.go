@@ -89,11 +89,32 @@ func TestMergeProfileIntoRequest_InstructionsWithVariables(t *testing.T) {
 	}
 }
 
+func TestMergeProfileIntoRequest_VectorStoreIDs(t *testing.T) {
+	profile := &AgentProfile{VectorStoreIDs: []string{"vs-1", "vs-2"}}
+	req := &api.CreateResponseRequest{}
+	ids := MergeProfileIntoRequest(profile, req, nil)
+	if len(ids) != 2 || ids[0] != "vs-1" || ids[1] != "vs-2" {
+		t.Errorf("vector store IDs: got %v, want [vs-1 vs-2]", ids)
+	}
+}
+
+func TestMergeProfileIntoRequest_VectorStoreIDsEmpty(t *testing.T) {
+	profile := &AgentProfile{}
+	req := &api.CreateResponseRequest{}
+	ids := MergeProfileIntoRequest(profile, req, nil)
+	if ids != nil {
+		t.Errorf("vector store IDs: got %v, want nil", ids)
+	}
+}
+
 func TestMergeProfileIntoRequest_NilProfile(t *testing.T) {
 	req := &api.CreateResponseRequest{Model: "model-b"}
-	MergeProfileIntoRequest(nil, req, nil)
+	ids := MergeProfileIntoRequest(nil, req, nil)
 	if req.Model != "model-b" {
 		t.Error("nil profile should not change request")
+	}
+	if ids != nil {
+		t.Error("nil profile should return nil vector store IDs")
 	}
 }
 

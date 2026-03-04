@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/rhuss/antwort/pkg/agent"
 	"github.com/rhuss/antwort/pkg/api"
 	"github.com/rhuss/antwort/pkg/storage"
 	"github.com/rhuss/antwort/pkg/tools"
@@ -246,7 +247,26 @@ func (p *FileSearchProvider) Execute(ctx context.Context, call tools.ToolCall) (
 		}, nil
 	}
 
+	// Merge profile-level vector store IDs with argument-provided ones (Spec 041 US4).
+	profileStoreIDs := agent.GetVectorStoreIDs(ctx)
+	if len(profileStoreIDs) > 0 {
+		seen := make(map[string]bool, len(args.VectorStoreIDs))
+		for _, id := range args.VectorStoreIDs {
+			seen[id] = true
+		}
+		for _, id := range profileStoreIDs {
+			if !seen[id] {
+				args.VectorStoreIDs = append(args.VectorStoreIDs, id)
+				seen[id] = true
+			}
+		}
+	}
+
 	// Determine which stores to search.
+	callerOwner := storage.GetOwner(ctx)
+	callerTenant := storage.GetTenant(ctx)
+	isAdmin := storage.GetAdmin(ctx)
+
 	var stores []*VectorStore
 	if len(args.VectorStoreIDs) > 0 {
 		for _, id := range args.VectorStoreIDs {
@@ -254,17 +274,38 @@ func (p *FileSearchProvider) Execute(ctx context.Context, call tools.ToolCall) (
 			if err != nil {
 				continue // Skip unknown stores.
 			}
-			// Tenant isolation.
-			tenantID := storage.GetTenant(ctx)
-			if tenantID != "" && vs.TenantID != tenantID {
-				continue
+			// Tenant isolation (unless others permissions allow cross-tenant).
+			if callerTenant != "" && vs.TenantID != callerTenant {
+				if !canAccessResource(vs.Permissions, callerOwner, vs.Owner, callerTenant, vs.TenantID) {
+					continue
+				}
+			}
+			// Owner check: skip if not owner, not admin, and no permission.
+			if callerOwner != "" && !isAdmin && vs.Owner != "" && vs.Owner != callerOwner {
+				if !canAccessResource(vs.Permissions, callerOwner, vs.Owner, callerTenant, vs.TenantID) {
+					continue
+				}
 			}
 			stores = append(stores, vs)
 		}
 	} else {
-		// Search all stores for the tenant.
-		tenantID := storage.GetTenant(ctx)
-		stores = p.metadata.List(tenantID)
+		// Search all stores for the tenant plus cross-tenant shared stores.
+		allStores := p.metadata.List(callerTenant)
+		if callerTenant != "" {
+			for _, vs := range p.metadata.ListAll() {
+				if vs.TenantID != callerTenant && canAccessResource(vs.Permissions, callerOwner, vs.Owner, callerTenant, vs.TenantID) {
+					allStores = append(allStores, vs)
+				}
+			}
+		}
+		for _, vs := range allStores {
+			if callerOwner != "" && !isAdmin && vs.Owner != "" && vs.Owner != callerOwner {
+				if !canAccessResource(vs.Permissions, callerOwner, vs.Owner, callerTenant, vs.TenantID) {
+					continue
+				}
+			}
+			stores = append(stores, vs)
+		}
 	}
 
 	if len(stores) == 0 {

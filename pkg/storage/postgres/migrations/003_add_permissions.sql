@@ -1,0 +1,4 @@
+-- Permissions column for future PostgreSQL-backed vector stores and files.
+-- Currently these resources use in-memory storage, so no tables to alter.
+-- This migration is a placeholder for when PostgreSQL backends are added.
+-- The in-memory stores handle permissions in their struct fields directly.

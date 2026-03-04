@@ -44,8 +44,14 @@ func New(p provider.Provider, store transport.ResponseStore, cfg Config) (*Engin
 // CreateResponse handles a non-streaming or streaming response creation request.
 func (e *Engine) CreateResponse(ctx context.Context, req *api.CreateResponseRequest, w transport.ResponseWriter) error {
 	// Resolve agent profile or prompt parameter (Spec 038).
-	if err := e.resolveProfile(req); err != nil {
+	profileVectorStoreIDs, err := e.resolveProfile(req)
+	if err != nil {
 		return err
+	}
+
+	// Inject profile vector store IDs into context for file_search tool (Spec 041 US4).
+	if len(profileVectorStoreIDs) > 0 {
+		ctx = agent.SetVectorStoreIDs(ctx, profileVectorStoreIDs)
 	}
 
 	// Apply default model if the request omits it.
@@ -518,7 +524,8 @@ func (e *Engine) mergeMCPTools(ctx context.Context, req *api.CreateResponseReque
 
 // resolveProfile handles agent profile and prompt parameter resolution.
 // If agent or prompt is set, the profile is resolved and merged into the request.
-func (e *Engine) resolveProfile(req *api.CreateResponseRequest) error {
+// Returns the profile's vector store IDs for context injection (nil if no profile).
+func (e *Engine) resolveProfile(req *api.CreateResponseRequest) ([]string, error) {
 	// Determine profile name and variables from agent or prompt field.
 	var profileName string
 	var variables map[string]string
@@ -536,20 +543,20 @@ func (e *Engine) resolveProfile(req *api.CreateResponseRequest) error {
 	}
 
 	if profileName == "" {
-		return nil // No profile to resolve.
+		return nil, nil // No profile to resolve.
 	}
 
 	if e.cfg.ProfileResolver == nil {
-		return api.NewInvalidRequestError("agent", "agent profiles are not configured")
+		return nil, api.NewInvalidRequestError("agent", "agent profiles are not configured")
 	}
 
 	profile, err := e.cfg.ProfileResolver.Resolve(profileName)
 	if err != nil {
-		return api.NewNotFoundError(fmt.Sprintf("agent profile %q not found", profileName))
+		return nil, api.NewNotFoundError(fmt.Sprintf("agent profile %q not found", profileName))
 	}
 
-	agent.MergeProfileIntoRequest(profile, req, variables)
-	return nil
+	vectorStoreIDs := agent.MergeProfileIntoRequest(profile, req, variables)
+	return vectorStoreIDs, nil
 }
 
 // hasExecutors returns true if any tool executors are registered.
