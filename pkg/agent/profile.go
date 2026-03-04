@@ -19,6 +19,7 @@ type AgentProfile struct {
 	MaxOutputTokens *int                 `yaml:"max_output_tokens" json:"-"`
 	MaxToolCalls    *int                 `yaml:"max_tool_calls" json:"-"`
 	Reasoning       *api.ReasoningConfig `yaml:"reasoning" json:"-"`
+	VectorStoreIDs  []string             `yaml:"vector_store_ids" json:"-"`
 }
 
 // ProfileResolver resolves a profile name to an AgentProfile.

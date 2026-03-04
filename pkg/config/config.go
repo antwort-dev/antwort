@@ -35,6 +35,7 @@ type AgentProfileConfig struct {
 	MaxOutputTokens *int                   `yaml:"max_output_tokens"`
 	MaxToolCalls    *int                   `yaml:"max_tool_calls"`
 	Reasoning       *ReasoningProfileConfig `yaml:"reasoning"`
+	VectorStoreIDs  []string               `yaml:"vector_store_ids"`
 }
 
 // ReasoningProfileConfig holds reasoning settings for an agent profile.
@@ -108,7 +109,8 @@ type AuthConfig struct {
 
 // AuthorizationConfig holds authorization settings for resource ownership.
 type AuthorizationConfig struct {
-	AdminRole string `yaml:"admin_role"` // Role name that grants admin access (bypasses owner checks)
+	AdminRole  string              `yaml:"admin_role"`  // Role name that grants admin access (bypasses owner checks)
+	RoleScopes map[string][]string `yaml:"role_scopes"` // Role-to-scopes mapping for scope-based authorization
 }
 
 // JWTConfig holds JWT/OIDC authentication settings.
