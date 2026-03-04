@@ -100,9 +100,15 @@ type PostgresConfig struct {
 
 // AuthConfig holds authentication settings.
 type AuthConfig struct {
-	Type    string         `yaml:"type"`     // "none", "apikey", "jwt", "chain", default: "none"
-	APIKeys []APIKeyConfig `yaml:"api_keys"` // API key entries for type=apikey
-	JWT     JWTConfig      `yaml:"jwt"`      // JWT/OIDC settings for type=jwt or type=chain
+	Type          string              `yaml:"type"`          // "none", "apikey", "jwt", "chain", default: "none"
+	APIKeys       []APIKeyConfig      `yaml:"api_keys"`      // API key entries for type=apikey
+	JWT           JWTConfig           `yaml:"jwt"`           // JWT/OIDC settings for type=jwt or type=chain
+	Authorization AuthorizationConfig `yaml:"authorization"` // Authorization settings
+}
+
+// AuthorizationConfig holds authorization settings for resource ownership.
+type AuthorizationConfig struct {
+	AdminRole string `yaml:"admin_role"` // Role name that grants admin access (bypasses owner checks)
 }
 
 // JWTConfig holds JWT/OIDC authentication settings.
@@ -113,6 +119,7 @@ type JWTConfig struct {
 	UserClaim   string `yaml:"user_claim"`   // Claim for subject (default: "sub")
 	TenantClaim string `yaml:"tenant_claim"` // Claim for tenant_id (default: "tenant_id")
 	ScopesClaim string `yaml:"scopes_claim"` // Claim for scopes (default: "scope")
+	RolesClaim  string `yaml:"roles_claim"`  // Dot-path for roles (default: "realm_access.roles")
 }
 
 // APIKeyConfig describes a single API key entry.

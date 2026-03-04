@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 )
 
 // AuthDecision represents the three possible outcomes of authentication.
@@ -51,6 +52,28 @@ func (id *Identity) TenantID() string {
 		return ""
 	}
 	return id.Metadata["tenant_id"]
+}
+
+// IsAdmin checks whether the identity has the specified admin role.
+// Returns false if identity is nil, adminRole is empty, or the role is not found.
+// Roles are expected in Identity.Metadata["roles"] as a comma-separated string.
+func IsAdmin(identity *Identity, adminRole string) bool {
+	if identity == nil || adminRole == "" {
+		return false
+	}
+	if identity.Metadata == nil {
+		return false
+	}
+	roles := identity.Metadata["roles"]
+	if roles == "" {
+		return false
+	}
+	for _, role := range strings.Split(roles, ",") {
+		if strings.TrimSpace(role) == adminRole {
+			return true
+		}
+	}
+	return false
 }
 
 // Authenticator examines request credentials and returns a three-outcome vote.

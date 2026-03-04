@@ -9,9 +9,11 @@ import (
 )
 
 // Middleware creates HTTP middleware from an AuthChain and optional RateLimiter.
-// It checks the bypass list, runs authentication, injects tenant context,
+// It checks the bypass list, runs authentication, injects tenant and owner context,
 // and optionally enforces rate limits.
-func Middleware(chain *AuthChain, limiter RateLimiter, bypassEndpoints []string) func(http.Handler) http.Handler {
+// The adminRole parameter is used to check if the authenticated user has admin
+// privileges. Pass empty string to disable admin detection.
+func Middleware(chain *AuthChain, limiter RateLimiter, bypassEndpoints []string, adminRole ...string) func(http.Handler) http.Handler {
 	bypass := make(map[string]bool, len(bypassEndpoints))
 	for _, ep := range bypassEndpoints {
 		bypass[ep] = true
@@ -75,6 +77,14 @@ func Middleware(chain *AuthChain, limiter RateLimiter, bypassEndpoints []string)
 			// Inject tenant for storage scoping.
 			if tenantID := result.Identity.TenantID(); tenantID != "" {
 				ctx = storage.SetTenant(ctx, tenantID)
+			}
+
+			// Inject owner (Identity.Subject) for resource ownership.
+			ctx = storage.SetOwner(ctx, result.Identity.Subject)
+
+			// Inject admin flag if an admin role is configured.
+			if len(adminRole) > 0 && adminRole[0] != "" {
+				ctx = storage.SetAdmin(ctx, IsAdmin(result.Identity, adminRole[0]))
 			}
 
 			next.ServeHTTP(w, r.WithContext(ctx))

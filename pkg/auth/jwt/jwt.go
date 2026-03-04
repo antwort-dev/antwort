@@ -44,6 +44,12 @@ type Config struct {
 	// The value can be a space-separated string or a JSON array.
 	ScopesClaim string
 
+	// RolesClaim is a dot-separated path to the JWT claim containing user roles.
+	// Default: "realm_access.roles". The value at this path can be a JSON array
+	// of strings. Extracted roles are stored in Identity.Metadata["roles"] as a
+	// comma-separated string.
+	RolesClaim string
+
 	// CacheTTL controls how long JWKS keys are cached. Default: 1 hour.
 	CacheTTL time.Duration
 
@@ -62,6 +68,9 @@ func (c *Config) applyDefaults() {
 	}
 	if c.ScopesClaim == "" {
 		c.ScopesClaim = "scope"
+	}
+	if c.RolesClaim == "" {
+		c.RolesClaim = "realm_access.roles"
 	}
 	if c.CacheTTL == 0 {
 		c.CacheTTL = 1 * time.Hour
@@ -178,6 +187,11 @@ func (a *Authenticator) Authenticate(ctx context.Context, r *http.Request) auth.
 	// Extract scopes.
 	identity.Scopes = extractScopes(claims, a.config.ScopesClaim)
 
+	// Extract roles from nested claim path (e.g., "realm_access.roles").
+	if roles := extractRoles(claims, a.config.RolesClaim); roles != "" {
+		identity.Metadata["roles"] = roles
+	}
+
 	return auth.AuthResult{
 		Decision: auth.Yes,
 		Identity: identity,
@@ -247,6 +261,43 @@ func extractScopes(claims jwtlib.MapClaims, key string) []string {
 	}
 
 	return nil
+}
+
+// extractRoles extracts roles from a dot-separated claim path (e.g., "realm_access.roles").
+// It navigates nested maps and expects the final value to be a JSON array of strings.
+// Returns a comma-separated string of roles, or empty string if not found.
+func extractRoles(claims jwtlib.MapClaims, path string) string {
+	parts := strings.Split(path, ".")
+	var current interface{} = map[string]interface{}(claims)
+
+	for _, part := range parts {
+		m, ok := current.(map[string]interface{})
+		if !ok {
+			return ""
+		}
+		current, ok = m[part]
+		if !ok {
+			return ""
+		}
+	}
+
+	// The final value should be a JSON array of strings.
+	arr, ok := current.([]interface{})
+	if !ok {
+		// Could also be a single string.
+		if s, ok := current.(string); ok {
+			return s
+		}
+		return ""
+	}
+
+	var roles []string
+	for _, item := range arr {
+		if s, ok := item.(string); ok {
+			roles = append(roles, s)
+		}
+	}
+	return strings.Join(roles, ",")
 }
 
 // jwksCache caches RSA public keys fetched from a JWKS endpoint.
