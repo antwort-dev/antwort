@@ -7,7 +7,10 @@ import (
 	"sync"
 	"time"
 
+	"strings"
+
 	"github.com/rhuss/antwort/pkg/auth"
+	"github.com/rhuss/antwort/pkg/storage"
 )
 
 // FileList is a paginated list of files.
@@ -78,7 +81,11 @@ func (m *MemoryMetadataStore) Get(ctx context.Context, id string) (*File, error)
 	}
 	userID := userFromCtx(ctx)
 	if userID != "" && file.UserID != userID {
-		return nil, fmt.Errorf("file %q not found", id)
+		// Check group/others permissions before denying.
+		callerTenant := storage.GetTenant(ctx)
+		if !fileCanAccess(file.Permissions, userID, file.UserID, callerTenant, file.TenantID) {
+			return nil, fmt.Errorf("file %q not found", id)
+		}
 	}
 	return file, nil
 }
@@ -88,12 +95,16 @@ func (m *MemoryMetadataStore) List(ctx context.Context, opts ListOptions) (*File
 	defer m.mu.RUnlock()
 
 	userID := userFromCtx(ctx)
+	callerTenant := storage.GetTenant(ctx)
 
 	// Collect matching files.
 	var all []*File
 	for _, f := range m.files {
 		if userID != "" && f.UserID != userID {
-			continue
+			// Check group/others permissions for non-owner files.
+			if !fileCanAccess(f.Permissions, userID, f.UserID, callerTenant, f.TenantID) {
+				continue
+			}
 		}
 		if opts.Purpose != "" && f.Purpose != opts.Purpose {
 			continue
@@ -178,4 +189,25 @@ func userFromCtx(ctx context.Context) string {
 		return ""
 	}
 	return id.Subject
+}
+
+// fileCanAccess checks if a caller can access a file based on its permissions string.
+// permissions format: "owner|group|others" where each segment is a subset of "rwd".
+func fileCanAccess(permissions, callerOwner, resourceOwner, callerTenant, resourceTenant string) bool {
+	if callerOwner != "" && callerOwner == resourceOwner {
+		return true
+	}
+	if permissions == "" {
+		permissions = DefaultFilePermissions
+	}
+	parts := strings.Split(permissions, "|")
+	if len(parts) != 3 {
+		return false
+	}
+	// Same tenant: check group permissions.
+	if callerTenant != "" && callerTenant == resourceTenant {
+		return strings.Contains(parts[1], "r")
+	}
+	// Different tenant: check others permissions.
+	return strings.Contains(parts[2], "r")
 }

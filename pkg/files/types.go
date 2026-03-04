@@ -31,6 +31,9 @@ func ValidPurpose(s string) bool {
 	return false
 }
 
+// DefaultFilePermissions is the default permissions string for new files.
+const DefaultFilePermissions = "rwd|---|---"
+
 // File represents an uploaded file with metadata and status tracking.
 type File struct {
 	ID          string     `json:"id"`
@@ -41,7 +44,9 @@ type File struct {
 	Purpose     string     `json:"purpose"`
 	Status      FileStatus `json:"status"`
 	StatusError string     `json:"status_details,omitempty"`
+	Permissions string     `json:"permissions,omitempty"`
 	UserID      string     `json:"-"`
+	TenantID    string     `json:"-"`
 	CreatedAt   int64      `json:"created_at"`
 	UpdatedAt   int64      `json:"updated_at,omitempty"`
 }
@@ -50,16 +55,17 @@ type File struct {
 func NewFile(id, filename, mimeType, purpose, userID string, size int64) *File {
 	now := time.Now().Unix()
 	return &File{
-		ID:        id,
-		Object:    "file",
-		Filename:  filename,
-		Bytes:     size,
-		MIMEType:  mimeType,
-		Purpose:   purpose,
-		Status:    FileStatusUploaded,
-		UserID:    userID,
-		CreatedAt: now,
-		UpdatedAt: now,
+		ID:          id,
+		Object:      "file",
+		Filename:    filename,
+		Bytes:       size,
+		MIMEType:    mimeType,
+		Purpose:     purpose,
+		Status:      FileStatusUploaded,
+		Permissions: DefaultFilePermissions,
+		UserID:      userID,
+		CreatedAt:   now,
+		UpdatedAt:   now,
 	}
 }
 

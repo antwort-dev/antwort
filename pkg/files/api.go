@@ -9,8 +9,10 @@ import (
 	"mime/multipart"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/rhuss/antwort/pkg/api"
+	"github.com/rhuss/antwort/pkg/storage"
 )
 
 // maxDefaultUploadSize is 50 MB.
@@ -41,10 +43,11 @@ func (a *FilesAPI) handleUpload(w http.ResponseWriter, r *http.Request) {
 	reader := multipart.NewReader(r.Body, params["boundary"])
 
 	var (
-		fileData     []byte
-		filename     string
-		fileMIMEType string
-		purpose      string
+		fileData       []byte
+		filename       string
+		fileMIMEType   string
+		purpose        string
+		permissionsRaw string
 	)
 
 	for {
@@ -69,6 +72,9 @@ func (a *FilesAPI) handleUpload(w http.ResponseWriter, r *http.Request) {
 		case "purpose":
 			data, _ := io.ReadAll(part)
 			purpose = string(data)
+		case "permissions":
+			data, _ := io.ReadAll(part)
+			permissionsRaw = string(data)
 		}
 		part.Close()
 	}
@@ -99,8 +105,15 @@ func (a *FilesAPI) handleUpload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID := userFromCtx(r.Context())
+	tenantID := storage.GetTenant(r.Context())
 	fileID := api.NewFileID()
 	file := NewFile(fileID, filename, fileMIMEType, purpose, userID, int64(len(fileData)))
+	file.TenantID = tenantID
+
+	// Parse permissions if provided.
+	if permissionsRaw != "" {
+		file.Permissions = parseFilePermissions(permissionsRaw)
+	}
 
 	// Store file content.
 	if err := a.fileStore.Store(r.Context(), fileID, newBytesReader(fileData)); err != nil {
@@ -266,6 +279,62 @@ func detectMIME(filename, headerType string) string {
 	default:
 		return "application/octet-stream"
 	}
+}
+
+// filePermissionsInput represents the JSON permissions object for files.
+type filePermissionsInput struct {
+	Group  string `json:"group"`
+	Others string `json:"others"`
+}
+
+// parseFilePermissions parses a JSON permissions string into compact format.
+func parseFilePermissions(raw string) string {
+	var input filePermissionsInput
+	if err := json.Unmarshal([]byte(raw), &input); err != nil {
+		return DefaultFilePermissions
+	}
+	g := normalizeFilePermSegment(input.Group)
+	o := normalizeFilePermSegment(input.Others)
+	return "rwd|" + g + "|" + o
+}
+
+// normalizeFilePermSegment ensures a permission segment only contains valid chars.
+func normalizeFilePermSegment(s string) string {
+	if s == "" {
+		return "---"
+	}
+	result := [3]byte{'-', '-', '-'}
+	for _, c := range s {
+		switch c {
+		case 'r':
+			result[0] = 'r'
+		case 'w':
+			result[1] = 'w'
+		case 'd':
+			result[2] = 'd'
+		}
+	}
+	return string(result[:])
+}
+
+// canAccessFile checks if a caller can read a file based on its permissions string.
+func canAccessFile(permissions, callerOwner, resourceOwner, callerTenant, resourceTenant string) bool {
+	if callerOwner != "" && callerOwner == resourceOwner {
+		return true
+	}
+	if permissions == "" {
+		permissions = DefaultFilePermissions
+	}
+	parts := strings.Split(permissions, "|")
+	if len(parts) != 3 {
+		return false
+	}
+	// Same tenant: check group permissions.
+	if callerTenant != "" && callerTenant == resourceTenant {
+		return strings.Contains(parts[1], "r")
+	}
+	// Different tenant: check others permissions.
+	return strings.Contains(parts[2], "r")
 }
 
 func writeAPIError(w http.ResponseWriter, apiErr *api.APIError) {

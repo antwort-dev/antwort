@@ -74,7 +74,7 @@ func normalizePermSegment(s string) string {
 // canAccessResource checks if a caller can read a resource based on its permissions string.
 // permissions format: "owner|group|others" where each segment is a subset of "rwd".
 func canAccessResource(permissions, callerOwner, resourceOwner, callerTenant, resourceTenant string) bool {
-	if callerOwner == resourceOwner {
+	if callerOwner != "" && callerOwner == resourceOwner {
 		return true
 	}
 	if permissions == "" {
