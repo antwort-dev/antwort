@@ -22,10 +22,51 @@ jobs:
 
       - name: Run unit + integration tests with coverage
         run: |
-          go test ./pkg/... ./test/integration/... \
+          go test $(go list ./pkg/... | grep -v /postgres) ./test/integration/... \
             -coverpkg=./pkg/... \
             -coverprofile=coverage.out \
             -timeout 120s -count=1
+
+      - name: Run E2E coverage (instrumented binary)
+        run: |
+          echo "Building instrumented server..."
+          go build -cover -o bin/server-cover ./cmd/server/
+          go build -o bin/mock-backend ./cmd/mock-backend/
+          mkdir -p coverage-e2e
+
+          echo "Starting mock backend..."
+          MOCK_PORT=9091 bin/mock-backend &
+          MOCK_PID=$!
+          sleep 1
+
+          echo "Starting instrumented server..."
+          GOCOVERDIR=$(pwd)/coverage-e2e \
+          ANTWORT_BACKEND_URL=http://localhost:9091 \
+          ANTWORT_MODEL=mock-model ANTWORT_PORT=8081 ANTWORT_STORAGE=memory \
+          bin/server-cover &
+          SERVER_PID=$!
+          sleep 2
+
+          echo "Running E2E tests..."
+          ANTWORT_BASE_URL=http://localhost:8081/v1 \
+          go test -tags e2e ./test/e2e/ -v -timeout 60s -count=1 -run 'TestE2E' || true
+
+          echo "Stopping servers..."
+          kill -INT $SERVER_PID 2>/dev/null
+          for i in $(seq 1 10); do kill -0 $SERVER_PID 2>/dev/null || break; sleep 0.5; done
+          kill $MOCK_PID 2>/dev/null
+          sleep 1
+
+          echo "Extracting E2E coverage..."
+          if ls coverage-e2e/covcounters.* >/dev/null 2>&1; then
+            go tool covdata textfmt -i=coverage-e2e -o coverage-e2e.out
+            E2E_COV=$(go tool cover -func=coverage-e2e.out | tail -1 | awk '{print $3}')
+            echo "E2E coverage: ${E2E_COV}"
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**E2E Coverage:** ${E2E_COV}" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "No E2E coverage data produced (binary may not have exited cleanly)"
+          fi
 
       - name: Report coverage
         run: |

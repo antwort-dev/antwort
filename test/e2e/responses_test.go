@@ -125,15 +125,14 @@ func TestE2ECreateResponse(t *testing.T) {
 	for _, item := range output {
 		itemMap, _ := item.(map[string]any)
 		if itemMap["type"] == "message" {
-			if msg, ok := itemMap["message"].(map[string]any); ok {
-				if parts, ok := msg["output"].([]any); ok {
-					for _, p := range parts {
-						pm, _ := p.(map[string]any)
-						if pm["type"] == "output_text" {
-							text, _ := pm["text"].(string)
-							if text != "" {
-								foundText = true
-							}
+			// Output items have "content" array with output_text entries
+			if content, ok := itemMap["content"].([]any); ok {
+				for _, c := range content {
+					cm, _ := c.(map[string]any)
+					if cm["type"] == "output_text" {
+						text, _ := cm["text"].(string)
+						if text != "" {
+							foundText = true
 						}
 					}
 				}
@@ -141,7 +140,7 @@ func TestE2ECreateResponse(t *testing.T) {
 		}
 	}
 	if !foundText {
-		t.Error("expected output to contain text content")
+		t.Errorf("expected output to contain text content, got: %v", output)
 	}
 }
 
@@ -176,7 +175,10 @@ func TestE2EStreamingResponse(t *testing.T) {
 				var evt map[string]any
 				if json.Unmarshal([]byte(payload), &evt) == nil {
 					if evt["type"] == "response.output_text.delta" {
-						if delta, ok := evt["delta"].(map[string]any); ok {
+						// Delta can be a string or nested object
+						if d, ok := evt["delta"].(string); ok {
+							collectedText.WriteString(d)
+						} else if delta, ok := evt["delta"].(map[string]any); ok {
 							if txt, ok := delta["text"].(string); ok {
 								collectedText.WriteString(txt)
 							}

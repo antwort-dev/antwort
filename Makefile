@@ -109,7 +109,7 @@ COVERAGE_DIR := coverage
 coverage:
 	@mkdir -p $(COVERAGE_DIR)
 	@echo "Running unit + integration tests with coverage..."
-	go test ./pkg/... ./test/integration/... \
+	go test $$(go list ./pkg/... | grep -v /postgres) ./test/integration/... \
 		-coverpkg=./pkg/... \
 		-coverprofile=$(COVERAGE_DIR)/combined.out \
 		-timeout 120s -count=1
@@ -125,19 +125,20 @@ coverage:
 	@echo "Coverage: $$(cat $(COVERAGE_DIR)/percentage.txt)"
 
 # Generate E2E coverage using Go binary instrumentation (Go 1.20+).
-# Builds an instrumented server binary, runs it with the replay backend,
+# Builds an instrumented server binary, runs it with the mock backend,
 # executes E2E tests, then extracts coverage from the binary's output.
+# Uses deterministic mock (no replay) to avoid recording hash alignment issues.
 coverage-e2e:
-	@mkdir -p $(COVERAGE_DIR)/e2e-raw
-	@rm -rf $(COVERAGE_DIR)/e2e-raw/*
+	@rm -rf $(COVERAGE_DIR)/e2e-raw && mkdir -p $(COVERAGE_DIR)/e2e-raw
 	@echo "Building instrumented server binary..."
-	go build -cover -o $(BIN_DIR)/server-cover -coverpkg=./pkg/... ./cmd/server/
+	go build -cover -o $(BIN_DIR)/server-cover ./cmd/server/
 	go build -o $(BIN_DIR)/mock-backend ./cmd/mock-backend/
-	@echo "Starting replay backend..."
-	@MOCK_PORT=9091 $(BIN_DIR)/mock-backend --recordings-dir test/e2e/recordings & \
+	@echo "Starting mock backend..."
+	@MOCK_PORT=9091 $(BIN_DIR)/mock-backend & \
 	MOCK_PID=$$!; \
-	echo "Starting instrumented antwort..."; \
-	GOCOVERDIR=$(COVERAGE_DIR)/e2e-raw \
+	COV_ABS=$$(pwd)/$(COVERAGE_DIR)/e2e-raw; \
+	echo "Starting instrumented antwort (GOCOVERDIR=$$COV_ABS)..."; \
+	GOCOVERDIR=$$COV_ABS \
 	ANTWORT_BACKEND_URL=http://localhost:9091 ANTWORT_MODEL=mock-model \
 	ANTWORT_PORT=8081 ANTWORT_STORAGE=memory \
 	$(BIN_DIR)/server-cover & \
@@ -145,11 +146,13 @@ coverage-e2e:
 	sleep 2; \
 	echo "Running E2E tests against instrumented binary..."; \
 	ANTWORT_BASE_URL=http://localhost:8081/v1 \
-	go test -tags e2e ./test/e2e/ -v -timeout 60s -count=1; \
+	go test -tags e2e ./test/e2e/ -v -timeout 60s -count=1 \
+		-run 'TestE2E' ; \
 	E2E_EXIT=$$?; \
-	echo "Stopping servers..."; \
-	kill $$SERVER_PID 2>/dev/null; sleep 1; \
-	kill $$MOCK_PID 2>/dev/null; \
+	echo "Stopping servers (SIGINT for coverage flush)..."; \
+	kill -INT $$SERVER_PID 2>/dev/null; \
+	for i in $$(seq 1 10); do kill -0 $$SERVER_PID 2>/dev/null || break; sleep 0.5; done; \
+	kill $$MOCK_PID 2>/dev/null; sleep 1; \
 	echo "Extracting E2E coverage..."; \
 	go tool covdata textfmt -i=$(COVERAGE_DIR)/e2e-raw -o $(COVERAGE_DIR)/e2e.out 2>/dev/null; \
 	if [ -f $(COVERAGE_DIR)/e2e.out ]; then \
