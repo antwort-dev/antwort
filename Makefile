@@ -133,8 +133,8 @@ coverage-e2e:
 	@echo "Building instrumented server binary..."
 	go build -cover -o $(BIN_DIR)/server-cover ./cmd/server/
 	go build -o $(BIN_DIR)/mock-backend ./cmd/mock-backend/
-	@echo "Starting mock backend..."
-	@MOCK_PORT=9091 $(BIN_DIR)/mock-backend & \
+	@echo "Starting replay backend with recordings..."
+	@MOCK_PORT=9091 $(BIN_DIR)/mock-backend --recordings-dir test/e2e/recordings & \
 	MOCK_PID=$$!; \
 	COV_ABS=$$(pwd)/$(COVERAGE_DIR)/e2e-raw; \
 	echo "Starting instrumented antwort (GOCOVERDIR=$$COV_ABS)..."; \

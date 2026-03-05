@@ -260,6 +260,12 @@ func makeReplayHandler(recordings map[string]*Recording, recDir string) http.Han
 
 func serveRecording(w http.ResponseWriter, rec *Recording) {
 	for k, v := range rec.Response.Headers {
+		// Skip Content-Length: the recorded value may not match the
+		// serialized body size (e.g., compact vs pretty-printed JSON).
+		// Let Go's HTTP server calculate it from the actual write.
+		if strings.EqualFold(k, "Content-Length") {
+			continue
+		}
 		w.Header().Set(k, v)
 	}
 	if w.Header().Get("Content-Type") == "" {

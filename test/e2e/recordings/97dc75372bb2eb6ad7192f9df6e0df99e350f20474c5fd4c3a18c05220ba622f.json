@@ -14,7 +14,7 @@
     "headers": {
       "Content-Length": "252",
       "Content-Type": "application/json",
-      "Date": "Thu, 05 Mar 2026 11:30:05 GMT"
+      "Date": "Thu, 05 Mar 2026 11:55:17 GMT"
     },
     "body": {
       "id": "chatcmpl-mock-text",
@@ -39,6 +39,6 @@
   },
   "streaming": false,
   "metadata": {
-    "recorded_at": "2026-03-05T11:30:05Z"
+    "recorded_at": "2026-03-05T11:55:17Z"
   }
 }
