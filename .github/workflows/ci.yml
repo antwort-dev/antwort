@@ -34,8 +34,8 @@ jobs:
           go build -o bin/mock-backend ./cmd/mock-backend/
           mkdir -p coverage-e2e
 
-          echo "Starting mock backend..."
-          MOCK_PORT=9091 bin/mock-backend &
+          echo "Starting replay backend with recordings..."
+          MOCK_PORT=9091 bin/mock-backend --recordings-dir test/e2e/recordings &
           MOCK_PID=$!
           sleep 1
 
