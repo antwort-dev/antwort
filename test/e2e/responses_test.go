@@ -5,15 +5,11 @@ package e2e
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
 	"testing"
-
-	"github.com/openai/openai-go"
-	"github.com/openai/openai-go/responses"
 )
 
 // ---------------------------------------------------------------------------
@@ -106,32 +102,40 @@ func createResponse(t *testing.T) map[string]any {
 // ---------------------------------------------------------------------------
 
 func TestE2ECreateResponse(t *testing.T) {
-	client := defaultClient()
-	resp, err := client.Responses.New(context.Background(), responses.ResponseNewParams{
-		Model: model,
-		Input: responses.ResponseNewParamsInputUnion{
-			OfString: openai.String("hello"),
-		},
-	})
-	if err != nil {
-		t.Fatalf("create response via SDK: %v", err)
-	}
-	if resp.ID == "" {
+	// Use raw HTTP with array-format input (antwort's expected format).
+	result := createResponse(t)
+	id, _ := result["id"].(string)
+	if id == "" {
 		t.Error("expected non-empty response ID")
 	}
-	if string(resp.Model) != model {
-		t.Errorf("expected model %q, got %q", model, resp.Model)
+	respModel, _ := result["model"].(string)
+	if respModel != model {
+		t.Errorf("expected model %q, got %q", model, respModel)
 	}
-	// Verify output contains at least one message with text content.
-	if len(resp.Output) == 0 {
+	status, _ := result["status"].(string)
+	if status != "completed" {
+		t.Errorf("expected status completed, got %q", status)
+	}
+	// Verify output contains at least one item with text content.
+	output, _ := result["output"].([]any)
+	if len(output) == 0 {
 		t.Fatal("expected at least one output item")
 	}
 	foundText := false
-	for _, item := range resp.Output {
-		if item.Type == "message" {
-			for _, c := range item.Content {
-				if c.Type == "output_text" && c.Text != "" {
-					foundText = true
+	for _, item := range output {
+		itemMap, _ := item.(map[string]any)
+		if itemMap["type"] == "message" {
+			if msg, ok := itemMap["message"].(map[string]any); ok {
+				if parts, ok := msg["output"].([]any); ok {
+					for _, p := range parts {
+						pm, _ := p.(map[string]any)
+						if pm["type"] == "output_text" {
+							text, _ := pm["text"].(string)
+							if text != "" {
+								foundText = true
+							}
+						}
+					}
 				}
 			}
 		}

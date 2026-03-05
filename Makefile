@@ -9,7 +9,7 @@ IMAGE_TAG  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
 
 KUBE_NAMESPACE ?= antwort
 
-.PHONY: build test vet conformance api-test ci-sdk-test e2e coverage coverage-unit clean image-build image-push image-latest sandbox-build sandbox-push deploy deploy-openshift docs docs-serve
+.PHONY: build test vet conformance api-test ci-sdk-test e2e coverage coverage-unit coverage-e2e coverage-all clean image-build image-push image-latest sandbox-build sandbox-push deploy deploy-openshift docs docs-serve
 
 # Build all binaries.
 build:
@@ -123,6 +123,66 @@ coverage:
 	@# Extract percentage for badge
 	@go tool cover -func=$(COVERAGE_DIR)/combined.out | tail -1 | awk '{print $$3}' > $(COVERAGE_DIR)/percentage.txt
 	@echo "Coverage: $$(cat $(COVERAGE_DIR)/percentage.txt)"
+
+# Generate E2E coverage using Go binary instrumentation (Go 1.20+).
+# Builds an instrumented server binary, runs it with the replay backend,
+# executes E2E tests, then extracts coverage from the binary's output.
+coverage-e2e:
+	@mkdir -p $(COVERAGE_DIR)/e2e-raw
+	@rm -rf $(COVERAGE_DIR)/e2e-raw/*
+	@echo "Building instrumented server binary..."
+	go build -cover -o $(BIN_DIR)/server-cover -coverpkg=./pkg/... ./cmd/server/
+	go build -o $(BIN_DIR)/mock-backend ./cmd/mock-backend/
+	@echo "Starting replay backend..."
+	@MOCK_PORT=9091 $(BIN_DIR)/mock-backend --recordings-dir test/e2e/recordings & \
+	MOCK_PID=$$!; \
+	echo "Starting instrumented antwort..."; \
+	GOCOVERDIR=$(COVERAGE_DIR)/e2e-raw \
+	ANTWORT_BACKEND_URL=http://localhost:9091 ANTWORT_MODEL=mock-model \
+	ANTWORT_PORT=8081 ANTWORT_STORAGE=memory \
+	$(BIN_DIR)/server-cover & \
+	SERVER_PID=$$!; \
+	sleep 2; \
+	echo "Running E2E tests against instrumented binary..."; \
+	ANTWORT_BASE_URL=http://localhost:8081/v1 \
+	go test -tags e2e ./test/e2e/ -v -timeout 60s -count=1; \
+	E2E_EXIT=$$?; \
+	echo "Stopping servers..."; \
+	kill $$SERVER_PID 2>/dev/null; sleep 1; \
+	kill $$MOCK_PID 2>/dev/null; \
+	echo "Extracting E2E coverage..."; \
+	go tool covdata textfmt -i=$(COVERAGE_DIR)/e2e-raw -o $(COVERAGE_DIR)/e2e.out 2>/dev/null; \
+	if [ -f $(COVERAGE_DIR)/e2e.out ]; then \
+		go tool cover -func=$(COVERAGE_DIR)/e2e.out | tail -1; \
+		go tool cover -html=$(COVERAGE_DIR)/e2e.out -o $(COVERAGE_DIR)/e2e.html; \
+		echo "E2E HTML report: $(COVERAGE_DIR)/e2e.html"; \
+	else \
+		echo "Warning: no E2E coverage data produced"; \
+	fi; \
+	exit $$E2E_EXIT
+
+# Generate combined coverage from all three layers (unit + integration + E2E).
+# Runs all test types and merges their coverage profiles.
+coverage-all: coverage coverage-e2e
+	@echo ""
+	@echo "=== Merging all coverage layers ==="
+	@mkdir -p $(COVERAGE_DIR)/all-raw
+	@# Convert text profiles to covdata format for merging
+	@if [ -f $(COVERAGE_DIR)/combined.out ] && [ -f $(COVERAGE_DIR)/e2e.out ]; then \
+		go tool cover -func=$(COVERAGE_DIR)/combined.out | tail -1 | sed 's/total.*statements)/Unit+Integration:/' ; \
+		go tool cover -func=$(COVERAGE_DIR)/e2e.out | tail -1 | sed 's/total.*statements)/E2E:            /' ; \
+		echo ""; \
+		echo "Merging profiles..."; \
+		head -1 $(COVERAGE_DIR)/combined.out > $(COVERAGE_DIR)/all.out; \
+		tail -n +2 $(COVERAGE_DIR)/combined.out >> $(COVERAGE_DIR)/all.out; \
+		tail -n +2 $(COVERAGE_DIR)/e2e.out >> $(COVERAGE_DIR)/all.out; \
+		go tool cover -func=$(COVERAGE_DIR)/all.out | tail -1 | sed 's/total.*statements)/Combined:       /' ; \
+		go tool cover -html=$(COVERAGE_DIR)/all.out -o $(COVERAGE_DIR)/all.html; \
+		echo ""; \
+		echo "Combined HTML report: $(COVERAGE_DIR)/all.html"; \
+	else \
+		echo "Missing coverage profiles. Run make coverage and make coverage-e2e first."; \
+	fi
 
 # Generate coverage for unit tests only.
 coverage-unit:

@@ -1,0 +1,39 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/v1/chat/completions",
+    "body": {
+      "model": "mock-model",
+      "messages": null,
+      "n": 1,
+      "stream": true,
+      "stream_options": {
+        "include_usage": true
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Cache-Control": "no-cache",
+      "Connection": "keep-alive",
+      "Content-Type": "text/event-stream",
+      "Date": "Thu, 05 Mar 2026 11:30:05 GMT"
+    }
+  },
+  "streaming": true,
+  "chunks": [
+    "data: {\"choices\":[{\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null,\"index\":0}],\"id\":\"chatcmpl-mock-stream\",\"model\":\"mock-model\",\"object\":\"chat.completion.chunk\"}\n\n",
+    "data: {\"choices\":[{\"delta\":{\"content\":\"Hello\"},\"finish_reason\":null,\"index\":0}],\"id\":\"chatcmpl-mock-stream\",\"model\":\"mock-model\",\"object\":\"chat.completion.chunk\"}\n\n",
+    "data: {\"choices\":[{\"delta\":{\"content\":\", \"},\"finish_reason\":null,\"index\":0}],\"id\":\"chatcmpl-mock-stream\",\"model\":\"mock-model\",\"object\":\"chat.completion.chunk\"}\n\n",
+    "data: {\"choices\":[{\"delta\":{\"content\":\"nice\"},\"finish_reason\":null,\"index\":0}],\"id\":\"chatcmpl-mock-stream\",\"model\":\"mock-model\",\"object\":\"chat.completion.chunk\"}\n\n",
+    "data: {\"choices\":[{\"delta\":{\"content\":\" \"},\"finish_reason\":null,\"index\":0}],\"id\":\"chatcmpl-mock-stream\",\"model\":\"mock-model\",\"object\":\"chat.completion.chunk\"}\n\n",
+    "data: {\"choices\":[{\"delta\":{\"content\":\"day\"},\"finish_reason\":null,\"index\":0}],\"id\":\"chatcmpl-mock-stream\",\"model\":\"mock-model\",\"object\":\"chat.completion.chunk\"}\n\n",
+    "data: {\"choices\":[{\"delta\":{\"content\":\"!\"},\"finish_reason\":null,\"index\":0}],\"id\":\"chatcmpl-mock-stream\",\"model\":\"mock-model\",\"object\":\"chat.completion.chunk\"}\n\n",
+    "data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\",\"index\":0}],\"id\":\"chatcmpl-mock-stream\",\"model\":\"mock-model\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":6,\"prompt_tokens\":10,\"total_tokens\":16}}\n\n",
+    "data: [DONE]\n\n"
+  ],
+  "metadata": {
+    "recorded_at": "2026-03-05T11:30:05Z"
+  }
+}
