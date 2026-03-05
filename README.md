@@ -3,17 +3,19 @@
 [![CI](https://github.com/antwort-dev/antwort/actions/workflows/ci.yml/badge.svg)](https://github.com/antwort-dev/antwort/actions/workflows/ci.yml)
 [![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/antwort-dev/antwort/main/.github/badges/coverage.json)](https://github.com/antwort-dev/antwort/actions/workflows/ci.yml)
 
-**The server-side agentic framework.**
+**The inference gateway for agentic AI.**
 
-A production-grade [OpenResponses](https://www.openresponses.org/) API implementation written in Go. Antwort runs AI agents server-side on Kubernetes with sandboxed code execution, multi-tenant isolation, and full API compatibility with any OpenAI SDK.
+A production-grade [OpenResponses](https://www.openresponses.org/) API gateway written in Go. Antwort provides the Responses API that autonomous agents call for LLM reasoning, tool execution, and conversation memory, with Kubernetes-native multi-tenant security. Works with any OpenAI SDK.
 
 **Website:** [antwort-dev.github.io](https://antwort-dev.github.io) | **Docs:** [antwort-dev.github.io/docs](https://antwort-dev.github.io/docs/)
 
 ## What It Does
 
-Antwort is the most complete open-source server-side implementation of the OpenResponses standard. It connects to LLM backends via Chat Completions (`/v1/chat/completions`) or the native Responses API (`/v1/responses`), adding agentic capabilities, sandboxed code execution, tool execution, multi-user isolation, and production operations on top. Supports vLLM, Ollama, LiteLLM, or any OpenAI-compatible server.
+Antwort is the inference layer that AI agents call for reasoning. It implements the [OpenResponses](https://www.openresponses.org/) standard, connecting to LLM backends (vLLM, Ollama, LiteLLM, or any OpenAI-compatible server) and adding tool execution, conversation storage, RAG, multi-user isolation, audit logging, and production operations on top.
 
-Any existing OpenAI SDK (Python, Node, Go, Rust) works without modification. Point your client at Antwort, and the Responses API works as expected.
+Autonomous agents (OpenClaw, LangGraph, CrewAI, or your own) run as separate workloads and call Antwort's API for LLM reasoning. Antwort handles the infrastructure concerns so agents can focus on their task logic.
+
+Any existing OpenAI SDK (Python, Node, Go, Rust) works without modification. Point your agent at Antwort, and the Responses API works as expected.
 
 ## Status
 
@@ -67,33 +69,39 @@ All 42 specifications have been implemented through the SDD process. Each spec p
 | 041 Scope Permissions | Scope-based authorization with role-to-scope mapping |
 | 042 Audit Logging | Structured audit trail for security events and mutations |
 
-### Platform Vision (Next Phases)
+### Roadmap
 
-Antwort is evolving into a server-native agent platform that brings the best ideas from client-side agent frameworks (like OpenClaw) to the server, with Kubernetes-native security as a first principle. See the [platform vision document](specs/vision-agent-platform.md) and the [blog post](blog-server-native-agent-platform.md) for the full story.
+Antwort focuses on being the best inference gateway for autonomous agents running on Kubernetes. Agent orchestration and lifecycle management are separate concerns (handled by K8s primitives or dedicated tools).
 
-| Phase | Capability | Status |
-|-------|-----------|--------|
-| 1 | Kubernetes Sandbox Executor (code_interpreter via agent-sandbox CRDs) | Implemented |
-| 2 | Agent Profiles (server-side config, `/v1/agents` API) | Implemented |
-| 3 | Memory & Knowledge (pluggable vector stores, file_search, RAG) | Implemented |
-| 4 | Ambient Agents (webhooks, cron triggers, completion hooks) | Planned |
-| 5 | Delivery Channels (Slack, Teams, email, webhooks) | Planned |
-| 6 | Tool Registry (curated, audited, per-tenant permissions) | Planned |
-| 7 | Kubernetes Operator (declarative CRDs for lifecycle management) | Planned |
+| Area | Capability | Status |
+|------|-----------|--------|
+| Inference | Multi-provider LLM routing (vLLM, LiteLLM, Ollama) | Implemented |
+| Tools | MCP client, web search, code interpreter, file search | Implemented |
+| Security | JWT/OIDC auth, per-user ownership, scope-based authorization, audit logging | Implemented |
+| Knowledge | Files API, vector stores, RAG with citation generation | Implemented |
+| Config | Agent profiles with per-agent model, tools, and instructions | Implemented |
+| Sandbox | Kubernetes-native code execution via agent-sandbox CRDs | Implemented |
+| Async | Background responses for long-running agent requests | Planned |
+| Memory | Conversation branching and summarization for long-running agents | Planned |
+| Registry | Dynamic tool discovery and per-tenant tool permissions | Planned |
 
 ## Architecture
 
-Antwort is designed interface-first. Every major subsystem is defined as a Go interface with pluggable implementations. The core depends only on the Go standard library.
+Autonomous agents call Antwort's API for LLM reasoning. Antwort handles inference routing, tool execution, storage, and security.
 
 ```
+  Agent Workloads (OpenClaw, LangGraph, custom)
+       │
+       │  OpenAI SDK (Responses API)
+       ▼
 ┌──────────────────────────────────────────────────────┐
 │                    Antwort Gateway                    │
 │                                                      │
 │  ┌──────────┐  ┌──────────┐  ┌────────────────────┐ │
 │  │Transport │  │  Auth    │  │   Observability    │ │
 │  │HTTP/SSE  │  │JWT/OIDC  │  │Prometheus/OTel     │ │
-│  └────┬─────┘  │API Key   │  └────────────────────┘ │
-│       │        └──────────┘                          │
+│  └────┬─────┘  │API Key   │  │Audit Logging       │ │
+│       │        └──────────┘  └────────────────────┘ │
 │  ┌────▼──────────────────────────────────┐           │
 │  │  Engine (Agentic Loop)                │           │
 │  │  Multi-turn reasoning, tool routing   │           │
@@ -111,7 +119,12 @@ Antwort is designed interface-first. Every major subsystem is defined as a Go in
 │  │  PostgreSQL / In-memory  │                        │
 │  └──────────────────────────┘                        │
 └──────────────────────────────────────────────────────┘
+       │
+       ▼
+  LLM Backends (vLLM, Ollama, LiteLLM, OpenAI-compatible)
 ```
+
+Every major subsystem is defined as a Go interface with pluggable implementations. The core depends only on the Go standard library.
 
 ### Key Design Decisions
 
@@ -185,14 +198,16 @@ curl -X POST http://antwort:8080/v1/responses \
   }'
 ```
 
-Any OpenAI SDK works too:
+Any agent framework that uses the OpenAI SDK works without modification:
 
 ```python
 from openai import OpenAI
 
+# Point your agent at Antwort instead of OpenAI directly
 client = OpenAI(base_url="http://antwort:8080/v1", api_key="your-key")
 response = client.responses.create(
     model="your-model",
+    agent="researcher",  # optional: use an agent profile for system prompt + tools
     input="What are the latest AI news?",
     tools=[{"type": "web_search"}],
 )
