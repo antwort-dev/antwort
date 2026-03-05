@@ -9,7 +9,7 @@ IMAGE_TAG  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
 
 KUBE_NAMESPACE ?= antwort
 
-.PHONY: build test vet conformance api-test ci-sdk-test e2e clean image-build image-push image-latest sandbox-build sandbox-push deploy deploy-openshift docs docs-serve
+.PHONY: build test vet conformance api-test ci-sdk-test e2e coverage coverage-unit clean image-build image-push image-latest sandbox-build sandbox-push deploy deploy-openshift docs docs-serve
 
 # Build all binaries.
 build:
@@ -103,6 +103,34 @@ docs-serve: docs
 	@echo "Starting local server at http://localhost:8070"
 	npx http-server docs/build/site -p 8070 -c-1
 
+COVERAGE_DIR := coverage
+
+# Generate test coverage reports (unit + integration combined).
+coverage:
+	@mkdir -p $(COVERAGE_DIR)
+	@echo "Running unit + integration tests with coverage..."
+	go test ./pkg/... ./test/integration/... \
+		-coverpkg=./pkg/... \
+		-coverprofile=$(COVERAGE_DIR)/combined.out \
+		-timeout 120s -count=1
+	@echo ""
+	@echo "=== Coverage Summary ==="
+	@go tool cover -func=$(COVERAGE_DIR)/combined.out | tail -1
+	@echo ""
+	@echo "Generating HTML report..."
+	@go tool cover -html=$(COVERAGE_DIR)/combined.out -o $(COVERAGE_DIR)/combined.html
+	@echo "HTML report: $(COVERAGE_DIR)/combined.html"
+	@# Extract percentage for badge
+	@go tool cover -func=$(COVERAGE_DIR)/combined.out | tail -1 | awk '{print $$3}' > $(COVERAGE_DIR)/percentage.txt
+	@echo "Coverage: $$(cat $(COVERAGE_DIR)/percentage.txt)"
+
+# Generate coverage for unit tests only.
+coverage-unit:
+	@mkdir -p $(COVERAGE_DIR)
+	go test ./pkg/... -coverprofile=$(COVERAGE_DIR)/unit.out -timeout 60s -count=1
+	@go tool cover -func=$(COVERAGE_DIR)/unit.out | tail -1
+	@go tool cover -html=$(COVERAGE_DIR)/unit.out -o $(COVERAGE_DIR)/unit.html
+
 # Clean build artifacts.
 clean:
-	rm -rf $(BIN_DIR) docs/build
+	rm -rf $(BIN_DIR) $(COVERAGE_DIR) docs/build

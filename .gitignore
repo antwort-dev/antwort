@@ -13,6 +13,7 @@
 # Output of go coverage tool
 *.out
 *.prof
+/coverage/
 
 # Go workspace
 go.work

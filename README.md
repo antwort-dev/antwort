@@ -1,5 +1,8 @@
 # Antwort
 
+[![CI](https://github.com/antwort-dev/antwort/actions/workflows/ci.yml/badge.svg)](https://github.com/antwort-dev/antwort/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/antwort-dev/antwort/main/.github/badges/coverage.json)](https://github.com/antwort-dev/antwort/actions/workflows/ci.yml)
+
 **The server-side agentic framework.**
 
 A production-grade [OpenResponses](https://www.openresponses.org/) API implementation written in Go. Antwort runs AI agents server-side on Kubernetes with sandboxed code execution, multi-tenant isolation, and full API compatibility with any OpenAI SDK.
