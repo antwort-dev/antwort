@@ -58,12 +58,18 @@ func main() {
 func run() error {
 	// Parse command-line flags.
 	configPath := flag.String("config", "", "path to YAML config file")
+	modeFlag := flag.String("mode", "", "server mode: gateway, worker, or integrated (default)")
 	flag.Parse()
 
 	// Load configuration (YAML file + env overrides + defaults).
 	cfg, err := config.Load(*configPath)
 	if err != nil {
 		return fmt.Errorf("loading configuration: %w", err)
+	}
+
+	// Override mode from command-line flag if provided.
+	if *modeFlag != "" {
+		cfg.Engine.Mode = *modeFlag
 	}
 
 	// Initialize debug logging from config (env overrides config).
@@ -225,31 +231,67 @@ func run() error {
 		WriteTimeout: cfg.Server.WriteTimeout,
 	}
 
+	// Start background worker if mode is "worker" or "integrated".
+	var bgWorker *engine.Worker
+	mode := cfg.Engine.Mode
+	if mode == "" {
+		mode = "integrated"
+	}
+
+	if mode == "worker" || mode == "integrated" {
+		bgWorker = engine.NewWorker(eng, cfg.Engine.Background)
+	}
+
 	// Graceful shutdown.
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	// Start server in background.
 	errCh := make(chan error, 1)
-	go func() {
-		slog.Info("server starting",
-			"port", cfg.Server.Port,
+
+	// Start HTTP server unless in worker-only mode.
+	if mode != "worker" {
+		go func() {
+			slog.Info("server starting",
+				"port", cfg.Server.Port,
+				"mode", mode,
+				"backend", cfg.Engine.BackendURL,
+				"provider", cfg.Engine.Provider,
+				"model", cfg.Engine.DefaultModel,
+			)
+			if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				errCh <- err
+			}
+		}()
+	} else {
+		slog.Info("worker mode: HTTP server disabled",
+			"mode", mode,
 			"backend", cfg.Engine.BackendURL,
 			"provider", cfg.Engine.Provider,
 			"model", cfg.Engine.DefaultModel,
 		)
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			errCh <- err
-		}
-	}()
+	}
+
+	// Start background worker poll loop.
+	if bgWorker != nil {
+		go bgWorker.Start(ctx)
+	}
 
 	// Wait for shutdown signal or error.
 	select {
 	case <-ctx.Done():
-		slog.Info("shutting down gracefully")
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		return srv.Shutdown(shutdownCtx)
+		slog.Info("shutting down gracefully", "mode", mode)
+
+		// Stop background worker with drain timeout.
+		if bgWorker != nil {
+			bgWorker.Stop()
+		}
+
+		if mode != "worker" {
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			return srv.Shutdown(shutdownCtx)
+		}
+		return nil
 	case err := <-errCh:
 		return err
 	}

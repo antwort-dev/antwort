@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"time"
@@ -60,6 +61,19 @@ func (e *Engine) CreateResponse(ctx context.Context, req *api.CreateResponseRequ
 		ctx = agent.SetVectorStoreIDs(ctx, profileVectorStoreIDs)
 	}
 
+	// Validate background mode constraints (FR-003, FR-004).
+	if req.Background {
+		if !isStateful(req) {
+			return api.NewInvalidRequestError("background", "background mode requires store to be enabled")
+		}
+		if req.Stream {
+			return api.NewInvalidRequestError("background", "background mode cannot be used with streaming")
+		}
+		if e.store == nil {
+			return api.NewInvalidRequestError("background", "background mode requires a storage backend")
+		}
+	}
+
 	// Apply default model if the request omits it.
 	if req.Model == "" {
 		if e.cfg.DefaultModel != "" {
@@ -100,6 +114,11 @@ func (e *Engine) CreateResponse(ctx context.Context, req *api.CreateResponseRequ
 	useLoop := e.hasExecutors() && len(req.Tools) > 0 &&
 		!(req.ToolChoice != nil && req.ToolChoice.String == "none")
 
+	// Background mode: queue the request and return immediately (FR-002, FR-006).
+	if req.Background {
+		return e.handleBackground(ctx, req, w)
+	}
+
 	if req.Stream {
 		if useLoop {
 			return e.runAgenticLoopStreaming(ctx, req, provReq, w)
@@ -111,6 +130,46 @@ func (e *Engine) CreateResponse(ctx context.Context, req *api.CreateResponseRequ
 		return e.runAgenticLoop(ctx, req, provReq, w)
 	}
 	return e.handleNonStreaming(ctx, req, provReq, w)
+}
+
+// handleBackground queues a background request and returns immediately.
+// The response is saved with status "queued" and the serialized request
+// is stored for later worker reconstruction.
+func (e *Engine) handleBackground(ctx context.Context, req *api.CreateResponseRequest, w transport.ResponseWriter) error {
+	// Build a queued response.
+	resp := buildResponseFromRequest(req, api.ResponseStatusQueued)
+	resp.Background = true
+	resp.Input = req.Input
+
+	// Save the response to the store.
+	if err := e.store.SaveResponse(ctx, resp); err != nil {
+		return fmt.Errorf("saving background response: %w", err)
+	}
+
+	// Serialize and save the original request for worker reconstruction.
+	reqData, err := json.Marshal(req)
+	if err != nil {
+		return fmt.Errorf("serializing background request: %w", err)
+	}
+
+	// Use the BackgroundRequestSaver interface if available.
+	if saver, ok := e.store.(BackgroundRequestSaver); ok {
+		if err := saver.SaveBackgroundRequest(ctx, resp.ID, reqData); err != nil {
+			slog.Warn("failed to save background request data",
+				"response_id", resp.ID,
+				"error", err.Error(),
+			)
+		}
+	}
+
+	// Return the queued response to the client immediately.
+	return w.WriteResponse(ctx, resp)
+}
+
+// BackgroundRequestSaver is an optional interface for stores that support
+// saving the serialized request alongside a background response.
+type BackgroundRequestSaver interface {
+	SaveBackgroundRequest(ctx context.Context, id string, reqData json.RawMessage) error
 }
 
 // handleNonStreaming processes a non-streaming request.
