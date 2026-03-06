@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  lint-test:
+  unit-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -20,58 +20,17 @@ jobs:
       - name: Run go vet
         run: go vet ./pkg/... ./cmd/...
 
-      - name: Run unit + integration tests with coverage
+      - name: Run unit tests with coverage
         run: |
-          go test $(go list ./pkg/... | grep -v /postgres) ./test/integration/... \
+          go test $(go list ./pkg/... | grep -v /postgres) \
             -coverpkg=./pkg/... \
             -coverprofile=coverage.out \
             -timeout 120s -count=1
 
-      - name: Run E2E coverage (instrumented binary)
-        run: |
-          echo "Building instrumented server..."
-          go build -cover -o bin/server-cover ./cmd/server/
-          go build -o bin/mock-backend ./cmd/mock-backend/
-          mkdir -p coverage-e2e
-
-          echo "Starting replay backend with recordings..."
-          MOCK_PORT=9091 bin/mock-backend --recordings-dir test/e2e/recordings &
-          MOCK_PID=$!
-          sleep 1
-
-          echo "Starting instrumented server..."
-          GOCOVERDIR=$(pwd)/coverage-e2e \
-          ANTWORT_BACKEND_URL=http://localhost:9091 \
-          ANTWORT_MODEL=mock-model ANTWORT_PORT=8081 ANTWORT_STORAGE=memory \
-          bin/server-cover &
-          SERVER_PID=$!
-          sleep 2
-
-          echo "Running E2E tests..."
-          ANTWORT_BASE_URL=http://localhost:8081/v1 \
-          go test -tags e2e ./test/e2e/ -v -timeout 60s -count=1 -run 'TestE2E' || true
-
-          echo "Stopping servers..."
-          kill -INT $SERVER_PID 2>/dev/null
-          for i in $(seq 1 10); do kill -0 $SERVER_PID 2>/dev/null || break; sleep 0.5; done
-          kill $MOCK_PID 2>/dev/null
-          sleep 1
-
-          echo "Extracting E2E coverage..."
-          if ls coverage-e2e/covcounters.* >/dev/null 2>&1; then
-            go tool covdata textfmt -i=coverage-e2e -o coverage-e2e.out
-            E2E_COV=$(go tool cover -func=coverage-e2e.out | tail -1 | awk '{print $3}')
-            echo "E2E coverage: ${E2E_COV}"
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "**E2E Coverage:** ${E2E_COV}" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "No E2E coverage data produced (binary may not have exited cleanly)"
-          fi
-
       - name: Report coverage
         run: |
           COVERAGE=$(go tool cover -func=coverage.out | tail -1 | awk '{print $3}')
-          echo "## Test Coverage: ${COVERAGE}" >> $GITHUB_STEP_SUMMARY
+          echo "## Unit Test Coverage: ${COVERAGE}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Package | Coverage |" >> $GITHUB_STEP_SUMMARY
           echo "|---------|----------|" >> $GITHUB_STEP_SUMMARY
@@ -104,6 +63,128 @@ jobs:
           git add .github/badges/coverage.json
           git diff --cached --quiet || git commit -m "Update coverage badge to ${COVERAGE}%" && git push || true
 
+  integration-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - name: Run Go integration tests
+        run: go test ./test/integration/... -v -timeout 120s -count=1
+
+      - name: Build binaries
+        run: |
+          go build -o bin/server ./cmd/server/
+          go build -o bin/mock-backend ./cmd/mock-backend/
+
+      - name: Start mock backend
+        run: |
+          MOCK_PORT=9090 ./bin/mock-backend &
+          echo "MOCK_PID=$!" >> $GITHUB_ENV
+
+      - name: Start antwort server
+        run: |
+          ANTWORT_BACKEND_URL="http://localhost:9090" \
+          ANTWORT_MODEL="mock-model" \
+          ANTWORT_PORT="8080" \
+          ANTWORT_STORAGE="memory" \
+          ./bin/server &
+          echo "SERVER_PID=$!" >> $GITHUB_ENV
+
+      - name: Wait for services
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8080/healthz > /dev/null 2>&1; then
+              echo "Services ready after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "ERROR: Services did not start within 30s"
+          exit 1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python SDK dependencies
+        run: pip install -r test/sdk/python/requirements.txt
+
+      - name: Run Python SDK tests
+        run: pytest test/sdk/python/ -v
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install TypeScript SDK dependencies
+        run: cd test/sdk/typescript && bun install
+
+      - name: Run TypeScript SDK tests
+        run: cd test/sdk/typescript && bun test
+
+      - name: Server logs on failure
+        if: failure()
+        run: |
+          echo "=== Mock backend logs ==="
+          kill ${{ env.MOCK_PID }} 2>/dev/null || true
+          echo "=== Server logs ==="
+          kill ${{ env.SERVER_PID }} 2>/dev/null || true
+
+  e2e-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - name: Build instrumented server and mock backend
+        run: |
+          go build -cover -o bin/server-cover ./cmd/server/
+          go build -o bin/mock-backend ./cmd/mock-backend/
+          mkdir -p coverage-e2e
+
+      - name: Start replay backend with recordings
+        run: |
+          MOCK_PORT=9091 bin/mock-backend --recordings-dir test/e2e/recordings &
+          echo "MOCK_PID=$!" >> $GITHUB_ENV
+          sleep 1
+
+      - name: Start instrumented server
+        run: |
+          GOCOVERDIR=$(pwd)/coverage-e2e \
+          ANTWORT_BACKEND_URL=http://localhost:9091 \
+          ANTWORT_MODEL=mock-model ANTWORT_PORT=8081 ANTWORT_STORAGE=memory \
+          bin/server-cover &
+          echo "SERVER_PID=$!" >> $GITHUB_ENV
+          sleep 2
+
+      - name: Run E2E tests
+        run: |
+          ANTWORT_BASE_URL=http://localhost:8081/v1 \
+          go test -tags e2e ./test/e2e/ -v -timeout 60s -count=1 -run 'TestE2E|TestReplay'
+
+      - name: Stop servers and extract coverage
+        if: always()
+        run: |
+          kill -INT ${{ env.SERVER_PID }} 2>/dev/null || true
+          for i in $(seq 1 10); do kill -0 ${{ env.SERVER_PID }} 2>/dev/null || break; sleep 0.5; done
+          kill ${{ env.MOCK_PID }} 2>/dev/null || true
+          sleep 1
+
+          if ls coverage-e2e/covcounters.* >/dev/null 2>&1; then
+            go tool covdata textfmt -i=coverage-e2e -o coverage-e2e.out
+            E2E_COV=$(go tool cover -func=coverage-e2e.out | tail -1 | awk '{print $3}')
+            echo "## E2E Coverage: ${E2E_COV}" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "No E2E coverage data produced (binary may not have exited cleanly)" >> $GITHUB_STEP_SUMMARY
+          fi
+
   conformance:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -119,9 +200,6 @@ jobs:
 
       - name: Run oasdiff validation
         run: ./api/validate-oasdiff.sh
-
-      - name: Run integration tests
-        run: go test ./test/integration/ -timeout 120s -v -count=1
 
       - name: Build binaries
         run: |
@@ -225,78 +303,6 @@ jobs:
           echo "=== Server logs ==="
           kill ${{ env.SERVER_PID }} 2>/dev/null || true
 
-  integration-tests:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.25"
-
-      - name: Build binaries
-        run: |
-          go build -o bin/server ./cmd/server/
-          go build -o bin/mock-backend ./cmd/mock-backend/
-
-      - name: Start mock backend
-        run: |
-          MOCK_PORT=9090 ./bin/mock-backend &
-          echo "MOCK_PID=$!" >> $GITHUB_ENV
-
-      - name: Start antwort server
-        run: |
-          ANTWORT_BACKEND_URL="http://localhost:9090" \
-          ANTWORT_MODEL="mock-model" \
-          ANTWORT_PORT="8080" \
-          ANTWORT_STORAGE="memory" \
-          ./bin/server &
-          echo "SERVER_PID=$!" >> $GITHUB_ENV
-
-      - name: Wait for services
-        run: |
-          for i in $(seq 1 30); do
-            if curl -sf http://localhost:8080/healthz > /dev/null 2>&1; then
-              echo "Services ready after ${i}s"
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "ERROR: Services did not start within 30s"
-          exit 1
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install Python SDK dependencies
-        run: pip install -r test/sdk/python/requirements.txt
-
-      - name: Run Python SDK tests
-        run: pytest test/sdk/python/ -v
-
-      - uses: oven-sh/setup-bun@v2
-
-      - name: Install TypeScript SDK dependencies
-        run: cd test/sdk/typescript && bun install
-
-      - name: Run TypeScript SDK tests
-        run: cd test/sdk/typescript && bun test
-
-      - name: Run Go E2E tests
-        run: |
-          ANTWORT_BASE_URL=http://localhost:8080/v1 \
-          go test -tags e2e ./test/e2e/ -v -timeout 60s -count=1 -run 'TestE2E'
-
-      - name: Server logs on failure
-        if: failure()
-        run: |
-          echo "=== Mock backend logs ==="
-          kill ${{ env.MOCK_PID }} 2>/dev/null || true
-          echo "=== Server logs ==="
-          kill ${{ env.SERVER_PID }} 2>/dev/null || true
-
   kubernetes:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -347,7 +353,7 @@ jobs:
           curl -v http://localhost:8080/healthz || true
           exit 1
 
-      - name: Run E2E tests
+      - name: Run E2E tests against cluster
         run: |
           go test -tags e2e ./test/e2e/ -v -timeout 120s \
             -run 'TestE2E|TestReplay' \
