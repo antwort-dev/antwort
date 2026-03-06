@@ -44,24 +44,38 @@ When `background: true`:
 
 How should background requests be processed?
 
-**Option A: Goroutine pool** (simplest)
-- Background requests are processed by goroutines from a bounded pool
+**Option A: In-process goroutine pool** (simplest)
+- Background requests are processed by goroutines from a bounded pool within the same Antwort process
 - Pool size configurable (e.g., `engine.max_background_workers: 10`)
 - Queue is in-memory (requests lost on restart)
 - Simple, no new dependencies
+- Downside: background work competes with synchronous requests for CPU/memory
 
-**Option B: Work queue with persistence** (more robust)
-- Background requests are persisted to storage with status `queued`
-- A worker goroutine pool processes queued responses
-- Survives restarts (reprocesses queued items on startup)
-- Requires storage backend (already have PostgreSQL)
+**Option B: Separate Worker Deployment** (distributed but simple, FAVORED)
+- Same Antwort binary, two modes: `--mode=gateway` and `--mode=worker`
+- Gateway accepts HTTP requests, queues background requests to PostgreSQL
+- Worker pods poll PostgreSQL for queued requests and process them
+- Workers are always-running Deployments (warm, ready to process immediately)
+- Gateway and workers scale independently (e.g., 2 gateway pods, 8 worker pods)
+- Clean resource isolation: background work doesn't affect sync request latency
+- Shared PostgreSQL for response state (already a dependency)
+- K8s-native: separate Deployments, HPA-compatible, standard scaling
 
-**Option C: External job queue** (most scalable)
+**Option C: K8s Jobs per request** (most K8s-native but complex)
+- Each background request creates a K8s Job
+- Maximum isolation (one Pod per request)
+- Automatic cleanup via Job TTL
+- Requires Antwort to have RBAC for Job creation
+- Cold start latency unless combined with warm pools
+
+**Option D: External job queue** (most scalable)
 - Use an external message broker (Redis, NATS, etc.)
 - Decoupled workers can scale independently
 - Adds infrastructure dependency (conflicts with constitution Principle II)
 
-**Recommendation**: Start with **Option A** (goroutine pool) for MVP, with the queue persisted to storage so responses survive restart. This keeps it simple and stdlib-only while being practical.
+**Decision**: We favor **Option B** (separate Worker Deployment). This gives us the distributed architecture and resource isolation of a production system while keeping it simple (same binary, PostgreSQL as the queue, always-warm worker pods). It avoids the complexity of K8s Job management (Option C) and external dependencies (Option D), while being significantly better than in-process goroutines (Option A) for production workloads.
+
+For development and testing, the binary can run in an "integrated" mode that combines gateway and worker in a single process (effectively Option A), so developers don't need a full distributed setup locally.
 
 ### Q3: Polling vs Webhooks vs SSE
 
@@ -105,24 +119,27 @@ However, a future enhancement could allow SSE streaming to a background response
 
 ## Proposed Implementation
 
-### Phase 1: MVP (spec candidate)
+### Phase 1: Distributed Worker Architecture (spec candidate)
 
 1. Add `Background bool` field to `CreateResponseRequest`
 2. Validate: `background: true` requires `store: true`, mutually exclusive with `stream: true`
-3. On `background: true`, create response with status `queued`, persist to storage, return immediately
-4. Background worker goroutine pool picks up queued responses and processes them
-5. Worker updates response status as it progresses (queued -> in_progress -> completed/failed)
-6. Client polls GET /v1/responses/{id} to check status
-7. DELETE /v1/responses/{id} cancels in-flight background requests
-8. Config: `engine.max_background_workers` (default: 10)
+3. Add `--mode` flag to server binary: `gateway` (default), `worker`, `integrated`
+4. **Gateway mode**: accepts HTTP requests. On `background: true`, creates response with status `queued` in PostgreSQL, returns immediately
+5. **Worker mode**: polls PostgreSQL for `queued` responses, processes them (full agentic loop: inference, tool execution, multi-turn)
+6. **Integrated mode**: combines gateway + worker in one process (for dev/testing)
+7. Worker updates response status as it progresses (queued -> in_progress -> completed/failed)
+8. Client polls GET /v1/responses/{id} to check status
+9. DELETE /v1/responses/{id} cancels in-flight background requests (using context cancellation)
+10. Config: worker pool size, poll interval, background response TTL
+11. Kustomize overlay for production: separate Gateway Deployment and Worker Deployment sharing the same PostgreSQL
 
 ### Phase 2: Enhancements (future)
 
 - Webhook callbacks on completion
 - SSE streaming to background responses (connect-later pattern)
 - Priority queues (high-priority background requests)
-- Persistent queue (reprocess on restart)
 - Background request metrics (queue depth, wait time, processing time)
+- Investigate agent-sandbox controller reuse for worker pool management (warm pools, lifecycle CRDs)
 
 ## Scope
 
