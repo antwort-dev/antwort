@@ -119,6 +119,36 @@ func (s *Store) CleanupExpired(ctx context.Context, olderThan time.Time, batchSi
 	return int(result.RowsAffected()), nil
 }
 
+// FindStaleResponses returns IDs of background responses that have been
+// in_progress longer than the staleness timeout without a heartbeat update.
+func (s *Store) FindStaleResponses(stalenessTimeout time.Duration) []string {
+	ctx := context.Background()
+	cutoff := time.Now().Add(-stalenessTimeout)
+
+	query := `
+		SELECT id FROM responses
+		WHERE status = 'in_progress'
+		  AND background = TRUE
+		  AND deleted_at IS NULL
+		  AND worker_heartbeat < $1
+	`
+
+	rows, err := s.pool.Query(ctx, query, cutoff)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err == nil {
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
+
 // SaveBackgroundRequest stores the serialized request alongside the response.
 func (s *Store) SaveBackgroundRequest(ctx context.Context, id string, reqData json.RawMessage) error {
 	query := `UPDATE responses SET background_request = $1, background = TRUE WHERE id = $2`

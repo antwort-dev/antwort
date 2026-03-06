@@ -56,7 +56,15 @@ func (s *Store) ClaimQueuedResponse(ctx context.Context, workerID string) (*api.
 	now := time.Now()
 	oldest.workerHeartbeat = &now
 
-	return oldest.resp, oldest.backgroundReq, nil
+	// Return a copy to prevent shared-state mutations between
+	// the stored entry and the worker's processing.
+	cp := *oldest.resp
+	if oldest.resp.Output != nil {
+		cp.Output = make([]api.Item, len(oldest.resp.Output))
+		copy(cp.Output, oldest.resp.Output)
+	}
+
+	return &cp, oldest.backgroundReq, nil
 }
 
 // CleanupExpired deletes terminal background responses older than the given cutoff.
