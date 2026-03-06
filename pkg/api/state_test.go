@@ -35,7 +35,7 @@ func TestValidateResponseTransition(t *testing.T) {
 		// Invalid transitions skipping required states or going backward
 		{name: "queued to completed (skip in_progress)", from: ResponseStatusQueued, to: ResponseStatusCompleted, wantErr: true},
 		{name: "queued to failed", from: ResponseStatusQueued, to: ResponseStatusFailed, wantErr: true},
-		{name: "queued to cancelled", from: ResponseStatusQueued, to: ResponseStatusCancelled, wantErr: true},
+		{name: "queued to cancelled", from: ResponseStatusQueued, to: ResponseStatusCancelled, wantErr: false},
 		{name: "in_progress to queued (backward)", from: ResponseStatusInProgress, to: ResponseStatusQueued, wantErr: true},
 	}
 

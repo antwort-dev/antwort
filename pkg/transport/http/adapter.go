@@ -321,9 +321,14 @@ func (a *Adapter) handleDeleteResponse(w http.ResponseWriter, r *http.Request) {
 	if getErr != nil {
 		if errors.Is(getErr, storage.ErrNotFound) {
 			transport.WriteAPIError(w, api.NewNotFoundError("response "+id+" not found"))
-		} else {
-			transport.WriteAPIError(w, api.NewServerError(getErr.Error()))
+			return
 		}
+		var apiErr *api.APIError
+		if errors.As(getErr, &apiErr) {
+			transport.WriteAPIError(w, apiErr)
+			return
+		}
+		transport.WriteAPIError(w, api.NewServerError(getErr.Error()))
 		return
 	}
 
