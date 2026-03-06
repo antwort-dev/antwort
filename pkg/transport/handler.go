@@ -2,6 +2,8 @@ package transport
 
 import (
 	"context"
+	"encoding/json"
+	"time"
 
 	"github.com/rhuss/antwort/pkg/api"
 )
@@ -25,11 +27,13 @@ func (f ResponseCreatorFunc) CreateResponse(ctx context.Context, req *api.Create
 
 // ListOptions controls pagination, filtering, and ordering for list operations.
 type ListOptions struct {
-	After  string // Cursor: return items after this ID.
-	Before string // Cursor: return items before this ID.
-	Limit  int    // Maximum number of items to return (default 20, max 100).
-	Model  string // Filter responses by model name (list responses only).
-	Order  string // Sort order: "asc" or "desc" (default "desc").
+	After      string // Cursor: return items after this ID.
+	Before     string // Cursor: return items before this ID.
+	Limit      int    // Maximum number of items to return (default 20, max 100).
+	Model      string // Filter responses by model name (list responses only).
+	Order      string // Sort order: "asc" or "desc" (default "desc").
+	Status     string // Filter responses by status (e.g., "queued", "in_progress").
+	Background *bool  // Filter responses by background flag.
 }
 
 // ResponseList holds a paginated list of responses.
@@ -80,8 +84,33 @@ type ResponseStore interface {
 	// HealthCheck verifies the store connection is functional.
 	HealthCheck(ctx context.Context) error
 
+	// UpdateResponse updates specific fields on an existing response.
+	// Only non-nil fields in the update are applied.
+	UpdateResponse(ctx context.Context, id string, update ResponseUpdate) error
+
+	// ClaimQueuedResponse atomically transitions one queued response to
+	// in_progress and assigns the given worker ID. Returns the response
+	// and the original serialized request. Returns nil, nil, nil if no
+	// queued responses are available.
+	ClaimQueuedResponse(ctx context.Context, workerID string) (*api.Response, json.RawMessage, error)
+
+	// CleanupExpired deletes terminal background responses older than the
+	// given cutoff time. Returns the number of responses deleted.
+	CleanupExpired(ctx context.Context, olderThan time.Time, batchSize int) (int, error)
+
 	// Close releases database connections and resources.
 	Close() error
+}
+
+// ResponseUpdate holds the fields to update on an existing response.
+// Only non-nil/non-zero fields are applied.
+type ResponseUpdate struct {
+	Status          *api.ResponseStatus
+	Output          []api.Item
+	Error           *api.APIError
+	Usage           *api.Usage
+	CompletedAt     *int64
+	WorkerHeartbeat *time.Time
 }
 
 // ConversationList is a paginated list of conversations.

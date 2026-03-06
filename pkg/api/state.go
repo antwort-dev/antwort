@@ -8,7 +8,7 @@ import "fmt"
 func ValidateResponseTransition(from, to ResponseStatus) *APIError {
 	valid := map[ResponseStatus][]ResponseStatus{
 		"":                       {ResponseStatusQueued, ResponseStatusInProgress},
-		ResponseStatusQueued:     {ResponseStatusInProgress},
+		ResponseStatusQueued:     {ResponseStatusInProgress, ResponseStatusCancelled},
 		ResponseStatusInProgress:     {ResponseStatusCompleted, ResponseStatusFailed, ResponseStatusCancelled, ResponseStatusRequiresAction},
 		ResponseStatusRequiresAction: {}, // terminal
 	}

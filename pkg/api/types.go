@@ -637,6 +637,7 @@ type CreateResponseRequest struct {
 	Reasoning          *ReasoningConfig             `json:"reasoning,omitempty"`
 	Text               *TextConfig                  `json:"text,omitempty"`
 	Include            []string                     `json:"include,omitempty"`
+	Background         bool                         `json:"background,omitempty"`
 	StreamOptions      *StreamOptions               `json:"stream_options,omitempty"`
 	Extensions         map[string]json.RawMessage   `json:"extensions,omitempty"`
 }

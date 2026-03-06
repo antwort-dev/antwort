@@ -266,6 +266,79 @@ func (s *Store) Close() error {
 	return nil
 }
 
+// UpdateResponse updates specific fields on an existing response.
+func (s *Store) UpdateResponse(ctx context.Context, id string, update transport.ResponseUpdate) error {
+	setClauses := []string{}
+	args := []any{}
+	argIdx := 1
+
+	if update.Status != nil {
+		setClauses = append(setClauses, fmt.Sprintf("status = $%d", argIdx))
+		args = append(args, string(*update.Status))
+		argIdx++
+	}
+	if update.Output != nil {
+		outputJSON, err := json.Marshal(update.Output)
+		if err != nil {
+			return fmt.Errorf("marshaling output: %w", err)
+		}
+		setClauses = append(setClauses, fmt.Sprintf("output = $%d", argIdx))
+		args = append(args, outputJSON)
+		argIdx++
+	}
+	if update.Error != nil {
+		errorJSON, err := json.Marshal(update.Error)
+		if err != nil {
+			return fmt.Errorf("marshaling error: %w", err)
+		}
+		setClauses = append(setClauses, fmt.Sprintf("error = $%d", argIdx))
+		args = append(args, errorJSON)
+		argIdx++
+	}
+	if update.Usage != nil {
+		setClauses = append(setClauses,
+			fmt.Sprintf("usage_input_tokens = $%d", argIdx),
+			fmt.Sprintf("usage_output_tokens = $%d", argIdx+1),
+			fmt.Sprintf("usage_total_tokens = $%d", argIdx+2),
+		)
+		args = append(args, update.Usage.InputTokens, update.Usage.OutputTokens, update.Usage.TotalTokens)
+		argIdx += 3
+	}
+	if update.CompletedAt != nil {
+		setClauses = append(setClauses, fmt.Sprintf("completed_at = $%d", argIdx))
+		args = append(args, *update.CompletedAt)
+		argIdx++
+	}
+	if update.WorkerHeartbeat != nil {
+		setClauses = append(setClauses, fmt.Sprintf("worker_heartbeat = $%d", argIdx))
+		args = append(args, *update.WorkerHeartbeat)
+		argIdx++
+	}
+
+	if len(setClauses) == 0 {
+		return nil
+	}
+
+	query := "UPDATE responses SET "
+	for i, c := range setClauses {
+		if i > 0 {
+			query += ", "
+		}
+		query += c
+	}
+	query += fmt.Sprintf(" WHERE id = $%d AND deleted_at IS NULL", argIdx)
+	args = append(args, id)
+
+	result, err := s.pool.Exec(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("updating response: %w", err)
+	}
+	if result.RowsAffected() == 0 {
+		return storage.ErrNotFound
+	}
+	return nil
+}
+
 // nullString converts an empty string to nil for nullable TEXT columns.
 func nullString(s string) *string {
 	if s == "" {
