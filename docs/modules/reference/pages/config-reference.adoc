@@ -68,6 +68,52 @@ For annotated examples and usage guidance, see xref:configuration.adoc[].
 |
 | Maximum number of agentic loop turns before returning an incomplete response.
 
+| `engine.mode`
+| string
+| `integrated`
+| `ANTWORT_MODE`
+| Server mode: `gateway` (HTTP only), `worker` (background processing only), or `integrated` (both).
+
+5+h| Background Processing
+
+| `engine.background.poll_interval`
+| duration
+| `5s`
+|
+| How often workers poll for queued background requests.
+
+| `engine.background.drain_timeout`
+| duration
+| `30s`
+|
+| Maximum time to wait for in-flight background requests during graceful shutdown.
+
+| `engine.background.staleness_timeout`
+| duration
+| `10m`
+|
+| Mark `in_progress` background requests as `failed` if no heartbeat is received within this duration.
+Detects crashed workers.
+
+| `engine.background.heartbeat_interval`
+| duration
+| `30s`
+|
+| How often the worker updates the heartbeat timestamp on its claimed responses.
+
+| `engine.background.ttl`
+| duration
+| `24h`
+|
+| Auto-cleanup interval for terminal background responses (`completed`, `failed`, `cancelled`).
+Responses older than this are deleted during the worker's poll cycle.
+
+| `engine.background.cleanup_batch_size`
+| int
+| `100`
+|
+| Maximum number of expired responses to delete per poll cycle.
+
 5+h| Storage
 
 | `storage.type`

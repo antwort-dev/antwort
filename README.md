@@ -81,7 +81,7 @@ Antwort focuses on being the best inference gateway for autonomous agents runnin
 | Knowledge | Files API, vector stores, RAG with citation generation | Implemented |
 | Config | Agent profiles with per-agent model, tools, and instructions | Implemented |
 | Sandbox | Kubernetes-native code execution via agent-sandbox CRDs | Implemented |
-| Async | Background responses for long-running agent requests | Planned |
+| Async | Background responses with distributed gateway/worker architecture | Implemented |
 | Memory | Conversation branching and summarization for long-running agents | Planned |
 | Registry | Dynamic tool discovery and per-tenant tool permissions | Planned |
 

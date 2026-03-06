@@ -45,6 +45,10 @@ This makes it straightforward to customize a shared config file per environment 
 | `engine.default_model`
 | Default model name.
 
+| `ANTWORT_MODE`
+| `engine.mode`
+| Server mode: `gateway`, `worker`, or `integrated`. Default: `integrated`.
+
 | `ANTWORT_STORAGE`
 | `storage.type`
 | `memory` or `postgres`.

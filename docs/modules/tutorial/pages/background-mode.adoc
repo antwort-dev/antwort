@@ -1,0 +1,140 @@
+= Background Mode
+:navtitle: Background Mode
+
+This tutorial covers how to use background mode for long-running inference requests.
+By the end, you will know how to submit background requests, poll for results, cancel in-flight requests, and monitor background request state.
+
+== Prerequisites
+
+* A running Antwort deployment with storage enabled (see xref:getting-started.adoc[])
+* `curl` and `jq` installed locally
+
+== Submitting a Background Request
+
+Add `"background": true` to any response creation request.
+The server accepts the request immediately and returns a response with status `queued`.
+
+[source,bash]
+----
+curl -s -X POST http://localhost:8080/v1/responses \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "/mnt/models",
+    "input": [
+      {
+        "type": "message",
+        "role": "user",
+        "content": [{"type": "input_text", "text": "Write a detailed essay about the history of computing."}]
+      }
+    ],
+    "background": true
+  }' | jq '{id: .id, status: .status, background: .background}'
+----
+
+Expected output:
+
+[source,json]
+----
+{
+  "id": "resp_abc123...",
+  "status": "queued",
+  "background": true
+}
+----
+
+Save the response ID for polling.
+
+== Polling for Results
+
+Use GET `/v1/responses/\{id\}` to check the status.
+Poll until the status is `completed`, `failed`, or `cancelled`.
+
+[source,bash]
+----
+RESPONSE_ID="resp_abc123..."
+
+# Poll until completed
+while true; do
+  STATUS=$(curl -s http://localhost:8080/v1/responses/$RESPONSE_ID | jq -r '.status')
+  echo "Status: $STATUS"
+  if [ "$STATUS" = "completed" ] || [ "$STATUS" = "failed" ] || [ "$STATUS" = "cancelled" ]; then
+    break
+  fi
+  sleep 2
+done
+
+# Retrieve the full response
+curl -s http://localhost:8080/v1/responses/$RESPONSE_ID | jq '{status: .status, output: .output[0].content[0].text}'
+----
+
+The completed response contains the full output, identical to what a synchronous request would produce.
+
+== Cancelling a Background Request
+
+If a background request is no longer needed, cancel it with DELETE.
+This works for requests in `queued` or `in_progress` status.
+
+[source,bash]
+----
+curl -X DELETE http://localhost:8080/v1/responses/$RESPONSE_ID
+----
+
+The response status transitions to `cancelled`.
+For requests that already completed or failed, DELETE performs a normal soft-delete.
+
+== Monitoring Background Requests
+
+Use the list endpoint with query parameters to monitor background request state.
+
+[source,bash]
+----
+# List all queued background requests
+curl -s "http://localhost:8080/v1/responses?status=queued&background=true" | jq '.data[] | {id: .id, status: .status}'
+
+# List all in-progress background requests
+curl -s "http://localhost:8080/v1/responses?status=in_progress&background=true" | jq '.data[] | {id: .id, status: .status}'
+
+# List all background requests regardless of status
+curl -s "http://localhost:8080/v1/responses?background=true" | jq '.data | length'
+----
+
+== When to Use Background Mode
+
+Background mode is most valuable for requests that take more than a few seconds to complete:
+
+* Complex multi-turn agentic tasks with tool calls
+* Large code generation requests
+* Requests with multiple sequential tool executions (code interpreter, file search)
+* Any request where blocking the client's control loop is unacceptable
+
+For quick single-turn completions, synchronous mode (the default) is simpler and lower latency.
+
+== Configuration
+
+Background processing is configured under `engine.background` in the config file.
+See xref:reference:config-reference.adoc[] for the complete list of settings.
+
+Key settings:
+
+[cols="2,1,4"]
+|===
+| Setting | Default | Description
+
+| `engine.mode`
+| `integrated`
+| Server mode: `gateway`, `worker`, or `integrated`
+
+| `engine.background.poll_interval`
+| `5s`
+| How often workers check for queued requests
+
+| `engine.background.drain_timeout`
+| `30s`
+| Time to wait for in-flight requests on shutdown
+
+| `engine.background.ttl`
+| `24h`
+| Auto-cleanup interval for completed/failed/cancelled responses
+|===
+
+For production deployments with separate gateway and worker pods, see xref:quickstarts:qs-09-background.adoc[].

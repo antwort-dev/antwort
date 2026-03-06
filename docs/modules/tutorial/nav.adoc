@@ -3,4 +3,5 @@
 * xref:first-tools.adoc[Adding Tools]
 * xref:code-execution.adoc[Code Execution]
 * xref:authorization.adoc[Authorization]
+* xref:background-mode.adoc[Background Mode]
 * xref:going-production.adoc[Going to Production]
