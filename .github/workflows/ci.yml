@@ -225,7 +225,7 @@ jobs:
           echo "=== Server logs ==="
           kill ${{ env.SERVER_PID }} 2>/dev/null || true
 
-  sdk-clients:
+  e2e-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -283,6 +283,11 @@ jobs:
 
       - name: Run TypeScript SDK tests
         run: cd test/sdk/typescript && bun test
+
+      - name: Run Go E2E tests
+        run: |
+          ANTWORT_BASE_URL=http://localhost:8080/v1 \
+          go test -tags e2e ./test/e2e/ -v -timeout 60s -count=1 -run 'TestE2E'
 
       - name: Server logs on failure
         if: failure()
