@@ -162,6 +162,8 @@ func (e *Engine) handleBackground(ctx context.Context, req *api.CreateResponseRe
 		}
 	}
 
+	e.auditLogger.Log(ctx, "background.queued", "response_id", resp.ID)
+
 	// Return the queued response to the client immediately.
 	return w.WriteResponse(ctx, resp)
 }

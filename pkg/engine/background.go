@@ -125,6 +125,11 @@ func (w *Worker) pollOnce(ctx context.Context) {
 		"worker_id", w.workerID,
 	)
 
+	w.engine.auditLogger.Log(ctx, "background.started",
+		"response_id", resp.ID,
+		"worker_id", w.workerID,
+	)
+
 	w.wg.Add(1)
 	go w.processRequest(ctx, resp, reqData)
 }
@@ -274,7 +279,9 @@ func (w *Worker) markCompleted(ctx context.Context, responseID string, cw *captu
 			"response_id", responseID,
 			"error", err,
 		)
+		return
 	}
+	w.engine.auditLogger.Log(ctx, "background.completed", "response_id", responseID)
 }
 
 // markFailed updates a response to failed status with error info.
@@ -291,7 +298,12 @@ func (w *Worker) markFailed(ctx context.Context, responseID string, reason error
 			"response_id", responseID,
 			"error", err,
 		)
+		return
 	}
+	w.engine.auditLogger.LogWarn(ctx, "background.failed",
+		"response_id", responseID,
+		"reason", reason.Error(),
+	)
 }
 
 // markCancelled updates a response to cancelled status.
@@ -306,7 +318,9 @@ func (w *Worker) markCancelled(ctx context.Context, responseID string) {
 			"response_id", responseID,
 			"error", err,
 		)
+		return
 	}
+	w.engine.auditLogger.Log(ctx, "background.cancelled", "response_id", responseID)
 }
 
 // markInFlightAsFailed marks all currently in-flight requests as failed
