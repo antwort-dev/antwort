@@ -240,6 +240,10 @@ func run() error {
 
 	if mode == "worker" || mode == "integrated" {
 		bgWorker = engine.NewWorker(eng, cfg.Engine.Background)
+		// Register for in-process cancellation in integrated mode.
+		if mode == "integrated" {
+			adapter.SetBackgroundCanceller(bgWorker)
+		}
 	}
 
 	// Graceful shutdown.
