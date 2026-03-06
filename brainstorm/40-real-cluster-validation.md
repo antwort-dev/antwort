@@ -214,7 +214,6 @@ The landing page card pulls data from a JSON file (`test/cluster/results/latest.
 ### Out of Scope
 - Automated cluster creation/teardown (too expensive, manual via cc-rosa)
 - Running in CI (no GPU runners available)
-- Full BFCL (4,441 cases, too slow for validation runs)
 - Performance benchmarking (focus is correctness, not throughput)
 
 ## Dependencies
@@ -224,8 +223,10 @@ The landing page card pulls data from a JSON file (`test/cluster/results/latest.
 - RHOAI installed with vLLM ServingRuntime
 - Network access to cluster API and routes
 
-## Open Questions
+## Resolved Questions
 
-1. Should we also test against vLLM's native Responses API (via `vllm-responses` provider) in addition to the Chat Completions translation path?
-2. Should the BFCL subset be fixed (same 180 cases every run) or randomly sampled (different cases, but comparable aggregate scores)?
-3. Should published results include the raw test output or only the formatted markdown summary?
+1. **Multi-provider testing**: Yes, test three paths: (a) Antwort via Chat Completions translation (`vllm` provider), (b) Antwort via vLLM Responses API passthrough (`vllm-responses` provider), (c) vLLM Responses API directly (baseline, no gateway). The baseline comparison shows gateway overhead and translation fidelity. Future: add LiteLLM and other runtimes.
+
+2. **BFCL scope**: BFCL has ~4,441 test cases total. Default run uses a fixed subset of ~180 cases (reproducible, comparable across runs). CLI flags: `--bfcl-all` for the full suite, `--bfcl-random N` for random sampling of N cases, `--bfcl-category <name>` for specific categories. The fixed subset is committed to the repo for reproducibility.
+
+3. **Result artifacts**: Each run produces two artifacts: (a) formatted markdown summary (committed to `test/cluster/results/`), (b) raw test output as a companion file (`test/cluster/results/raw/`). Only the markdown summaries are published to the docs site. Raw output is kept in the repo for debugging and reference.
