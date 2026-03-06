@@ -1,0 +1,201 @@
+= Background Responses
+:navtitle: Background Responses
+
+This page documents the background (async) response mode for long-running inference requests.
+When `background: true` is set on a response creation request, the server accepts the request immediately and processes it asynchronously.
+Clients poll for the result using the standard GET endpoint.
+
+== Request Field
+
+The `background` field is a boolean on the response creation request.
+
+[cols="2,1,1,4"]
+|===
+| Field | Type | Default | Description
+
+| `background`
+| bool
+| `false`
+| When `true`, the server queues the request and returns immediately with status `queued`.
+|===
+
+=== Constraints
+
+* `background: true` requires `store: true` (or omitted, since storage is enabled by default).
+Setting `store: false` with `background: true` returns a validation error.
+* `background: true` is mutually exclusive with `stream: true`.
+Setting both returns a validation error.
+
+== Response Lifecycle
+
+=== Immediate Response
+
+When `background: true`, the server returns immediately with:
+
+[source,json]
+----
+{
+  "id": "resp_abc123...",
+  "object": "response",
+  "status": "queued",
+  "background": true,
+  "output": [],
+  "usage": null,
+  "error": null
+}
+----
+
+The response has status `queued`, empty output, and null usage.
+
+=== Status Transitions
+
+[cols="2,2,4"]
+|===
+| From | To | Trigger
+
+| _(initial)_
+| `queued`
+| Client submits request with `background: true`
+
+| `queued`
+| `in_progress`
+| Worker claims the request
+
+| `queued`
+| `cancelled`
+| Client sends DELETE before processing starts
+
+| `in_progress`
+| `completed`
+| Worker finishes processing successfully
+
+| `in_progress`
+| `failed`
+| Processing error, worker crash (stale detection), or shutdown timeout
+
+| `in_progress`
+| `cancelled`
+| Client sends DELETE during processing
+|===
+
+All statuses except `queued` and `in_progress` are terminal.
+There is no automatic retry.
+Clients must submit a new request if a background request fails.
+
+=== Completed Response
+
+After the worker processes the request, GET `/v1/responses/\{id\}` returns the full response with status `completed`, identical output to what a synchronous request would produce.
+
+=== Failed Response
+
+Failed responses contain only error information, no partial output.
+
+[source,json]
+----
+{
+  "id": "resp_abc123...",
+  "status": "failed",
+  "background": true,
+  "output": [],
+  "error": {
+    "type": "server_error",
+    "message": "background processing failed: ..."
+  }
+}
+----
+
+== Polling
+
+Clients retrieve background response status and results using the existing GET endpoint:
+
+[source,bash]
+----
+curl http://localhost:8080/v1/responses/resp_abc123...
+----
+
+Poll until `status` is `completed`, `failed`, or `cancelled`.
+
+== Cancellation
+
+DELETE `/v1/responses/\{id\}` cancels a background request that is `queued` or `in_progress`.
+The status transitions to `cancelled`.
+For `completed`, `failed`, or `cancelled` responses, DELETE performs a normal soft-delete (same as synchronous responses).
+
+[source,bash]
+----
+curl -X DELETE http://localhost:8080/v1/responses/resp_abc123...
+----
+
+== List Filtering
+
+The response list endpoint supports two new query parameters for background responses.
+
+[cols="2,1,4"]
+|===
+| Parameter | Type | Description
+
+| `status`
+| string
+| Filter by status: `queued`, `in_progress`, `completed`, `failed`, `cancelled`
+
+| `background`
+| bool
+| Filter by background flag: `true` or `false`
+|===
+
+Example: list all queued background responses:
+
+[source,bash]
+----
+curl "http://localhost:8080/v1/responses?status=queued&background=true"
+----
+
+== Operational Modes
+
+The server binary supports three modes via the `--mode` flag or `engine.mode` config key.
+
+[cols="2,6"]
+|===
+| Mode | Behavior
+
+| `integrated`
+| Default. Runs both the HTTP server and a background worker in the same process.
+Suitable for development and testing.
+
+| `gateway`
+| Accepts HTTP requests only.
+Background requests are queued to storage but not processed.
+Requires separate worker pods to process the queue.
+
+| `worker`
+| Processes background requests only.
+No HTTP server is started.
+Polls storage for queued requests and processes them through the engine pipeline.
+|===
+
+In production, deploy separate gateway and worker Deployments sharing the same PostgreSQL database.
+See xref:quickstarts:qs-09-background.adoc[] for a complete example.
+
+== Audit Events
+
+When audit logging is enabled, the following events are emitted for background request lifecycle transitions:
+
+[cols="2,4"]
+|===
+| Event | Description
+
+| `background.queued`
+| Request accepted and queued (gateway side)
+
+| `background.started`
+| Worker claimed and began processing
+
+| `background.completed`
+| Processing finished successfully
+
+| `background.failed`
+| Processing failed (includes reason)
+
+| `background.cancelled`
+| Client cancelled the request
+|===

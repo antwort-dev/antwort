@@ -85,6 +85,15 @@ func (m *mockStore) GetInputItems(_ context.Context, _ string, _ transport.ListO
 }
 func (m *mockStore) HealthCheck(_ context.Context) error { return nil }
 func (m *mockStore) Close() error                        { return nil }
+func (m *mockStore) UpdateResponse(_ context.Context, _ string, _ transport.ResponseUpdate) error {
+	return nil
+}
+func (m *mockStore) ClaimQueuedResponse(_ context.Context, _ string) (*api.Response, json.RawMessage, error) {
+	return nil, nil, nil
+}
+func (m *mockStore) CleanupExpired(_ context.Context, _ time.Time, _ int) (int, error) {
+	return 0, nil
+}
 
 func newTestAdapter(creator transport.ResponseCreator, store transport.ResponseStore) *Adapter {
 	return NewAdapter(creator, store, DefaultConfig())

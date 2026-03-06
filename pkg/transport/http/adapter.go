@@ -16,6 +16,12 @@ import (
 
 // Adapter serves the OpenResponses API over HTTP.
 // It routes requests to the appropriate handler and serializes responses.
+// BackgroundCanceller is implemented by the background worker to allow
+// in-process cancellation of in-flight background requests.
+type BackgroundCanceller interface {
+	CancelRequest(responseID string) bool
+}
+
 type Adapter struct {
 	creator         transport.ResponseCreator
 	store           transport.ResponseStore        // nil if stateless-only
@@ -25,6 +31,7 @@ type Adapter struct {
 	mux             *http.ServeMux
 	config          Config
 	auditLogger     *audit.Logger
+	bgCanceller     BackgroundCanceller            // nil if no background worker
 }
 
 // Config holds configuration for the HTTP adapter.
@@ -96,6 +103,10 @@ func (a *Adapter) SetAuditLogger(l *audit.Logger) {
 	a.auditLogger = l
 }
 
+// SetBackgroundCanceller registers a background worker for in-process cancellation.
+func (a *Adapter) SetBackgroundCanceller(c BackgroundCanceller) {
+	a.bgCanceller = c
+}
 
 // Handler returns the http.Handler for this adapter. Use this to integrate
 // with an http.Server or test with httptest. The returned handler includes
@@ -305,6 +316,48 @@ func (a *Adapter) handleDeleteResponse(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check if this is a background response that needs cancellation (FR-010).
+	resp, getErr := a.store.GetResponse(r.Context(), id)
+	if getErr != nil {
+		if errors.Is(getErr, storage.ErrNotFound) {
+			transport.WriteAPIError(w, api.NewNotFoundError("response "+id+" not found"))
+			return
+		}
+		var apiErr *api.APIError
+		if errors.As(getErr, &apiErr) {
+			transport.WriteAPIError(w, apiErr)
+			return
+		}
+		transport.WriteAPIError(w, api.NewServerError(getErr.Error()))
+		return
+	}
+
+	if resp.Background && (resp.Status == api.ResponseStatusQueued || resp.Status == api.ResponseStatusInProgress) {
+		// Cancel the background request by updating status to cancelled.
+		cancelledStatus := api.ResponseStatusCancelled
+		if err := a.store.UpdateResponse(r.Context(), id, transport.ResponseUpdate{
+			Status: &cancelledStatus,
+		}); err != nil {
+			var apiErr *api.APIError
+			if errors.As(err, &apiErr) {
+				transport.WriteAPIError(w, apiErr)
+			} else {
+				transport.WriteAPIError(w, api.NewServerError(err.Error()))
+			}
+			return
+		}
+
+		// Try in-process cancellation if a worker is registered.
+		if a.bgCanceller != nil {
+			a.bgCanceller.CancelRequest(id)
+		}
+
+		a.auditLogger.Log(r.Context(), "resource.cancelled", "resource_type", "response", "resource_id", id)
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	// Standard soft-delete for completed/failed/cancelled responses.
 	if err := a.store.DeleteResponse(r.Context(), id); err != nil {
 		if errors.Is(err, storage.ErrNotFound) {
 			transport.WriteAPIError(w, api.NewNotFoundError("response "+id+" not found"))
@@ -406,6 +459,12 @@ func parseListOptions(r *http.Request) (transport.ListOptions, *api.APIError) {
 		Before: q.Get("before"),
 		Model:  q.Get("model"),
 		Order:  q.Get("order"),
+		Status: q.Get("status"),
+	}
+
+	if bgStr := q.Get("background"); bgStr != "" {
+		bg := bgStr == "true"
+		opts.Background = &bg
 	}
 
 	if opts.After != "" && opts.Before != "" {

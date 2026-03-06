@@ -2,7 +2,9 @@ package engine
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/rhuss/antwort/pkg/api"
 	"github.com/rhuss/antwort/pkg/transport"
@@ -46,6 +48,15 @@ func (s *mockStore) GetInputItems(_ context.Context, _ string, _ transport.ListO
 }
 func (s *mockStore) HealthCheck(_ context.Context) error { return nil }
 func (s *mockStore) Close() error                        { return nil }
+func (s *mockStore) UpdateResponse(_ context.Context, _ string, _ transport.ResponseUpdate) error {
+	return nil
+}
+func (s *mockStore) ClaimQueuedResponse(_ context.Context, _ string) (*api.Response, json.RawMessage, error) {
+	return nil, nil, nil
+}
+func (s *mockStore) CleanupExpired(_ context.Context, _ time.Time, _ int) (int, error) {
+	return 0, nil
+}
 
 func TestLoadConversationHistory_ChainOfThree(t *testing.T) {
 	respA := "resp_A"

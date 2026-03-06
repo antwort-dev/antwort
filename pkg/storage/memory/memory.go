@@ -6,6 +6,7 @@ package memory
 import (
 	"context"
 	"container/list"
+	"encoding/json"
 	"log/slog"
 	"sort"
 	"sync"
@@ -59,11 +60,14 @@ func ownerAllowed(ctx context.Context, storedOwner, resourceType, resourceID, op
 
 // entry holds a stored response and its metadata.
 type entry struct {
-	resp      *api.Response
-	tenantID  string
-	owner     string
-	deletedAt *time.Time
-	lruElem   *list.Element // position in LRU list
+	resp             *api.Response
+	tenantID         string
+	owner            string
+	deletedAt        *time.Time
+	lruElem          *list.Element      // position in LRU list
+	backgroundReq    json.RawMessage    // serialized CreateResponseRequest for background workers
+	workerID         string             // ID of worker that claimed this entry
+	workerHeartbeat  *time.Time         // last heartbeat from claiming worker
 }
 
 // Store is an in-memory ResponseStore with optional LRU eviction.
@@ -200,6 +204,41 @@ func (s *Store) DeleteResponse(ctx context.Context, id string) error {
 	return nil
 }
 
+// UpdateResponse updates specific fields on an existing response.
+func (s *Store) UpdateResponse(ctx context.Context, id string, update transport.ResponseUpdate) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	e, ok := s.entries[id]
+	if !ok {
+		return storage.ErrNotFound
+	}
+
+	if update.Status != nil {
+		if err := api.ValidateResponseTransition(e.resp.Status, *update.Status); err != nil {
+			return err
+		}
+		e.resp.Status = *update.Status
+	}
+	if update.Output != nil {
+		e.resp.Output = update.Output
+	}
+	if update.Error != nil {
+		e.resp.Error = update.Error
+	}
+	if update.Usage != nil {
+		e.resp.Usage = update.Usage
+	}
+	if update.CompletedAt != nil {
+		e.resp.CompletedAt = update.CompletedAt
+	}
+	if update.WorkerHeartbeat != nil {
+		e.workerHeartbeat = update.WorkerHeartbeat
+	}
+
+	return nil
+}
+
 // HealthCheck always returns nil for the in-memory store.
 func (s *Store) HealthCheck(_ context.Context) error {
 	return nil
@@ -234,6 +273,12 @@ func (s *Store) ListResponses(ctx context.Context, opts transport.ListOptions) (
 			continue
 		}
 		if opts.Model != "" && e.resp.Model != opts.Model {
+			continue
+		}
+		if opts.Status != "" && string(e.resp.Status) != opts.Status {
+			continue
+		}
+		if opts.Background != nil && e.resp.Background != *opts.Background {
 			continue
 		}
 		matches = append(matches, e.resp)

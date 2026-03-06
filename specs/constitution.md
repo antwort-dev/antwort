@@ -85,6 +85,7 @@ Request-scoped data (request IDs, user identity, tracing context) propagates thr
 - **Nil-safe tests** for every optional capability. Tests verify correct behavior when optional dependencies are present AND when they are nil.
 - **Error path coverage** is mandatory. Every error branch in the code has a corresponding test case. Testing only happy paths is insufficient.
 - **Integration tests are mandatory for every feature.** Each feature must include at least one integration test in `test/integration/` that exercises the feature through the full HTTP stack (request in, response out). If integration testing is not feasible for a specific feature (e.g., requires infrastructure unavailable in CI, or the feature is purely internal with no user-facing surface), the spec's Assumptions section must explicitly document why integration tests are omitted and what alternative verification is used instead.
+- **E2E tests alongside integration tests.** Wherever possible, features should also include E2E tests in `test/e2e/` (build tag `e2e`) that exercise the feature using the compiled server binary and mock-backend as subprocesses. E2E tests verify real process lifecycle (startup, shutdown, signal handling) and multi-process coordination that in-process integration tests cannot cover. Use recorded responses (`test/e2e/recordings/`) for deterministic replay. E2E tests may be omitted only when the feature has no process-level behavior worth verifying beyond what integration tests cover.
 
 ### Naming Conventions
 
@@ -208,4 +209,4 @@ The engine handles both modes. Stateless mode is always available. Stateful feat
 - New specs must declare compliance with these principles. Deviations require explicit justification in the spec's Assumptions or Clarifications section.
 - Code reviews verify constitutional compliance. Non-compliant code is not merged.
 
-**Version**: 1.7.0 | **Ratified**: 2026-02-17 | **Last Amended**: 2026-03-04
+**Version**: 1.8.0 | **Ratified**: 2026-02-17 | **Last Amended**: 2026-03-06

@@ -49,6 +49,8 @@ Auto-generated from all feature plans. Last updated: 2026-02-16
 - N/A (audit events are emitted as log records, not persisted by antwort) (042-audit-logging)
 - Go 1.22+ (consistent with all existing specs) + Go standard library + `github.com/openai/openai-go` (test dependency only, not in core packages) (043-e2e-testing)
 - N/A (recordings are static JSON files, not a database) (043-e2e-testing)
+- Go 1.22+ (consistent with all existing specs) + Go standard library only for core. `pgx/v5` for PostgreSQL adapter (existing dependency). (044-async-responses)
+- PostgreSQL 14+ for production (distributed mode). In-memory for development/testing (integrated mode). (044-async-responses)
 
 - Go 1.22+ + None (Go standard library only: `encoding/json`, `crypto/rand`, `errors`, `fmt`, `strings`, `regexp`) (001-core-protocol)
 
@@ -68,9 +70,9 @@ tests/
 Go 1.22+: Follow standard conventions
 
 ## Recent Changes
+- 044-async-responses: Added Go 1.22+ (consistent with all existing specs) + Go standard library only for core. `pgx/v5` for PostgreSQL adapter (existing dependency).
 - 043-e2e-testing: Added Go 1.22+ (consistent with all existing specs) + Go standard library + `github.com/openai/openai-go` (test dependency only, not in core packages)
 - 042-audit-logging: Added Go 1.22+ (consistent with all existing specs) + Go standard library only (`log/slog`, `context`, `os`, `io`, `encoding/json`, `fmt`, `time`, `strings`)
-- 041-scope-permissions: Added Go 1.22+ + Go standard library only (consistent with constitution Principle II)
 
 
 <!-- MANUAL ADDITIONS START -->

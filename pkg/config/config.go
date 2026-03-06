@@ -81,12 +81,24 @@ type ServerConfig struct {
 
 // EngineConfig holds inference engine and provider settings.
 type EngineConfig struct {
-	Provider     string `yaml:"provider"`      // "vllm", "litellm", or "vllm-responses", default: "vllm"
-	BackendURL   string `yaml:"backend_url"`   // required
-	APIKey       string `yaml:"api_key"`       // optional
-	APIKeyFile   string `yaml:"api_key_file"`  // _file variant for api_key
-	DefaultModel string `yaml:"default_model"` // optional
-	MaxTurns     int    `yaml:"max_turns"`     // default: 10
+	Provider     string           `yaml:"provider"`      // "vllm", "litellm", or "vllm-responses", default: "vllm"
+	BackendURL   string           `yaml:"backend_url"`   // required
+	APIKey       string           `yaml:"api_key"`       // optional
+	APIKeyFile   string           `yaml:"api_key_file"`  // _file variant for api_key
+	DefaultModel string           `yaml:"default_model"` // optional
+	MaxTurns     int              `yaml:"max_turns"`     // default: 10
+	Mode         string           `yaml:"mode"`          // "gateway", "worker", "integrated", default: "integrated"
+	Background   BackgroundConfig `yaml:"background"`    // background processing settings
+}
+
+// BackgroundConfig holds settings for background (async) request processing.
+type BackgroundConfig struct {
+	PollInterval      time.Duration `yaml:"poll_interval"`      // worker poll interval, default: 5s
+	DrainTimeout      time.Duration `yaml:"drain_timeout"`      // graceful shutdown drain timeout, default: 30s
+	StalenessTimeout  time.Duration `yaml:"staleness_timeout"`  // mark in_progress as failed after this, default: 10m
+	HeartbeatInterval time.Duration `yaml:"heartbeat_interval"` // worker heartbeat frequency, default: 30s
+	TTL               time.Duration `yaml:"ttl"`                // auto-cleanup for terminal responses, default: 24h
+	CleanupBatchSize  int           `yaml:"cleanup_batch_size"` // max responses to clean up per poll, default: 100
 }
 
 // StorageConfig holds state management settings.
@@ -174,6 +186,15 @@ func Defaults() Config {
 		Engine: EngineConfig{
 			Provider: "vllm",
 			MaxTurns: 10,
+			Mode:     "integrated",
+			Background: BackgroundConfig{
+				PollInterval:      5 * time.Second,
+				DrainTimeout:      30 * time.Second,
+				StalenessTimeout:  10 * time.Minute,
+				HeartbeatInterval: 30 * time.Second,
+				TTL:               24 * time.Hour,
+				CleanupBatchSize:  100,
+			},
 		},
 		Storage: StorageConfig{
 			Type:    "memory",
