@@ -95,25 +95,25 @@ Autonomous agents call Antwort's API for LLM reasoning. Antwort handles inferenc
        │  OpenAI SDK (Responses API)
        ▼
 ┌──────────────────────────────────────────────────────┐
-│                    Antwort Gateway                    │
+│                    Antwort Gateway                   │
 │                                                      │
-│  ┌──────────┐  ┌──────────┐  ┌────────────────────┐ │
-│  │Transport │  │  Auth    │  │   Observability    │ │
-│  │HTTP/SSE  │  │JWT/OIDC  │  │Prometheus/OTel     │ │
-│  └────┬─────┘  │API Key   │  │Audit Logging       │ │
-│       │        └──────────┘  └────────────────────┘ │
+│  ┌──────────┐  ┌──────────┐  ┌────────────────────┐  │
+│  │Transport │  │  Auth    │  │   Observability    │  │
+│  │HTTP/SSE  │  │JWT/OIDC  │  │Prometheus/OTel     │  │
+│  └────┬─────┘  │API Key   │  │Audit Logging       │  │
+│       │        └──────────┘  └────────────────────┘  │
 │  ┌────▼──────────────────────────────────┐           │
 │  │  Engine (Agentic Loop)                │           │
 │  │  Multi-turn reasoning, tool routing   │           │
 │  └────┬──────────────┬───────────────────┘           │
 │       │              │                               │
-│  ┌────▼─────┐  ┌─────▼──────────────────────┐       │
-│  │ Provider │  │    Tool Executors           │       │
-│  │ vLLM CC  │  │  ┌─────┐ ┌─────┐ ┌──────┐  │       │
-│  │ vLLM Rsp │  │  │ MCP │ │Web  │ │Code  │  │       │
-│  │ LiteLLM  │  │  │     │ │Srch │ │Intrp │  │       │
-│  └──────────┘  │  └─────┘ └─────┘ └──────┘  │       │
-│                └─────────────────────────────┘       │
+│  ┌────▼─────┐  ┌─────▼──────────────────────┐        │
+│  │ Provider │  │    Tool Executors          │        │
+│  │ vLLM CC  │  │  ┌─────┐ ┌─────┐ ┌──────┐  │        │
+│  │ vLLM Rsp │  │  │ MCP │ │Web  │ │Code  │  │        │
+│  │ LiteLLM  │  │  │     │ │Srch │ │Intrp │  │        │
+│  └──────────┘  │  └─────┘ └─────┘ └──────┘  │        │
+│                └────────────────────────────┘        │
 │  ┌──────────────────────────┐                        │
 │  │  Storage                 │                        │
 │  │  PostgreSQL / In-memory  │                        │
