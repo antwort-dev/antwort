@@ -9,6 +9,7 @@ import (
 
 	"github.com/rhuss/antwort/pkg/agent"
 	"github.com/rhuss/antwort/pkg/api"
+	"github.com/rhuss/antwort/pkg/debug"
 	"github.com/rhuss/antwort/pkg/observability"
 	"github.com/rhuss/antwort/pkg/provider"
 	"github.com/rhuss/antwort/pkg/tools"
@@ -113,6 +114,27 @@ func (e *Engine) CreateResponse(ctx context.Context, req *api.CreateResponseRequ
 	// - tool_choice is not "none"
 	useLoop := e.hasExecutors() && len(req.Tools) > 0 &&
 		!(req.ToolChoice != nil && req.ToolChoice.String == "none")
+
+	// Log request handling mode.
+	if debug.Enabled("engine") {
+		mode := "non-streaming"
+		if req.Background {
+			mode = "background"
+		} else if req.Stream {
+			mode = "streaming"
+		}
+		loop := "direct"
+		if useLoop {
+			loop = "agentic"
+		}
+		debug.Log("engine", "request",
+			"mode", mode,
+			"loop", loop,
+			"model", req.Model,
+			"tools", len(req.Tools),
+			"background", req.Background,
+		)
+	}
 
 	// Background mode: queue the request and return immediately (FR-002, FR-006).
 	if req.Background {
