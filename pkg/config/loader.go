@@ -146,6 +146,19 @@ func applyEnvOverrides(cfg *Config) {
 			cfg.MCP.Servers = servers
 		}
 	}
+
+	// Logging and debug overrides.
+	if v := os.Getenv("ANTWORT_LOG_LEVEL"); v != "" {
+		cfg.Logging.Level = v
+	}
+	if v := os.Getenv("ANTWORT_DEBUG"); v != "" {
+		cfg.Logging.Debug = v
+	}
+
+	// Engine mode override.
+	if v := os.Getenv("ANTWORT_MODE"); v != "" {
+		cfg.Engine.Mode = v
+	}
 }
 
 // parseAPIKeysJSON parses a JSON array of API key configurations.

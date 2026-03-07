@@ -96,6 +96,14 @@ This makes it straightforward to customize a shared config file per environment 
 | `ANTWORT_AUDIT_FILE`
 | `audit.file`
 | File path for audit log output. Required when `ANTWORT_AUDIT_OUTPUT` is `file`.
+
+| `ANTWORT_LOG_LEVEL`
+| `logging.level`
+| Log level: `ERROR`, `WARN`, `INFO`, `DEBUG`, or `TRACE`. Default: `INFO`.
+
+| `ANTWORT_DEBUG`
+| `logging.debug`
+| Comma-separated debug categories (e.g., `providers,engine`). Enables category-specific debug logging at DEBUG level.
 |===
 
 [[json-encoded-variables]]

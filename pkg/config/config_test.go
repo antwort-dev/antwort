@@ -489,6 +489,37 @@ engine:
 	}
 }
 
+func TestEnvOverrideLoggingAndMode(t *testing.T) {
+	yamlContent := `
+engine:
+  backend_url: http://localhost:8000
+  mode: integrated
+logging:
+  level: INFO
+  debug: ""
+`
+	tmpFile := writeTemp(t, "config-*.yaml", yamlContent)
+
+	t.Setenv("ANTWORT_LOG_LEVEL", "DEBUG")
+	t.Setenv("ANTWORT_DEBUG", "providers,engine")
+	t.Setenv("ANTWORT_MODE", "gateway")
+
+	cfg, err := Load(tmpFile)
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+
+	if cfg.Logging.Level != "DEBUG" {
+		t.Errorf("logging.level = %q, want env override \"DEBUG\"", cfg.Logging.Level)
+	}
+	if cfg.Logging.Debug != "providers,engine" {
+		t.Errorf("logging.debug = %q, want env override \"providers,engine\"", cfg.Logging.Debug)
+	}
+	if cfg.Engine.Mode != "gateway" {
+		t.Errorf("engine.mode = %q, want env override \"gateway\"", cfg.Engine.Mode)
+	}
+}
+
 func TestFileReferenceDoesNotOverrideExplicitValue(t *testing.T) {
 	secretFile := writeTemp(t, "secret-*.txt", "sk-from-file")
 
