@@ -28,7 +28,7 @@
 **Goal**: "providers" category shows LLM backend communication.
 
 - [x] T006 (antwort-csp.1) [US1] Add debug logging in the openaicompat HTTP client: log outbound request (method, URL, model, message count, tool count) before sending, log response (status, timing, usage summary) after receiving. At TRACE level, log full request and response bodies (FR-014, FR-015, FR-011)
-- [ ] T007 (antwort-csp.2) [US1] Add debug logging for streaming provider calls: log stream initiation and completion with timing (FR-014, FR-015)
+- [x] T007 (antwort-csp.2) [US1] Add debug logging for streaming provider calls: log stream initiation and completion with timing (FR-014, FR-015)
 
 **Checkpoint**: `ANTWORT_DEBUG=providers ANTWORT_LOG_LEVEL=DEBUG` shows provider communication.
 
@@ -38,8 +38,8 @@
 
 **Goal**: "engine" category shows agentic loop decisions.
 
-- [ ] T008 (antwort-dam.1) [US2] Add debug logging in `pkg/engine/loop.go`: log each agentic loop turn (turn number, max turns), log tool calls received (names, count), log tool dispatch (executor type, tool name), log tool results (success/failure, timing) (FR-016)
-- [ ] T009 (antwort-dam.2) [US2] Add debug logging in `pkg/engine/engine.go`: log request handling mode (streaming/non-streaming, agentic/direct), log model used, log response status (FR-016)
+- [x] T008 (antwort-dam.1) [US2] Add debug logging in `pkg/engine/loop.go`: log each agentic loop turn (turn number, max turns), log tool calls received (names, count), log tool dispatch (executor type, tool name), log tool results (success/failure, timing) (FR-016)
+- [x] T009 (antwort-dam.2) [US2] Add debug logging in `pkg/engine/engine.go`: log request handling mode (streaming/non-streaming, agentic/direct), log model used, log response status (FR-016)
 
 **Checkpoint**: `ANTWORT_DEBUG=engine ANTWORT_LOG_LEVEL=DEBUG` shows agentic loop decisions.
 
@@ -47,8 +47,8 @@
 
 ## Phase 5: Polish & Validation
 
-- [ ] T010 (antwort-91e.1) Run full test suite (`go test ./pkg/... ./test/integration/`) and verify zero regressions (FR-012)
-- [ ] T011 (antwort-91e.2) Run `make api-test` to verify no conformance regressions
+- [x] T010 (antwort-91e.1) Run full test suite (`go test ./pkg/... ./test/integration/`) and verify zero regressions (FR-012)
+- [x] T011 (antwort-91e.2) Run `make api-test` to verify no conformance regressions
 
 **Checkpoint**: All tests green. Debug logging ready for deployment.
 

@@ -109,7 +109,25 @@ func (e *Engine) runAgenticLoop(ctx context.Context, req *api.CreateResponseRequ
 		filterResult := tools.FilterAllowedTools(toolCalls, req.AllowedTools)
 
 		// Execute allowed tool calls (concurrent or sequential based on request).
+		toolExecStart := time.Now()
 		results := e.executeTools(ctx, filterResult.Allowed, parallel)
+		if debug.Enabled("engine") {
+			successes, failures := 0, 0
+			for _, r := range results {
+				if r.IsError {
+					failures++
+				} else {
+					successes++
+				}
+			}
+			debug.Log("engine", "tool execution complete",
+				"turn", turn+1,
+				"count", len(results),
+				"successes", successes,
+				"failures", failures,
+				"duration_ms", time.Since(toolExecStart).Milliseconds(),
+			)
+		}
 
 		// Combine with rejected results.
 		allResults := append(results, filterResult.Rejected...)

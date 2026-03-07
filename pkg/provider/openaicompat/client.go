@@ -164,6 +164,13 @@ func (c *Client) Complete(ctx context.Context, req *provider.ProviderRequest) (*
 // stream can legitimately last longer than any fixed timeout. Lifecycle
 // control relies on context cancellation instead.
 func (c *Client) Stream(ctx context.Context, req *provider.ProviderRequest) (<-chan provider.ProviderEvent, error) {
+	streamStart := time.Now()
+	debug.Log("providers", "stream request",
+		"model", req.Model,
+		"messages", len(req.Messages),
+		"tools", len(req.Tools),
+	)
+
 	// Force streaming mode.
 	reqCopy := *req
 	reqCopy.Stream = true
@@ -204,14 +211,18 @@ func (c *Client) Stream(ctx context.Context, req *provider.ProviderRequest) (<-c
 	// Send request.
 	httpResp, err := streamClient.Do(httpReq)
 	if err != nil {
+		debug.Log("providers", "stream request error", "error", err.Error(), "duration_ms", time.Since(streamStart).Milliseconds())
 		return nil, MapNetworkError(err)
 	}
 
 	// Check for error status codes before starting the stream.
 	if httpResp.StatusCode < 200 || httpResp.StatusCode >= 300 {
+		debug.Log("providers", "stream response error", "status", httpResp.StatusCode, "duration_ms", time.Since(streamStart).Milliseconds())
 		httpResp.Body.Close()
 		return nil, MapHTTPError(httpResp)
 	}
+
+	debug.Log("providers", "stream connected", "status", httpResp.StatusCode, "duration_ms", time.Since(streamStart).Milliseconds())
 
 	// Create the event channel and spawn a goroutine to parse the stream.
 	ch := make(chan provider.ProviderEvent, 16)
@@ -220,6 +231,7 @@ func (c *Client) Stream(ctx context.Context, req *provider.ProviderRequest) (<-c
 		defer close(ch)
 		defer httpResp.Body.Close()
 		ParseSSEStream(ctx, httpResp.Body, ch)
+		debug.Log("providers", "stream completed", "total_duration_ms", time.Since(streamStart).Milliseconds())
 	}()
 
 	return ch, nil
