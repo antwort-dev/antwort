@@ -165,7 +165,7 @@ A developer wants to deploy the complete Antwort validation stack on a ROSA HCP 
 - **SC-002**: Validation results are comparable across runs: same model + same BFCL subset produces consistent scores (within 5% variance for deterministic test cases with temperature=0).
 - **SC-003**: The multi-provider comparison reveals gateway overhead of less than 100ms P95 for non-streaming requests (exclusive of model inference time).
 - **SC-004**: Published validation results are accessible on the documentation site and updated after each committed run.
-- **SC-005**: A new developer can run the validation harness against an existing cluster by following the README and running a single command (`test/cluster/run.sh` or `make cluster-test`).
+- **SC-005**: A new developer can deploy the validation stack via `/rosa:setup .claude/rosa-recipe.yaml` and run the harness via `test/cluster/run.sh` or `make cluster-test`, following the README without additional guidance.
 
 ## Assumptions
 
