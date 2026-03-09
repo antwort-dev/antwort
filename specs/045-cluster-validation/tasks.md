@@ -137,7 +137,26 @@
 
 ---
 
-## Phase 9: Polish & Cross-Cutting Concerns
+## Phase 9: User Story 7 - Declarative Cluster Setup via Recipe (Priority: P2)
+
+**Goal**: Deploy the complete validation stack on ROSA HCP with a single recipe command.
+
+**Independent Test**: Run `/rosa:setup .claude/rosa-recipe.yaml` on a cluster, verify all components deploy.
+
+### Implementation for User Story 7
+
+- [ ] T030 [US7] Create `.claude/instills/rosa/antwort-minimal/INSTILL.md` with YAML frontmatter (`name: Antwort (Minimal)`, `id: antwort-minimal`, `requires: [model]`, params for namespace and backend_url). Create `install.md` with steps to apply quickstart 01-minimal kustomize manifests (`kustomize build quickstarts/01-minimal | oc apply -f -`), wait for rollout, and expose route. Create `uninstall.md` to delete the deployment.
+- [ ] T031 [P] [US7] Create `.claude/instills/rosa/antwort-production/INSTILL.md` (requires model), `install.md` (quickstart 02-production with in-memory storage), `uninstall.md`. Parameterize namespace, replicas, and backend URL.
+- [ ] T032 [P] [US7] Create `.claude/instills/rosa/antwort-rag/INSTILL.md` (requires model), `install.md` (deploy with file search, vector store config), `uninstall.md`. Parameterize vector store type and namespace.
+- [ ] T033 [P] [US7] Create `.claude/instills/rosa/antwort-background/INSTILL.md` (requires model), `install.md` (gateway + worker deployment from quickstart 09), `uninstall.md`. Parameterize PostgreSQL connection and worker count.
+- [ ] T034 [US7] Create `.claude/rosa-recipe.yaml`: declare cluster config (AAET profile, us-east-2), GPU machinepool (g5.xlarge), install chain (rhoai, model with configurable model name, antwort-minimal). Include recipe parameters for `model_name` (default: `Qwen/Qwen2.5-7B-Instruct`) and `antwort_namespace` (default: `antwort`).
+- [ ] T035 [US7] Test recipe deployment: run `/rosa:setup .claude/rosa-recipe.yaml` on a cluster, verify recipe-resolve.py outputs correct dependency order, confirm idempotent re-run skips completed steps. Document any issues in `test/cluster/README.md`.
+
+**Checkpoint**: Validation stack deployable with single recipe command. Instills discoverable by cc-rosa plugin.
+
+---
+
+## Phase 10: Polish & Cross-Cutting Concerns
 
 **Purpose**: Documentation, CI integration hints, and final cleanup
 
@@ -157,6 +176,7 @@
 - **US2 Multi-Provider (Phase 4)**: Depends on Phase 1 (T001 for client helpers)
 - **US3 Tool Calling (Phase 5)**: Depends on Phase 1 (T001 for client helpers)
 - **US4 BFCL (Phase 6)**: Depends on Phase 2 (T005-T007 for loader, scorer, test data)
+- **US7 Recipe (Phase 9)**: No code dependencies. Requires cc-rosa plugin and cluster access.
 - **US5 Results (Phase 7)**: Depends on T002 (ResultCollector) + at least one test phase complete
 - **US6 Features (Phase 8)**: Depends on Phase 1 (T001 for client helpers)
 - **Polish (Phase 9)**: Depends on US5 (reporting pipeline complete)
@@ -211,7 +231,7 @@
 - All tests depend on cluster being reachable via `CLUSTER_ANTWORT_URL`
 - Tests skip gracefully when required infrastructure is not available
 - BFCL test data is committed as a fixed subset for reproducibility
-- 29 total tasks across 9 phases
+- 35 total tasks across 10 phases
 
 ## Beads Task Management
 

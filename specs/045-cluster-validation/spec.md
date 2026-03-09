@@ -102,6 +102,22 @@ A developer wants to validate Antwort features beyond basic inference: backgroun
 
 ---
 
+### User Story 7 - Declarative Cluster Setup via Recipe (Priority: P2)
+
+A developer wants to deploy the complete Antwort validation stack on a ROSA HCP cluster with a single command. They use a declarative recipe file that specifies the cluster configuration, model selection, and Antwort deployment pattern. The cc-rosa plugin handles dependency resolution, component installation, and idempotent reconciliation.
+
+**Why this priority**: Without a repeatable deployment method, each validation run requires manual cluster setup. A recipe makes validation accessible to any team member with cluster access.
+
+**Independent Test**: Run `/rosa:setup .claude/rosa-recipe.yaml` on a fresh cluster, verify all components are deployed and Antwort is reachable.
+
+**Acceptance Scenarios**:
+
+1. **Given** a developer has AWS/ROSA credentials and a cluster exists, **When** they run `/rosa:setup` with the validation recipe, **Then** RHOAI, a model, and Antwort are deployed in dependency order without interactive prompts (configuration from recipe parameters or environment variables).
+2. **Given** some components are already deployed (e.g., RHOAI installed, model serving), **When** the recipe is re-run, **Then** already-completed steps are skipped and only missing components are installed (idempotent reconciliation).
+3. **Given** a developer wants a different deployment pattern (e.g., RAG with vector store), **When** they modify the recipe to include additional instills (postgres, qdrant), **Then** the additional infrastructure is deployed alongside the base stack.
+
+---
+
 ### Edge Cases
 
 - What happens when the model returns malformed tool call arguments (invalid JSON)?
@@ -129,6 +145,10 @@ A developer wants to validate Antwort features beyond basic inference: backgroun
 - **FR-013**: Each test category (basic inference, streaming, tool calling, BFCL, background, RAG, auth, conversations) MUST be independently runnable via `-run TestCategory`.
 - **FR-014**: The harness MUST maintain a `latest.md` symlink pointing to the most recent result file.
 - **FR-015**: The harness MUST NOT create or tear down clusters. Cluster lifecycle is managed externally (via cc-rosa or manual setup).
+- **FR-016**: The project MUST include cc-rosa instills in `.claude/instills/rosa/` for deploying Antwort in different configurations (minimal, production, RAG, background).
+- **FR-017**: The project MUST include a declarative cc-rosa recipe (`.claude/rosa-recipe.yaml`) that deploys the complete validation stack (RHOAI, model, Antwort) via `/rosa:setup`.
+- **FR-018**: The recipe MUST support idempotent reconciliation, so re-running it skips already-completed deployment steps.
+- **FR-019**: Instill parameters (model name, namespace, storage backend) MUST be configurable via recipe parameters or environment variables, not hardcoded.
 
 ### Key Entities
 
@@ -149,7 +169,7 @@ A developer wants to validate Antwort features beyond basic inference: backgroun
 
 ## Assumptions
 
-- The ROSA HCP cluster and model deployment are managed separately (via cc-rosa plugin or manual setup). This spec does not cover cluster provisioning.
+- The ROSA HCP cluster is created separately (via cc-rosa `/rosa:create` or manual setup). Component deployment (RHOAI, model, Antwort) is automated via the project recipe and instills.
 - The harness runs from a developer's laptop with network access to the cluster's API and routes. It does not run in CI (no GPU runners available).
 - vLLM is the primary inference backend. Other runtimes (LiteLLM, Ollama) may be added in future iterations but are not in scope.
 - BFCL test data is downloaded from the Hugging Face dataset and converted to Responses API format. The fixed subset is committed to the repository; the full dataset is downloaded on demand.

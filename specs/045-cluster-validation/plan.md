@@ -89,6 +89,26 @@ test/cluster/
 docs/modules/operations/pages/
 └── validation.adoc                  # Antora documentation page
 
+.claude/
+├── instills/rosa/
+│   ├── antwort-minimal/
+│   │   ├── INSTILL.md               # Metadata: requires model
+│   │   ├── install.md               # Deploy quickstart 01-minimal
+│   │   └── uninstall.md             # Remove deployment
+│   ├── antwort-production/
+│   │   ├── INSTILL.md               # Metadata: requires model
+│   │   ├── install.md               # Deploy quickstart 02-production
+│   │   └── uninstall.md
+│   ├── antwort-rag/
+│   │   ├── INSTILL.md               # Metadata: requires model
+│   │   ├── install.md               # Deploy with file search + vector store
+│   │   └── uninstall.md
+│   └── antwort-background/
+│       ├── INSTILL.md               # Metadata: requires model
+│       ├── install.md               # Deploy gateway + worker
+│       └── uninstall.md
+├── rosa-recipe.yaml                 # Declarative validation stack recipe
+
 Makefile                             # cluster-test target
 ```
 
@@ -115,3 +135,22 @@ Tests don't reconfigure Antwort. Instead, `CLUSTER_ANTWORT_URL` points to the de
 ### DD5: BFCL Data Committed as Subset
 
 The fixed 180-case subset is committed to `test/cluster/testdata/bfcl/` as JSONL files (already converted from Gorilla format to OpenAPI). The full dataset is downloaded on demand by `run.sh --bfcl-download`.
+
+### DD6: cc-rosa Instills for Antwort Deployments
+
+Antwort deployment on ROSA HCP clusters is automated via project-level cc-rosa instills in `.claude/instills/rosa/`. Each instill follows the standard format (INSTILL.md with YAML frontmatter, install.md, uninstall.md). Instills are automatically discovered by the cc-rosa plugin hook.
+
+Instills to create:
+
+| ID | Name | Requires | Description |
+|----|------|----------|-------------|
+| `antwort-minimal` | Antwort (Minimal) | model | Deploy quickstart 01-minimal against vLLM |
+| `antwort-production` | Antwort (Production) | model | Deploy quickstart 02 with in-memory storage |
+| `antwort-rag` | Antwort (RAG) | model | Deploy with file search and vector store |
+| `antwort-background` | Antwort (Background) | model | Deploy quickstart 09 with gateway+worker |
+
+### DD7: Declarative Recipe for Validation Stack
+
+A single recipe file (`.claude/rosa-recipe.yaml`) deploys the complete validation stack via `/rosa:setup`. The recipe specifies cluster config, GPU machinepool, and the installation chain (rhoai -> model -> antwort-minimal). Recipe parameters allow customizing the model and Antwort configuration without editing the recipe.
+
+Recipe supports idempotent reconciliation: re-running skips already-completed steps, making it safe to use for incremental deployment or recovery after partial failures.

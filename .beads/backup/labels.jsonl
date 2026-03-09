@@ -720,6 +720,7 @@
 {"issue_id":"antwort-dfi.2","label":"US4"}
 {"issue_id":"antwort-dfi.2","label":"parallel"}
 {"issue_id":"antwort-dfi.2","label":"phase:6"}
+{"issue_id":"antwort-dj3d","label":"task"}
 {"issue_id":"antwort-dlt","label":"034-files-api"}
 {"issue_id":"antwort-dnm","label":"phase:1"}
 {"issue_id":"antwort-dnm.1","label":"phase:1"}
@@ -828,6 +829,7 @@
 {"issue_id":"antwort-hqo.2","label":"US5"}
 {"issue_id":"antwort-hqo.2","label":"phase:7"}
 {"issue_id":"antwort-hxjs","label":"035-annotations"}
+{"issue_id":"antwort-i3o6","label":"task"}
 {"issue_id":"antwort-i5u5","label":"037-conversations-api"}
 {"issue_id":"antwort-i8xb","label":"spec-044"}
 {"issue_id":"antwort-inj","label":"phase:7"}
@@ -880,6 +882,7 @@
 {"issue_id":"antwort-j10r.6","label":"US4"}
 {"issue_id":"antwort-j10r.6","label":"phase:6"}
 {"issue_id":"antwort-j9og","label":"task"}
+{"issue_id":"antwort-j9oh","label":"task"}
 {"issue_id":"antwort-jbuy","label":"038-agent-profiles"}
 {"issue_id":"antwort-jd0h","label":"034-files-api"}
 {"issue_id":"antwort-jet","label":"034-files-api"}
@@ -1113,6 +1116,7 @@
 {"issue_id":"antwort-pvce","label":"037-conversations-api"}
 {"issue_id":"antwort-pwvu","label":"039-vectorstore"}
 {"issue_id":"antwort-pyta","label":"spec-044"}
+{"issue_id":"antwort-q145","label":"task"}
 {"issue_id":"antwort-q9g1","label":"035-annotations"}
 {"issue_id":"antwort-qaxp","label":"spec-044"}
 {"issue_id":"antwort-qhcp","label":"037-conversations-api"}
@@ -1156,6 +1160,7 @@
 {"issue_id":"antwort-t6kj","label":"035-annotations"}
 {"issue_id":"antwort-t7jz","label":"037-conversations-api"}
 {"issue_id":"antwort-teif","label":"038-agent-profiles"}
+{"issue_id":"antwort-ti6s","label":"task"}
 {"issue_id":"antwort-tia","label":"034-files-api"}
 {"issue_id":"antwort-tj8","label":"phase:8"}
 {"issue_id":"antwort-tj8.1","label":"phase:8"}
@@ -1328,6 +1333,7 @@
 {"issue_id":"antwort-zg5.6","label":"US1"}
 {"issue_id":"antwort-zg5.6","label":"phase:1"}
 {"issue_id":"antwort-ziai","label":"task"}
+{"issue_id":"antwort-zrtp","label":"task"}
 {"issue_id":"antwort-zvu","label":"phase:2"}
 {"issue_id":"antwort-zvu.1","label":"phase:2"}
 {"issue_id":"antwort-zvu.2","label":"phase:2"}
