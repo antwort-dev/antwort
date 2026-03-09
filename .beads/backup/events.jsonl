@@ -3199,3 +3199,8 @@
 {"actor":"Roland Huß","comment":"Added label: task","created_at":"2026-03-09T12:12:15Z","event_type":"label_added","id":3199,"issue_id":"antwort-zrtp","new_value":null,"old_value":null}
 {"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T12:12:15Z","event_type":"created","id":3200,"issue_id":"antwort-dj3d","new_value":"","old_value":""}
 {"actor":"Roland Huß","comment":"Added label: task","created_at":"2026-03-09T12:12:15Z","event_type":"label_added","id":3201,"issue_id":"antwort-dj3d","new_value":null,"old_value":null}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T13:02:33Z","event_type":"closed","id":3202,"issue_id":"antwort-ti6s","new_value":"antwort-minimal instill: INSTILL.md, install.md (kustomize + route), uninstall.md","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T13:02:33Z","event_type":"closed","id":3203,"issue_id":"antwort-i3o6","new_value":"antwort-production instill: PostgreSQL-backed, configurable replicas","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T13:02:33Z","event_type":"closed","id":3204,"issue_id":"antwort-j9oh","new_value":"antwort-rag instill: file search + vector store (memory/qdrant)","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T13:02:33Z","event_type":"closed","id":3205,"issue_id":"antwort-q145","new_value":"antwort-background instill: gateway + worker with PostgreSQL queue","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T13:02:33Z","event_type":"closed","id":3206,"issue_id":"antwort-zrtp","new_value":"rosa-recipe.yaml: AAET profile, g5.xlarge GPU, rhoai + model + antwort-minimal","old_value":""}

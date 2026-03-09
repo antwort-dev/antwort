@@ -18,5 +18,10 @@
       "Write",
       "mcp__*"
     ]
-  }
+  },
+  "enabledMcpjsonServers": [
+    "google-work",
+    "jira-redhat",
+    "slack-redhat"
+  ]
 }

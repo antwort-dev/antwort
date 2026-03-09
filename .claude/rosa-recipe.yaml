@@ -1,0 +1,19 @@
+# Antwort Validation Stack Recipe
+# Deploy the complete validation stack on ROSA HCP via: /rosa:setup .claude/rosa-recipe.yaml
+#
+# This recipe provisions RHOAI, a model, and Antwort for cluster validation testing.
+# Re-running is safe (idempotent reconciliation skips completed steps).
+
+cluster:
+  profile: aaet
+
+gpu:
+  instance-type: g5.xlarge
+  replicas: 1
+
+install:
+  - rhoai
+  - model:
+      model_name: Qwen/Qwen2.5-7B-Instruct
+  - antwort-minimal:
+      namespace: antwort
