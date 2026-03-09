@@ -144,9 +144,7 @@ func runBFCLCases(t *testing.T, cases []BFCLCase, category string) {
 			start := time.Now()
 			resp, err := client.Responses.New(ctx, responses.ResponseNewParams{
 				Model: model,
-				Input: responses.ResponseNewParamsInputUnion{
-					OfString: openai.String(prompt),
-				},
+				Input: userInput(prompt),
 				Temperature: openai.Float(0),
 				Tools:       toolParams,
 			})

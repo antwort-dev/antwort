@@ -4,6 +4,7 @@ package cluster
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
+	"github.com/openai/openai-go/responses"
 )
 
 var (
@@ -121,4 +123,22 @@ func testContext(t *testing.T) context.Context {
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	t.Cleanup(cancel)
 	return ctx
+}
+
+// userInput creates a Responses API input from a user message string.
+// Uses a raw JSON override to include the "type":"message" field that Antwort requires
+// but the openai-go SDK's OfInputMessage constructor omits.
+func userInput(text string) responses.ResponseNewParamsInputUnion {
+	raw := json.RawMessage(fmt.Sprintf(
+		`[{"type":"message","role":"user","content":[{"type":"input_text","text":%s}]}]`,
+		mustJSON(text),
+	))
+	var input responses.ResponseNewParamsInputUnion
+	json.Unmarshal(raw, &input)
+	return input
+}
+
+func mustJSON(v any) string {
+	data, _ := json.Marshal(v)
+	return string(data)
 }

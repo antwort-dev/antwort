@@ -21,9 +21,7 @@ func TestMultiProviderNonStreaming(t *testing.T) {
 	start := time.Now()
 	resp, err := client.Responses.New(ctx, responses.ResponseNewParams{
 		Model: model,
-		Input: responses.ResponseNewParamsInputUnion{
-			OfString: openai.String(comparisonPrompt),
-		},
+		Input: userInput(comparisonPrompt),
 		Temperature: openai.Float(0),
 	})
 	antwortDuration := time.Since(start)
@@ -65,9 +63,7 @@ func TestMultiProviderNonStreaming(t *testing.T) {
 	start = time.Now()
 	vllmResp, err := vllm.Responses.New(ctx, responses.ResponseNewParams{
 		Model: model,
-		Input: responses.ResponseNewParamsInputUnion{
-			OfString: openai.String(comparisonPrompt),
-		},
+		Input: userInput(comparisonPrompt),
 		Temperature: openai.Float(0),
 	})
 	vllmDuration := time.Since(start)
@@ -110,9 +106,7 @@ func TestMultiProviderStreaming(t *testing.T) {
 	start := time.Now()
 	stream := client.Responses.NewStreaming(ctx, responses.ResponseNewParams{
 		Model: model,
-		Input: responses.ResponseNewParamsInputUnion{
-			OfString: openai.String(comparisonPrompt),
-		},
+		Input: userInput(comparisonPrompt),
 		Temperature: openai.Float(0),
 	})
 
@@ -155,9 +149,7 @@ func TestMultiProviderStreaming(t *testing.T) {
 	start = time.Now()
 	vllmStream := vllm.Responses.NewStreaming(ctx, responses.ResponseNewParams{
 		Model: model,
-		Input: responses.ResponseNewParamsInputUnion{
-			OfString: openai.String(comparisonPrompt),
-		},
+		Input: userInput(comparisonPrompt),
 		Temperature: openai.Float(0),
 	})
 
@@ -207,9 +199,7 @@ func TestMultiProviderOverhead(t *testing.T) {
 		start := time.Now()
 		_, err := client.Responses.New(ctx, responses.ResponseNewParams{
 			Model: model,
-			Input: responses.ResponseNewParamsInputUnion{
-				OfString: openai.String("What is 1+1? Answer with just the number."),
-			},
+			Input: userInput("What is 1+1? Answer with just the number."),
 			Temperature: openai.Float(0),
 		})
 		if err != nil {
@@ -220,9 +210,7 @@ func TestMultiProviderOverhead(t *testing.T) {
 		start = time.Now()
 		_, err = vllm.Responses.New(ctx, responses.ResponseNewParams{
 			Model: model,
-			Input: responses.ResponseNewParamsInputUnion{
-				OfString: openai.String("What is 1+1? Answer with just the number."),
-			},
+			Input: userInput("What is 1+1? Answer with just the number."),
 			Temperature: openai.Float(0),
 		})
 		if err != nil {

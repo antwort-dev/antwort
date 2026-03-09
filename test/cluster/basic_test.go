@@ -18,9 +18,7 @@ func TestBasicNonStreaming(t *testing.T) {
 	start := time.Now()
 	resp, err := client.Responses.New(ctx, responses.ResponseNewParams{
 		Model: model,
-		Input: responses.ResponseNewParamsInputUnion{
-			OfString: openai.String("Say hello in exactly three words."),
-		},
+		Input: userInput("Say hello in exactly three words."),
 	})
 	duration := time.Since(start)
 
@@ -70,9 +68,7 @@ func TestBasicStreaming(t *testing.T) {
 	start := time.Now()
 	stream := client.Responses.NewStreaming(ctx, responses.ResponseNewParams{
 		Model: model,
-		Input: responses.ResponseNewParamsInputUnion{
-			OfString: openai.String("Count from 1 to 5."),
-		},
+		Input: userInput("Count from 1 to 5."),
 	})
 
 	var ttft time.Duration
@@ -145,9 +141,7 @@ func TestBasicMultipleRequests(t *testing.T) {
 
 			resp, err := client.Responses.New(ctx, responses.ResponseNewParams{
 				Model: model,
-				Input: responses.ResponseNewParamsInputUnion{
-					OfString: openai.String("What is 2+2? Answer with just the number."),
-				},
+				Input: userInput("What is 2+2? Answer with just the number."),
 				Temperature: openai.Float(0),
 			})
 			duration := time.Since(start)

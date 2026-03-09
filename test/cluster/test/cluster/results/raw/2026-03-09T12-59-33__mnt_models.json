@@ -1,0 +1,29 @@
+{
+  "model": "/mnt/models",
+  "antwort_version": "24f469f",
+  "cluster": "",
+  "timestamp": "2026-03-09T12:59:33Z",
+  "categories": {
+    "basic": {
+      "passed": 11,
+      "total": 11,
+      "score": 1
+    },
+    "streaming": {
+      "passed": 1,
+      "total": 1,
+      "score": 1
+    }
+  },
+  "latency": {
+    "non_streaming_p50_ms": 200,
+    "non_streaming_p95_ms": 393.99999999999983,
+    "non_streaming_p99_ms": 526,
+    "streaming_ttft_p50_ms": 191,
+    "streaming_ttft_p95_ms": 191,
+    "streaming_ttft_p99_ms": 191
+  },
+  "failures": null,
+  "total_passed": 12,
+  "total_tests": 12
+}

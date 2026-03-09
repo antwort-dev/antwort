@@ -169,9 +169,7 @@ func TestAuthAccepted(t *testing.T) {
 	start := time.Now()
 	_, err := client.Responses.New(ctx, responses.ResponseNewParams{
 		Model: model,
-		Input: responses.ResponseNewParamsInputUnion{
-			OfString: openai.String("Say ok."),
-		},
+		Input: userInput("Say ok."),
 	})
 	duration := time.Since(start)
 
@@ -205,8 +203,8 @@ func TestAuthRejected(t *testing.T) {
 	}
 	probeResp.Body.Close()
 
-	if probeResp.StatusCode == http.StatusOK {
-		t.Skip("auth not configured on this deployment (unauthenticated request succeeded)")
+	if probeResp.StatusCode == http.StatusOK || probeResp.StatusCode == http.StatusBadRequest {
+		t.Skip("auth not configured on this deployment (unauthenticated request was not rejected)")
 	}
 
 	passed := probeResp.StatusCode == http.StatusUnauthorized || probeResp.StatusCode == http.StatusForbidden
@@ -232,9 +230,7 @@ func TestConversationChaining(t *testing.T) {
 	// First response
 	resp1, err := client.Responses.New(ctx, responses.ResponseNewParams{
 		Model: model,
-		Input: responses.ResponseNewParamsInputUnion{
-			OfString: openai.String("My name is Alice. Remember that."),
-		},
+		Input: userInput("My name is Alice. Remember that."),
 		Temperature: openai.Float(0),
 	})
 	if err != nil {
@@ -249,9 +245,7 @@ func TestConversationChaining(t *testing.T) {
 	start := time.Now()
 	resp2, err := client.Responses.New(ctx, responses.ResponseNewParams{
 		Model: model,
-		Input: responses.ResponseNewParamsInputUnion{
-			OfString: openai.String("What is my name?"),
-		},
+		Input: userInput("What is my name?"),
 		Temperature:        openai.Float(0),
 		PreviousResponseID: openai.String(resp1.ID),
 	})

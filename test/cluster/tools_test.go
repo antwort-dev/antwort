@@ -17,9 +17,7 @@ func TestToolCallSimple(t *testing.T) {
 	start := time.Now()
 	resp, err := client.Responses.New(ctx, responses.ResponseNewParams{
 		Model: model,
-		Input: responses.ResponseNewParamsInputUnion{
-			OfString: openai.String("What is the weather in San Francisco?"),
-		},
+		Input: userInput("What is the weather in San Francisco?"),
 		Temperature: openai.Float(0),
 		Tools: []responses.ToolUnionParam{
 			{
@@ -87,9 +85,7 @@ func TestToolCallNoCall(t *testing.T) {
 	start := time.Now()
 	resp, err := client.Responses.New(ctx, responses.ResponseNewParams{
 		Model: model,
-		Input: responses.ResponseNewParamsInputUnion{
-			OfString: openai.String("What is 2+2? Just give me the number."),
-		},
+		Input: userInput("What is 2+2? Just give me the number."),
 		Temperature: openai.Float(0),
 		Tools: []responses.ToolUnionParam{
 			{
@@ -152,9 +148,7 @@ func TestToolCallStreaming(t *testing.T) {
 	start := time.Now()
 	stream := client.Responses.NewStreaming(ctx, responses.ResponseNewParams{
 		Model: model,
-		Input: responses.ResponseNewParamsInputUnion{
-			OfString: openai.String("What is the weather in Paris?"),
-		},
+		Input: userInput("What is the weather in Paris?"),
 		Temperature: openai.Float(0),
 		Tools: []responses.ToolUnionParam{
 			{
