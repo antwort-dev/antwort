@@ -68,6 +68,9 @@ All 42 specifications have been implemented through the SDD process. Each spec p
 | 040 Resource Ownership | Per-user resource isolation with admin override |
 | 041 Scope Permissions | Scope-based authorization with role-to-scope mapping |
 | 042 Audit Logging | Structured audit trail for security events and mutations |
+| 043 E2E Testing | LLM recording/replay for deterministic end-to-end tests |
+| 044 Async Responses | Background mode with distributed gateway/worker architecture |
+| 045 Cluster Validation | Real-cluster validation harness with BFCL benchmarks |
 
 ### Roadmap
 
@@ -82,6 +85,7 @@ Antwort focuses on being the best inference gateway for autonomous agents runnin
 | Config | Agent profiles with per-agent model, tools, and instructions | Implemented |
 | Sandbox | Kubernetes-native code execution via agent-sandbox CRDs | Implemented |
 | Async | Background responses with distributed gateway/worker architecture | Implemented |
+| Validation | Real-cluster testing with BFCL benchmarks against ROSA HCP | Implemented |
 | Memory | Conversation branching and summarization for long-running agents | Planned |
 | Registry | Dynamic tool discovery and per-tenant tool permissions | Planned |
 
