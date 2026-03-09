@@ -749,3 +749,26 @@ time="2026-03-09T14:01:28+01:00" level=info msg=NewConnection DisableClientMulti
 time="2026-03-09T14:01:28+01:00" level=info msg=NewConnection DisableClientMultiStatements=false connectionID=7
 time="2026-03-09T14:01:28+01:00" level=info msg=ConnectionClosed connectionID=6
 time="2026-03-09T14:01:28+01:00" level=info msg=ConnectionClosed connectionID=7
+time="2026-03-09T14:01:34+01:00" level=info msg=NewConnection DisableClientMultiStatements=false connectionID=8
+time="2026-03-09T14:01:34+01:00" level=info msg=ConnectionClosed connectionID=8
+time="2026-03-09T14:01:34+01:00" level=info msg=NewConnection DisableClientMultiStatements=false connectionID=9
+time="2026-03-09T14:01:34+01:00" level=info msg=NewConnection DisableClientMultiStatements=false connectionID=10
+time="2026-03-09T14:01:34+01:00" level=info msg=ConnectionClosed connectionID=9
+time="2026-03-09T14:01:34+01:00" level=info msg=ConnectionClosed connectionID=10
+time="2026-03-09T14:01:40+01:00" level=info msg=NewConnection DisableClientMultiStatements=false connectionID=11
+time="2026-03-09T14:01:40+01:00" level=info msg=ConnectionClosed connectionID=11
+time="2026-03-09T14:01:40+01:00" level=info msg=NewConnection DisableClientMultiStatements=false connectionID=12
+time="2026-03-09T14:01:40+01:00" level=info msg=NewConnection DisableClientMultiStatements=false connectionID=13
+time="2026-03-09T14:01:40+01:00" level=info msg=ConnectionClosed connectionID=12
+time="2026-03-09T14:01:40+01:00" level=warning msg="error running query" connectTime="2026-03-09 14:01:40.173751 +0100 CET m=+12.650024876" connectionDb=beads_antwort connectionID=13 error="nothing to commit" queryTime="2026-03-09 14:01:40.188367 +0100 CET m=+12.664640792"
+time="2026-03-09T14:01:40+01:00" level=info msg=ConnectionClosed connectionID=13
+time="2026-03-09T14:01:40+01:00" level=info msg=NewConnection DisableClientMultiStatements=false connectionID=14
+time="2026-03-09T14:01:40+01:00" level=info msg=ConnectionClosed connectionID=14
+time="2026-03-09T14:01:40+01:00" level=info msg=NewConnection DisableClientMultiStatements=false connectionID=15
+time="2026-03-09T14:01:40+01:00" level=info msg=NewConnection DisableClientMultiStatements=false connectionID=16
+time="2026-03-09T14:01:40+01:00" level=info msg=ConnectionClosed connectionID=15
+time="2026-03-09T14:01:40+01:00" level=info msg=ConnectionClosed connectionID=16
+time="2026-03-09T14:31:29+01:00" level=info msg=NewConnection DisableClientMultiStatements=false connectionID=17
+time="2026-03-09T14:31:29+01:00" level=info msg=ConnectionClosed connectionID=17
+time="2026-03-09T14:31:29+01:00" level=info msg="Server closing listener. No longer accepting connections."
+time="2026-03-09T14:31:29+01:00" level=info msg="stats stopped: context canceled"
