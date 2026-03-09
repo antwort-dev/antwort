@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strconv"
 	"testing"
 	"time"
@@ -81,7 +83,9 @@ func TestMain(m *testing.M) {
 	code := m.Run()
 
 	// Write results on teardown
-	if err := collector.WriteJSON("test/cluster/results/raw"); err != nil {
+	// Use filepath relative to this test file's location
+	resultsDir := filepath.Join(filepath.Dir(testFilePath()), "results", "raw")
+	if err := collector.WriteJSON(resultsDir); err != nil {
 		fmt.Printf("WARNING: failed to write results JSON: %v\n", err)
 	}
 
@@ -141,4 +145,9 @@ func userInput(text string) responses.ResponseNewParamsInputUnion {
 func mustJSON(v any) string {
 	data, _ := json.Marshal(v)
 	return string(data)
+}
+
+func testFilePath() string {
+	_, filename, _, _ := runtime.Caller(0)
+	return filename
 }
