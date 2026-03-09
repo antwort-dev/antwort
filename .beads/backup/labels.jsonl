@@ -35,6 +35,7 @@
 {"issue_id":"antwort-0pm.2","label":"phase:5"}
 {"issue_id":"antwort-0pm.3","label":"phase:5"}
 {"issue_id":"antwort-0rp","label":"034-files-api"}
+{"issue_id":"antwort-0yhr","label":"task"}
 {"issue_id":"antwort-13w","label":"phase:2"}
 {"issue_id":"antwort-13w.1","label":"US1"}
 {"issue_id":"antwort-13w.1","label":"phase:2"}
@@ -233,6 +234,7 @@
 {"issue_id":"antwort-45g.1","label":"phase:3"}
 {"issue_id":"antwort-45g.2","label":"US2"}
 {"issue_id":"antwort-45g.2","label":"phase:3"}
+{"issue_id":"antwort-464c","label":"task"}
 {"issue_id":"antwort-46k","label":"phase:3"}
 {"issue_id":"antwort-46k.1","label":"US6"}
 {"issue_id":"antwort-46k.1","label":"phase:3"}
@@ -257,6 +259,7 @@
 {"issue_id":"antwort-4lm.4","label":"phase:3"}
 {"issue_id":"antwort-4lm.5","label":"US1"}
 {"issue_id":"antwort-4lm.5","label":"phase:3"}
+{"issue_id":"antwort-4o33","label":"task"}
 {"issue_id":"antwort-4oh5","label":"037-conversations-api"}
 {"issue_id":"antwort-4rxj","label":"034-files-api"}
 {"issue_id":"antwort-4uae","label":"spec-044"}
@@ -298,6 +301,7 @@
 {"issue_id":"antwort-5js.2","label":"US2"}
 {"issue_id":"antwort-5js.2","label":"phase:2"}
 {"issue_id":"antwort-5lce","label":"spec-044"}
+{"issue_id":"antwort-5noe","label":"task"}
 {"issue_id":"antwort-5pk","label":"034-files-api"}
 {"issue_id":"antwort-5t6","label":"phase:1"}
 {"issue_id":"antwort-5t6.1","label":"phase:1"}
@@ -405,6 +409,7 @@
 {"issue_id":"antwort-7cn.1","label":"phase:5"}
 {"issue_id":"antwort-7e3o","label":"037-conversations-api"}
 {"issue_id":"antwort-7em","label":"034-files-api"}
+{"issue_id":"antwort-7i7n","label":"task"}
 {"issue_id":"antwort-7ih","label":"phase:1"}
 {"issue_id":"antwort-7ih.1","label":"phase:1"}
 {"issue_id":"antwort-7ih.2","label":"phase:1"}
@@ -422,7 +427,9 @@
 {"issue_id":"antwort-7q8.3","label":"phase:4"}
 {"issue_id":"antwort-7r53","label":"spec-044"}
 {"issue_id":"antwort-7sij","label":"036-web-search-providers"}
+{"issue_id":"antwort-7slf","label":"task"}
 {"issue_id":"antwort-7uy","label":"034-files-api"}
+{"issue_id":"antwort-824r","label":"task"}
 {"issue_id":"antwort-882l","label":"038-agent-profiles"}
 {"issue_id":"antwort-8a1m","label":"spec-044"}
 {"issue_id":"antwort-8kk","label":"phase:3"}
@@ -571,6 +578,7 @@
 {"issue_id":"antwort-a79.6","label":"phase:4"}
 {"issue_id":"antwort-a79.7","label":"US2"}
 {"issue_id":"antwort-a79.7","label":"phase:4"}
+{"issue_id":"antwort-a83c","label":"task"}
 {"issue_id":"antwort-a8l","label":"phase:1"}
 {"issue_id":"antwort-a8l.1","label":"phase:1"}
 {"issue_id":"antwort-a8l.2","label":"phase:1"}
@@ -622,6 +630,7 @@
 {"issue_id":"antwort-b0g.4","label":"US3"}
 {"issue_id":"antwort-b0g.4","label":"parallel"}
 {"issue_id":"antwort-b0g.4","label":"phase:4"}
+{"issue_id":"antwort-b230","label":"task"}
 {"issue_id":"antwort-bdu7","label":"phase:6"}
 {"issue_id":"antwort-bdu7.1","label":"US4"}
 {"issue_id":"antwort-bdu7.1","label":"phase:6"}
@@ -635,6 +644,7 @@
 {"issue_id":"antwort-bon0.1","label":"phase:2"}
 {"issue_id":"antwort-bon0.2","label":"phase:2"}
 {"issue_id":"antwort-bsjd","label":"035-annotations"}
+{"issue_id":"antwort-bsz4","label":"task"}
 {"issue_id":"antwort-bvm","label":"phase:4"}
 {"issue_id":"antwort-bvm.1","label":"US3"}
 {"issue_id":"antwort-bvm.1","label":"phase:4"}
@@ -722,6 +732,7 @@
 {"issue_id":"antwort-dz7","label":"034-files-api"}
 {"issue_id":"antwort-dzc4","label":"037-conversations-api"}
 {"issue_id":"antwort-dzug","label":"038-agent-profiles"}
+{"issue_id":"antwort-e0dj","label":"task"}
 {"issue_id":"antwort-e0qh","label":"spec-044"}
 {"issue_id":"antwort-e2c","label":"phase:1"}
 {"issue_id":"antwort-e2c.1","label":"phase:1"}
@@ -758,6 +769,8 @@
 {"issue_id":"antwort-f9a","label":"US2"}
 {"issue_id":"antwort-f9a","label":"phase:2"}
 {"issue_id":"antwort-f9a","label":"task"}
+{"issue_id":"antwort-f9hv","label":"task"}
+{"issue_id":"antwort-fb57","label":"task"}
 {"issue_id":"antwort-fes8","label":"034-files-api"}
 {"issue_id":"antwort-ffre","label":"spec-044"}
 {"issue_id":"antwort-fm29","label":"034-files-api"}
@@ -851,6 +864,7 @@
 {"issue_id":"antwort-iqr.1","label":"phase:3"}
 {"issue_id":"antwort-iqr.2","label":"phase:3"}
 {"issue_id":"antwort-iwoe","label":"039-vectorstore"}
+{"issue_id":"antwort-iz3w","label":"task"}
 {"issue_id":"antwort-j10r","label":"phase:6"}
 {"issue_id":"antwort-j10r.1","label":"US4"}
 {"issue_id":"antwort-j10r.1","label":"phase:6"}
@@ -865,9 +879,11 @@
 {"issue_id":"antwort-j10r.5","label":"phase:6"}
 {"issue_id":"antwort-j10r.6","label":"US4"}
 {"issue_id":"antwort-j10r.6","label":"phase:6"}
+{"issue_id":"antwort-j9og","label":"task"}
 {"issue_id":"antwort-jbuy","label":"038-agent-profiles"}
 {"issue_id":"antwort-jd0h","label":"034-files-api"}
 {"issue_id":"antwort-jet","label":"034-files-api"}
+{"issue_id":"antwort-jhqw","label":"task"}
 {"issue_id":"antwort-jiyp","label":"phase:7"}
 {"issue_id":"antwort-jiyp.1","label":"US5"}
 {"issue_id":"antwort-jiyp.1","label":"phase:7"}
@@ -904,6 +920,7 @@
 {"issue_id":"antwort-kpv1","label":"036-web-search-providers"}
 {"issue_id":"antwort-kx5","label":"034-files-api"}
 {"issue_id":"antwort-l0a5","label":"spec-044"}
+{"issue_id":"antwort-l1bv","label":"task"}
 {"issue_id":"antwort-l3wo","label":"037-conversations-api"}
 {"issue_id":"antwort-lbv","label":"phase:6"}
 {"issue_id":"antwort-lbv.1","label":"US4"}
@@ -943,6 +960,8 @@
 {"issue_id":"antwort-lhv.7","label":"phase:6"}
 {"issue_id":"antwort-lhv.8","label":"US4"}
 {"issue_id":"antwort-lhv.8","label":"phase:6"}
+{"issue_id":"antwort-lm1x","label":"task"}
+{"issue_id":"antwort-lvyb","label":"task"}
 {"issue_id":"antwort-lxi","label":"phase:6"}
 {"issue_id":"antwort-lxi.1","label":"US4"}
 {"issue_id":"antwort-lxi.1","label":"phase:6"}
@@ -999,11 +1018,13 @@
 {"issue_id":"antwort-mvz1.9","label":"phase:4"}
 {"issue_id":"antwort-mwyy","label":"036-web-search-providers"}
 {"issue_id":"antwort-mz64","label":"039-vectorstore"}
+{"issue_id":"antwort-n0cv","label":"task"}
 {"issue_id":"antwort-narr","label":"039-vectorstore"}
 {"issue_id":"antwort-ncy8","label":"034-files-api"}
 {"issue_id":"antwort-nft6","label":"spec-044"}
 {"issue_id":"antwort-nger","label":"034-files-api"}
 {"issue_id":"antwort-nkdt","label":"035-annotations"}
+{"issue_id":"antwort-npcw","label":"task"}
 {"issue_id":"antwort-nquk","label":"039-vectorstore"}
 {"issue_id":"antwort-nri","label":"phase:2"}
 {"issue_id":"antwort-nri.1","label":"phase:2"}
@@ -1077,6 +1098,7 @@
 {"issue_id":"antwort-pdm.6","label":"phase:2"}
 {"issue_id":"antwort-pe56","label":"039-vectorstore"}
 {"issue_id":"antwort-pess","label":"spec-044"}
+{"issue_id":"antwort-pf8n","label":"task"}
 {"issue_id":"antwort-pfjp","label":"037-conversations-api"}
 {"issue_id":"antwort-pur","label":"phase:2"}
 {"issue_id":"antwort-pur.1","label":"parallel"}
@@ -1139,6 +1161,8 @@
 {"issue_id":"antwort-tj8.1","label":"phase:8"}
 {"issue_id":"antwort-tj8.2","label":"phase:8"}
 {"issue_id":"antwort-tj8.3","label":"phase:8"}
+{"issue_id":"antwort-tmz0","label":"task"}
+{"issue_id":"antwort-to37","label":"task"}
 {"issue_id":"antwort-u406","label":"phase:4"}
 {"issue_id":"antwort-u406.1","label":"US2"}
 {"issue_id":"antwort-u406.1","label":"parallel"}
@@ -1201,7 +1225,9 @@
 {"issue_id":"antwort-vw5","label":"phase:6"}
 {"issue_id":"antwort-vw5.1","label":"phase:6"}
 {"issue_id":"antwort-vxwt","label":"035-annotations"}
+{"issue_id":"antwort-vync","label":"task"}
 {"issue_id":"antwort-w7ug","label":"038-agent-profiles"}
+{"issue_id":"antwort-waex","label":"task"}
 {"issue_id":"antwort-wcyf","label":"037-conversations-api"}
 {"issue_id":"antwort-wfpb","label":"035-annotations"}
 {"issue_id":"antwort-wfpx","label":"spec-044"}
@@ -1222,6 +1248,7 @@
 {"issue_id":"antwort-x9x.2","label":"phase:1"}
 {"issue_id":"antwort-x9x.3","label":"parallel"}
 {"issue_id":"antwort-x9x.3","label":"phase:1"}
+{"issue_id":"antwort-xa4o","label":"task"}
 {"issue_id":"antwort-xbgh","label":"039-vectorstore"}
 {"issue_id":"antwort-xcpl","label":"spec-044"}
 {"issue_id":"antwort-xot","label":"phase:5"}
@@ -1230,6 +1257,7 @@
 {"issue_id":"antwort-xyj","label":"034-files-api"}
 {"issue_id":"antwort-y6n","label":"034-files-api"}
 {"issue_id":"antwort-y6wf","label":"035-annotations"}
+{"issue_id":"antwort-y8kw","label":"task"}
 {"issue_id":"antwort-yjv6","label":"036-web-search-providers"}
 {"issue_id":"antwort-ylqd","label":"038-agent-profiles"}
 {"issue_id":"antwort-ym5","label":"phase:3"}
@@ -1299,6 +1327,7 @@
 {"issue_id":"antwort-zg5.5","label":"phase:1"}
 {"issue_id":"antwort-zg5.6","label":"US1"}
 {"issue_id":"antwort-zg5.6","label":"phase:1"}
+{"issue_id":"antwort-ziai","label":"task"}
 {"issue_id":"antwort-zvu","label":"phase:2"}
 {"issue_id":"antwort-zvu.1","label":"phase:2"}
 {"issue_id":"antwort-zvu.2","label":"phase:2"}

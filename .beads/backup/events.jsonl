@@ -3087,3 +3087,103 @@
 {"actor":"Roland Huß","comment":null,"created_at":"2026-03-06T11:43:46Z","event_type":"closed","id":3087,"issue_id":"antwort-z2dt","new_value":"Verified: all tests pass","old_value":""}
 {"actor":"Roland Huß","comment":null,"created_at":"2026-03-06T11:43:46Z","event_type":"closed","id":3088,"issue_id":"antwort-o7m","new_value":"Verification task, conformance runs in CI","old_value":""}
 {"actor":"Roland Huß","comment":null,"created_at":"2026-03-06T11:43:47Z","event_type":"closed","id":3089,"issue_id":"antwort-8mic","new_value":"VectorIndexer kept as intentional alias for backward compat","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:16:59Z","event_type":"closed","id":3090,"issue_id":"antwort-iiolv","new_value":"Imported at wrong granularity, recreating as individual tasks","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:16:59Z","event_type":"closed","id":3091,"issue_id":"antwort-blkux","new_value":"Imported at wrong granularity, recreating as individual tasks","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:16:59Z","event_type":"closed","id":3092,"issue_id":"antwort-byr93","new_value":"Imported at wrong granularity, recreating as individual tasks","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:16:59Z","event_type":"closed","id":3093,"issue_id":"antwort-jdr47","new_value":"Imported at wrong granularity, recreating as individual tasks","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:16:59Z","event_type":"closed","id":3094,"issue_id":"antwort-xrx4s","new_value":"Imported at wrong granularity, recreating as individual tasks","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:16:59Z","event_type":"closed","id":3095,"issue_id":"antwort-08k2d","new_value":"Imported at wrong granularity, recreating as individual tasks","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:16:59Z","event_type":"closed","id":3096,"issue_id":"antwort-uvd3o","new_value":"Imported at wrong granularity, recreating as individual tasks","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:16:59Z","event_type":"closed","id":3097,"issue_id":"antwort-nn5jx","new_value":"Imported at wrong granularity, recreating as individual tasks","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:16:59Z","event_type":"closed","id":3098,"issue_id":"antwort-c9v0z","new_value":"Imported at wrong granularity, recreating as individual tasks","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:16:59Z","event_type":"closed","id":3099,"issue_id":"antwort-izz59","new_value":"Imported at wrong granularity, recreating as individual tasks","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:16:59Z","event_type":"closed","id":3100,"issue_id":"antwort-0ku8a","new_value":"Imported at wrong granularity, recreating as individual tasks","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:16:59Z","event_type":"closed","id":3101,"issue_id":"antwort-kzf1l","new_value":"Imported at wrong granularity, recreating as individual tasks","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:17:00Z","event_type":"closed","id":3102,"issue_id":"antwort-wea0y","new_value":"Imported at wrong granularity, recreating as individual tasks","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:17:00Z","event_type":"closed","id":3103,"issue_id":"antwort-arckb","new_value":"Imported at wrong granularity, recreating as individual tasks","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:17:08Z","event_type":"created","id":3104,"issue_id":"antwort-lm1x","new_value":"","old_value":""}
+{"actor":"Roland Huß","comment":"Added label: task","created_at":"2026-03-09T11:17:08Z","event_type":"label_added","id":3105,"issue_id":"antwort-lm1x","new_value":null,"old_value":null}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:17:08Z","event_type":"created","id":3106,"issue_id":"antwort-y8kw","new_value":"","old_value":""}
+{"actor":"Roland Huß","comment":"Added label: task","created_at":"2026-03-09T11:17:08Z","event_type":"label_added","id":3107,"issue_id":"antwort-y8kw","new_value":null,"old_value":null}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:17:08Z","event_type":"created","id":3108,"issue_id":"antwort-npcw","new_value":"","old_value":""}
+{"actor":"Roland Huß","comment":"Added label: task","created_at":"2026-03-09T11:17:08Z","event_type":"label_added","id":3109,"issue_id":"antwort-npcw","new_value":null,"old_value":null}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:17:08Z","event_type":"created","id":3110,"issue_id":"antwort-l1bv","new_value":"","old_value":""}
+{"actor":"Roland Huß","comment":"Added label: task","created_at":"2026-03-09T11:17:08Z","event_type":"label_added","id":3111,"issue_id":"antwort-l1bv","new_value":null,"old_value":null}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:17:08Z","event_type":"created","id":3112,"issue_id":"antwort-0yhr","new_value":"","old_value":""}
+{"actor":"Roland Huß","comment":"Added label: task","created_at":"2026-03-09T11:17:08Z","event_type":"label_added","id":3113,"issue_id":"antwort-0yhr","new_value":null,"old_value":null}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:17:08Z","event_type":"created","id":3114,"issue_id":"antwort-464c","new_value":"","old_value":""}
+{"actor":"Roland Huß","comment":"Added label: task","created_at":"2026-03-09T11:17:08Z","event_type":"label_added","id":3115,"issue_id":"antwort-464c","new_value":null,"old_value":null}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:17:09Z","event_type":"created","id":3116,"issue_id":"antwort-to37","new_value":"","old_value":""}
+{"actor":"Roland Huß","comment":"Added label: task","created_at":"2026-03-09T11:17:09Z","event_type":"label_added","id":3117,"issue_id":"antwort-to37","new_value":null,"old_value":null}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:17:09Z","event_type":"created","id":3118,"issue_id":"antwort-5noe","new_value":"","old_value":""}
+{"actor":"Roland Huß","comment":"Added label: task","created_at":"2026-03-09T11:17:09Z","event_type":"label_added","id":3119,"issue_id":"antwort-5noe","new_value":null,"old_value":null}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:17:09Z","event_type":"created","id":3120,"issue_id":"antwort-waex","new_value":"","old_value":""}
+{"actor":"Roland Huß","comment":"Added label: task","created_at":"2026-03-09T11:17:09Z","event_type":"label_added","id":3121,"issue_id":"antwort-waex","new_value":null,"old_value":null}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:17:09Z","event_type":"created","id":3122,"issue_id":"antwort-bsz4","new_value":"","old_value":""}
+{"actor":"Roland Huß","comment":"Added label: task","created_at":"2026-03-09T11:17:09Z","event_type":"label_added","id":3123,"issue_id":"antwort-bsz4","new_value":null,"old_value":null}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:17:09Z","event_type":"created","id":3124,"issue_id":"antwort-fb57","new_value":"","old_value":""}
+{"actor":"Roland Huß","comment":"Added label: task","created_at":"2026-03-09T11:17:09Z","event_type":"label_added","id":3125,"issue_id":"antwort-fb57","new_value":null,"old_value":null}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:17:09Z","event_type":"created","id":3126,"issue_id":"antwort-824r","new_value":"","old_value":""}
+{"actor":"Roland Huß","comment":"Added label: task","created_at":"2026-03-09T11:17:09Z","event_type":"label_added","id":3127,"issue_id":"antwort-824r","new_value":null,"old_value":null}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:17:09Z","event_type":"created","id":3128,"issue_id":"antwort-vync","new_value":"","old_value":""}
+{"actor":"Roland Huß","comment":"Added label: task","created_at":"2026-03-09T11:17:09Z","event_type":"label_added","id":3129,"issue_id":"antwort-vync","new_value":null,"old_value":null}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:17:10Z","event_type":"created","id":3130,"issue_id":"antwort-jhqw","new_value":"","old_value":""}
+{"actor":"Roland Huß","comment":"Added label: task","created_at":"2026-03-09T11:17:10Z","event_type":"label_added","id":3131,"issue_id":"antwort-jhqw","new_value":null,"old_value":null}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:17:10Z","event_type":"created","id":3132,"issue_id":"antwort-7i7n","new_value":"","old_value":""}
+{"actor":"Roland Huß","comment":"Added label: task","created_at":"2026-03-09T11:17:10Z","event_type":"label_added","id":3133,"issue_id":"antwort-7i7n","new_value":null,"old_value":null}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:17:10Z","event_type":"created","id":3134,"issue_id":"antwort-7slf","new_value":"","old_value":""}
+{"actor":"Roland Huß","comment":"Added label: task","created_at":"2026-03-09T11:17:10Z","event_type":"label_added","id":3135,"issue_id":"antwort-7slf","new_value":null,"old_value":null}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:17:10Z","event_type":"created","id":3136,"issue_id":"antwort-xa4o","new_value":"","old_value":""}
+{"actor":"Roland Huß","comment":"Added label: task","created_at":"2026-03-09T11:17:10Z","event_type":"label_added","id":3137,"issue_id":"antwort-xa4o","new_value":null,"old_value":null}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:17:10Z","event_type":"created","id":3138,"issue_id":"antwort-j9og","new_value":"","old_value":""}
+{"actor":"Roland Huß","comment":"Added label: task","created_at":"2026-03-09T11:17:10Z","event_type":"label_added","id":3139,"issue_id":"antwort-j9og","new_value":null,"old_value":null}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:17:10Z","event_type":"created","id":3140,"issue_id":"antwort-4o33","new_value":"","old_value":""}
+{"actor":"Roland Huß","comment":"Added label: task","created_at":"2026-03-09T11:17:10Z","event_type":"label_added","id":3141,"issue_id":"antwort-4o33","new_value":null,"old_value":null}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:17:10Z","event_type":"created","id":3142,"issue_id":"antwort-tmz0","new_value":"","old_value":""}
+{"actor":"Roland Huß","comment":"Added label: task","created_at":"2026-03-09T11:17:10Z","event_type":"label_added","id":3143,"issue_id":"antwort-tmz0","new_value":null,"old_value":null}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:17:11Z","event_type":"created","id":3144,"issue_id":"antwort-iz3w","new_value":"","old_value":""}
+{"actor":"Roland Huß","comment":"Added label: task","created_at":"2026-03-09T11:17:11Z","event_type":"label_added","id":3145,"issue_id":"antwort-iz3w","new_value":null,"old_value":null}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:17:11Z","event_type":"created","id":3146,"issue_id":"antwort-f9hv","new_value":"","old_value":""}
+{"actor":"Roland Huß","comment":"Added label: task","created_at":"2026-03-09T11:17:11Z","event_type":"label_added","id":3147,"issue_id":"antwort-f9hv","new_value":null,"old_value":null}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:17:11Z","event_type":"created","id":3148,"issue_id":"antwort-n0cv","new_value":"","old_value":""}
+{"actor":"Roland Huß","comment":"Added label: task","created_at":"2026-03-09T11:17:11Z","event_type":"label_added","id":3149,"issue_id":"antwort-n0cv","new_value":null,"old_value":null}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:17:11Z","event_type":"created","id":3150,"issue_id":"antwort-b230","new_value":"","old_value":""}
+{"actor":"Roland Huß","comment":"Added label: task","created_at":"2026-03-09T11:17:11Z","event_type":"label_added","id":3151,"issue_id":"antwort-b230","new_value":null,"old_value":null}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:17:11Z","event_type":"created","id":3152,"issue_id":"antwort-a83c","new_value":"","old_value":""}
+{"actor":"Roland Huß","comment":"Added label: task","created_at":"2026-03-09T11:17:11Z","event_type":"label_added","id":3153,"issue_id":"antwort-a83c","new_value":null,"old_value":null}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:17:11Z","event_type":"created","id":3154,"issue_id":"antwort-e0dj","new_value":"","old_value":""}
+{"actor":"Roland Huß","comment":"Added label: task","created_at":"2026-03-09T11:17:11Z","event_type":"label_added","id":3155,"issue_id":"antwort-e0dj","new_value":null,"old_value":null}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:17:11Z","event_type":"created","id":3156,"issue_id":"antwort-lvyb","new_value":"","old_value":""}
+{"actor":"Roland Huß","comment":"Added label: task","created_at":"2026-03-09T11:17:11Z","event_type":"label_added","id":3157,"issue_id":"antwort-lvyb","new_value":null,"old_value":null}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:17:12Z","event_type":"created","id":3158,"issue_id":"antwort-ziai","new_value":"","old_value":""}
+{"actor":"Roland Huß","comment":"Added label: task","created_at":"2026-03-09T11:17:12Z","event_type":"label_added","id":3159,"issue_id":"antwort-ziai","new_value":null,"old_value":null}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:17:12Z","event_type":"created","id":3160,"issue_id":"antwort-pf8n","new_value":"","old_value":""}
+{"actor":"Roland Huß","comment":"Added label: task","created_at":"2026-03-09T11:17:12Z","event_type":"label_added","id":3161,"issue_id":"antwort-pf8n","new_value":null,"old_value":null}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:56:11Z","event_type":"closed","id":3162,"issue_id":"antwort-lm1x","new_value":"Created cluster_test.go with TestMain, env vars, client helpers","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:56:11Z","event_type":"closed","id":3163,"issue_id":"antwort-y8kw","new_value":"Created results.go with ResultCollector, latency percentiles, WriteJSON","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:56:12Z","event_type":"closed","id":3164,"issue_id":"antwort-npcw","new_value":"Created results dir with .gitignore, .gitkeep, README.md","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:56:12Z","event_type":"closed","id":3165,"issue_id":"antwort-l1bv","new_value":"Added cluster-test and cluster-test-bfcl targets to Makefile","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:58:55Z","event_type":"closed","id":3166,"issue_id":"antwort-5noe","new_value":"TestBasicNonStreaming: validates ID prefix, model, output text, usage","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:58:56Z","event_type":"closed","id":3167,"issue_id":"antwort-waex","new_value":"TestBasicStreaming: TTFT measurement, SSE lifecycle, text assembly","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:58:56Z","event_type":"closed","id":3168,"issue_id":"antwort-bsz4","new_value":"TestBasicMultipleRequests: 10 sequential requests for latency percentiles","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:58:56Z","event_type":"closed","id":3169,"issue_id":"antwort-fb57","new_value":"TestMultiProviderNonStreaming: Antwort vs direct vLLM comparison","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:58:56Z","event_type":"closed","id":3170,"issue_id":"antwort-824r","new_value":"TestMultiProviderStreaming: TTFT comparison across paths","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T11:58:56Z","event_type":"closed","id":3171,"issue_id":"antwort-vync","new_value":"TestMultiProviderOverhead: 5-request average overhead calculation","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T12:00:11Z","event_type":"closed","id":3172,"issue_id":"antwort-jhqw","new_value":"TestToolCallSimple: validates function_call output with get_weather","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T12:00:11Z","event_type":"closed","id":3173,"issue_id":"antwort-7i7n","new_value":"TestToolCallNoCall: verifies model skips tools when irrelevant","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T12:00:11Z","event_type":"closed","id":3174,"issue_id":"antwort-7slf","new_value":"TestToolCallStreaming: validates streaming function_call events","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T12:01:11Z","event_type":"closed","id":3175,"issue_id":"antwort-n0cv","new_value":"TestBackgroundSubmitAndPoll: raw HTTP background request + polling","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T12:01:11Z","event_type":"closed","id":3176,"issue_id":"antwort-b230","new_value":"TestRAGFileSearch: file upload probe, skips if unavailable","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T12:01:11Z","event_type":"closed","id":3177,"issue_id":"antwort-a83c","new_value":"TestAuthAccepted + TestAuthRejected: valid/invalid key validation","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T12:01:12Z","event_type":"closed","id":3178,"issue_id":"antwort-e0dj","new_value":"TestConversationChaining: previous_response_id with name recall","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T12:01:12Z","event_type":"closed","id":3179,"issue_id":"antwort-tmz0","new_value":"TestMain teardown calls WriteJSON, already in cluster_test.go","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T12:01:51Z","event_type":"closed","id":3180,"issue_id":"antwort-iz3w","new_value":"run.sh: cluster check, model prompt, test execution, report trigger","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T12:01:51Z","event_type":"closed","id":3181,"issue_id":"antwort-f9hv","new_value":"report.sh: markdown from JSON, category table, latency, failures, symlinks","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T12:04:11Z","event_type":"closed","id":3182,"issue_id":"antwort-0yhr","new_value":"bfcl_loader.go: JSONL parser, Gorilla-to-OpenAPI converter, ground truth parser","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T12:04:11Z","event_type":"closed","id":3183,"issue_id":"antwort-464c","new_value":"bfcl_scorer.go: simple, parallel, multiple, irrelevance checkers with string normalization","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T12:04:11Z","event_type":"closed","id":3184,"issue_id":"antwort-to37","new_value":"Seed test data: 3 simple_python + 2 irrelevance cases with answers. Full 180-case download deferred.","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T12:04:11Z","event_type":"closed","id":3185,"issue_id":"antwort-xa4o","new_value":"TestBFCLSimple: table-driven subtests loading from testdata/bfcl/","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T12:04:11Z","event_type":"closed","id":3186,"issue_id":"antwort-j9og","new_value":"TestBFCLMultiple/Parallel/ParallelMultiple/Irrelevance: category-specific tests","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T12:04:11Z","event_type":"closed","id":3187,"issue_id":"antwort-4o33","new_value":"TestBFCLAll: guarded by CLUSTER_BFCL_ALL env var","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T12:05:27Z","event_type":"closed","id":3188,"issue_id":"antwort-lvyb","new_value":"validation.adoc: purpose, categories, env vars, BFCL scoring, results format","old_value":""}
+{"actor":"Roland Huß","comment":null,"created_at":"2026-03-09T12:05:27Z","event_type":"closed","id":3189,"issue_id":"antwort-ziai","new_value":"README updated: specs 043-045 in table, validation in roadmap","old_value":""}
