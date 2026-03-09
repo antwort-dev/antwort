@@ -1,0 +1,4 @@
+# Ignore generated results (except committed reports)
+raw/
+*.md
+!.gitkeep
