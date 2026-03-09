@@ -9,7 +9,7 @@ IMAGE_TAG  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
 
 KUBE_NAMESPACE ?= antwort
 
-.PHONY: build test vet conformance api-test ci-sdk-test e2e coverage coverage-unit coverage-e2e coverage-all clean image-build image-push image-latest sandbox-build sandbox-push deploy deploy-openshift docs docs-serve
+.PHONY: build test vet conformance api-test ci-sdk-test e2e cluster-test cluster-test-bfcl coverage coverage-unit coverage-e2e coverage-all clean image-build image-push image-latest sandbox-build sandbox-push deploy deploy-openshift docs docs-serve
 
 # Build all binaries.
 build:
@@ -69,6 +69,14 @@ e2e: build
 	EXIT_CODE=$$?; \
 	kill $$MOCK_PID $$SERVER_PID 2>/dev/null; \
 	exit $$EXIT_CODE
+
+# Run cluster validation tests against a live ROSA HCP cluster.
+cluster-test:
+	go test -tags cluster ./test/cluster/ -v -timeout 300s -count=1
+
+# Run BFCL benchmark subset against a live cluster.
+cluster-test-bfcl:
+	go test -tags cluster ./test/cluster/ -run TestBFCL -v -timeout 600s -count=1
 
 # Build container image.
 image-build:

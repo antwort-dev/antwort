@@ -1,0 +1,88 @@
+= Cluster Validation
+
+The cluster validation harness verifies Antwort against real ROSA HCP clusters with live LLM backends.
+It complements the CI test pyramid (unit, integration, E2E with mocked responses) by testing against actual model inference.
+
+== What It Tests
+
+The harness covers six categories:
+
+Basic Inference::
+Non-streaming and streaming requests through Antwort, verifying response structure, content, and SSE event lifecycle.
+
+Multi-Provider Comparison::
+Sends identical requests through different provider paths (Antwort with Chat Completions translation, Antwort with Responses API passthrough, direct vLLM baseline) and compares latency and output.
+
+Tool Calling::
+Validates the agentic loop with real model responses, testing function call parsing, argument extraction, and the complete tool call lifecycle.
+
+BFCL Benchmark::
+Runs a fixed subset of the Berkeley Function Calling Leaderboard test cases.
+Each case provides tools and a prompt, then scores the model's function call output against ground truth using AST matching.
+
+Feature Coverage::
+Tests advanced features (background mode, RAG, authentication, conversation chaining) when the required infrastructure is deployed.
+
+== Prerequisites
+
+* ROSA HCP cluster with Antwort deployed
+* vLLM InferenceService serving a model
+* Network access to cluster routes from the developer workstation
+
+== Running
+
+Set the required environment variables and run the test suite:
+
+[source,bash]
+----
+export CLUSTER_ANTWORT_URL=https://antwort.apps.cluster.example.com/v1
+export CLUSTER_MODEL=Qwen/Qwen2.5-7B-Instruct
+
+# Run all tests
+make cluster-test
+
+# Or use the orchestrator (prompts for model if not set)
+test/cluster/run.sh
+
+# Run BFCL benchmarks only
+make cluster-test-bfcl
+----
+
+== Environment Variables
+
+[cols="1,1,1,3",options="header"]
+|===
+| Variable | Required | Default | Description
+
+| `CLUSTER_ANTWORT_URL` | Yes | - | Antwort route URL
+| `CLUSTER_VLLM_URL` | No | - | Direct vLLM URL for baseline comparison
+| `CLUSTER_API_KEY` | No | - | API key for authenticated requests
+| `CLUSTER_MODEL` | Yes | - | Model name
+| `CLUSTER_TIMEOUT` | No | `120` | Per-test timeout in seconds
+| `CLUSTER_ANTWORT_VERSION` | No | git commit | Antwort version tag
+| `CLUSTER_BFCL_ALL` | No | `false` | Run full BFCL suite (~4,700 cases)
+|===
+
+== Results
+
+Each run produces two artifacts in `test/cluster/results/`:
+
+* A timestamped markdown report with category scores, latency percentiles, and failure details
+* A machine-readable JSON summary (`latest.json`) for documentation site integration
+
+Reports can be committed to the repository to track validation history across Antwort versions and models.
+
+== BFCL Scoring
+
+The harness reimplements the BFCL AST evaluation methodology in Go.
+For each test case, it:
+
+. Converts function definitions from Gorilla format to OpenAPI
+. Sends the prompt with tools to Antwort
+. Extracts function_call output items from the response
+. Compares function name and arguments against ground truth
+
+String arguments are compared case-insensitively with punctuation stripped.
+Numeric arguments allow int-to-float conversion.
+Parallel function calls are matched order-independently.
+Irrelevance tests verify the model produces no function calls.

@@ -1,0 +1,65 @@
+{
+  "model": "/mnt/models",
+  "antwort_version": "24f469f",
+  "cluster": "",
+  "timestamp": "2026-03-09T12:59:56Z",
+  "categories": {
+    "auth": {
+      "passed": 0,
+      "total": 1,
+      "score": 0
+    },
+    "basic": {
+      "passed": 11,
+      "total": 11,
+      "score": 1
+    },
+    "bfcl_irrelevance": {
+      "passed": 2,
+      "total": 2,
+      "score": 1
+    },
+    "bfcl_simple_python": {
+      "passed": 3,
+      "total": 3,
+      "score": 1
+    },
+    "conversations": {
+      "passed": 1,
+      "total": 1,
+      "score": 1
+    },
+    "provider_comparison": {
+      "passed": 2,
+      "total": 2,
+      "score": 1
+    },
+    "streaming": {
+      "passed": 1,
+      "total": 1,
+      "score": 1
+    },
+    "tools": {
+      "passed": 3,
+      "total": 3,
+      "score": 1
+    }
+  },
+  "latency": {
+    "non_streaming_p50_ms": 230,
+    "non_streaming_p95_ms": 1511,
+    "non_streaming_p99_ms": 2143.7999999999997,
+    "streaming_ttft_p50_ms": 191.5,
+    "streaming_ttft_p95_ms": 191.95,
+    "streaming_ttft_p99_ms": 191.99
+  },
+  "failures": [
+    {
+      "test_name": "TestAuthRejected",
+      "category": "auth",
+      "error": "expected 401/403, got 400"
+    }
+  ],
+  "total_passed": 23,
+  "total_tests": 24
+}

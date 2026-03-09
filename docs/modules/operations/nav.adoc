@@ -3,3 +3,4 @@
 * xref:deployment.adoc[Deployment]
 * xref:troubleshooting.adoc[Troubleshooting]
 * xref:security.adoc[Security]
+* xref:validation.adoc[Cluster Validation]

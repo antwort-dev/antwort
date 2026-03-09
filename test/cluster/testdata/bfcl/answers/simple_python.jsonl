@@ -1,0 +1,3 @@
+{"id":"simple_python_0","ground_truth":[{"calculate_triangle_area":{"base":[10],"height":[5]}}]}
+{"id":"simple_python_1","ground_truth":[{"fahrenheit_to_celsius":{"fahrenheit":[100,100.0]}}]}
+{"id":"simple_python_2","ground_truth":[{"math_factorial":{"n":[5]}}]}
