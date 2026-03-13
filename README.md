@@ -19,7 +19,7 @@ Any existing OpenAI SDK (Python, Node, Go, Rust) works without modification. Poi
 
 ## Status
 
-Antwort started as a proof-of-concept for [Specification-Driven Development (SDD)](https://github.com/rhuss/cc-sdd-plugin), exploring how an AI-assisted, spec-first methodology works for building a non-trivial system from scratch. The project has since grown beyond that original scope into a full agentic AI platform targeting production Kubernetes environments.
+Antwort started as a proof-of-concept for [Specification-Driven Development (SDD)](https://github.com/rhuss/cc-sdd), exploring how an AI-assisted, spec-first methodology works for building a non-trivial system from scratch. The project has since grown beyond that original scope into a full agentic AI platform targeting production Kubernetes environments.
 
 All 42 specifications have been implemented through the SDD process. Each spec produces a complete artifact set (spec, plan, tasks, research, review) before any code is written.
 
