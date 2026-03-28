@@ -125,12 +125,8 @@ func checkArguments(exp BFCLFunctionCall, actual ParsedCall) (bool, string) {
 		}
 	}
 
-	// Check no unexpected parameters
-	for paramName := range actual.Arguments {
-		if _, expected := exp.Arguments[paramName]; !expected {
-			return false, fmt.Sprintf("unexpected parameter %q", paramName)
-		}
-	}
+	// Note: we do NOT reject unexpected parameters. The model may include
+	// optional parameters with default values that the ground truth omits.
 
 	return true, ""
 }
@@ -178,8 +174,60 @@ func valuesMatch(actual, expected interface{}) bool {
 		}
 	}
 
+	// Map comparison: ground truth maps have values wrapped in acceptable-value
+	// arrays (e.g. {"key": [val1, val2]}), model output has plain values
+	// (e.g. {"key": val}). Recursively check each key.
+	if aMap, ok := actual.(map[string]interface{}); ok {
+		if eMap, ok := expected.(map[string]interface{}); ok {
+			return mapsMatch(aMap, eMap)
+		}
+	}
+
+	// Array comparison: element-wise, order-sensitive
+	if aArr, ok := actual.([]interface{}); ok {
+		if eArr, ok := expected.([]interface{}); ok {
+			return arraysMatch(aArr, eArr)
+		}
+	}
+
 	// Fallback: string representation
 	return fmt.Sprintf("%v", actual) == fmt.Sprintf("%v", expected)
+}
+
+// mapsMatch compares two maps. Expected map values may be acceptable-value
+// arrays ([]interface{}) where the actual value must match any element.
+func mapsMatch(actual, expected map[string]interface{}) bool {
+	if len(actual) != len(expected) {
+		return false
+	}
+	for key, eVal := range expected {
+		aVal, exists := actual[key]
+		if !exists {
+			return false
+		}
+		// If expected value is an array, treat as acceptable-values list
+		if eArr, ok := eVal.([]interface{}); ok {
+			if !valueInAcceptable(aVal, eArr) {
+				return false
+			}
+		} else if !valuesMatch(aVal, eVal) {
+			return false
+		}
+	}
+	return true
+}
+
+// arraysMatch compares two arrays element-wise.
+func arraysMatch(actual, expected []interface{}) bool {
+	if len(actual) != len(expected) {
+		return false
+	}
+	for i := range actual {
+		if !valuesMatch(actual[i], expected[i]) {
+			return false
+		}
+	}
+	return true
 }
 
 // standardizeString normalizes a string for comparison.

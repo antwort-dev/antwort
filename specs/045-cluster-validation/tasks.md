@@ -17,10 +17,10 @@
 
 **Purpose**: Create project structure, shared test helpers, and result collection framework
 
-- [ ] T001 Create `test/cluster/` directory structure with `cluster_test.go` containing `TestMain`, environment variable parsing (`CLUSTER_ANTWORT_URL`, `CLUSTER_VLLM_URL`, `CLUSTER_API_KEY`, `CLUSTER_MODEL`, `CLUSTER_TIMEOUT`), cluster reachability check (HTTP GET to health endpoint, skip all tests if unreachable), and openai-go client factory helpers (`newAntwortClient()`, `newVLLMClient()`). Include build tag `//go:build cluster`.
-- [ ] T002 [P] Create `test/cluster/results.go` with `ResultCollector` struct: thread-safe result collection via `Record(TestResult)`, latency percentile calculation (P50/P95/P99), `WriteJSON(dir string)` method that writes `ResultSummary` as timestamped JSON to `test/cluster/results/raw/`. Include `CategoryScore`, `LatencyStats`, `FailureDetail` types from data-model.md.
-- [ ] T003 [P] Create `test/cluster/results/` directory with `.gitkeep` and `.gitignore` (ignore `raw/` and `*.md` except committed runs). Create `test/cluster/README.md` documenting environment variables, prerequisites (cluster access, deployed model), and how to run (`go test -tags cluster ./test/cluster/ -v`).
-- [ ] T004 [P] Add `cluster-test` target to `Makefile`: runs `go test -tags cluster ./test/cluster/ -v -timeout 300s` with appropriate env var passthrough. Add `cluster-test-bfcl` target that adds `-run TestBFCL`.
+- [x] T001 Create `test/cluster/` directory structure with `cluster_test.go` containing `TestMain`, environment variable parsing (`CLUSTER_ANTWORT_URL`, `CLUSTER_VLLM_URL`, `CLUSTER_API_KEY`, `CLUSTER_MODEL`, `CLUSTER_TIMEOUT`), cluster reachability check (HTTP GET to health endpoint, skip all tests if unreachable), and openai-go client factory helpers (`newAntwortClient()`, `newVLLMClient()`). Include build tag `//go:build cluster`.
+- [x] T002 [P] Create `test/cluster/results.go` with `ResultCollector` struct: thread-safe result collection via `Record(TestResult)`, latency percentile calculation (P50/P95/P99), `WriteJSON(dir string)` method that writes `ResultSummary` as timestamped JSON to `test/cluster/results/raw/`. Include `CategoryScore`, `LatencyStats`, `FailureDetail` types from data-model.md.
+- [x] T003 [P] Create `test/cluster/results/` directory with `.gitkeep` and `.gitignore` (ignore `raw/` and `*.md` except committed runs). Create `test/cluster/README.md` documenting environment variables, prerequisites (cluster access, deployed model), and how to run (`go test -tags cluster ./test/cluster/ -v`).
+- [x] T004 [P] Add `cluster-test` target to `Makefile`: runs `go test -tags cluster ./test/cluster/ -v -timeout 300s` with appropriate env var passthrough. Add `cluster-test-bfcl` target that adds `-run TestBFCL`.
 
 **Checkpoint**: Test skeleton exists, ResultCollector works, `make cluster-test` runs (skips if no cluster).
 
@@ -32,8 +32,8 @@
 
 **CRITICAL**: US3 and US4 depend on this phase. US1 and US2 can start in parallel with Phase 2.
 
-- [ ] T005 Create `test/cluster/bfcl_loader.go`: implement `LoadBFCLCases(dir string, category string) ([]BFCLCase, error)` that reads JSONL files from `test/cluster/testdata/bfcl/`, parses question/function/ground_truth fields. Implement `convertGorillaTool(fn json.RawMessage) api.Tool` that maps Gorilla types to OpenAPI (`dict->object`, `float->number`, `tuple->array`, `any->string`) and replaces dots with underscores in function names.
-- [ ] T006 [P] Create `test/cluster/bfcl_scorer.go`: implement AST evaluation with `ScoreBFCL(expected []FunctionCall, got []ParsedCall) bool`. Include `simpleChecker` (1 call, name match, required params, value in acceptable list), `parallelChecker` (order-independent matching), `multipleChecker` (1 call from multiple options), `irrelevanceChecker` (no calls expected). Implement `standardizeString(s string) string` for case-insensitive comparison with punctuation stripping.
+- [x] T005 Create `test/cluster/bfcl_loader.go`: implement `LoadBFCLCases(dir string, category string) ([]BFCLCase, error)` that reads JSONL files from `test/cluster/testdata/bfcl/`, parses question/function/ground_truth fields. Implement `convertGorillaTool(fn json.RawMessage) api.Tool` that maps Gorilla types to OpenAPI (`dict->object`, `float->number`, `tuple->array`, `any->string`) and replaces dots with underscores in function names.
+- [x] T006 [P] Create `test/cluster/bfcl_scorer.go`: implement AST evaluation with `ScoreBFCL(expected []FunctionCall, got []ParsedCall) bool`. Include `simpleChecker` (1 call, name match, required params, value in acceptable list), `parallelChecker` (order-independent matching), `multipleChecker` (1 call from multiple options), `irrelevanceChecker` (no calls expected). Implement `standardizeString(s string) string` for case-insensitive comparison with punctuation stripping.
 - [ ] T007 Create `test/cluster/testdata/bfcl/` with the fixed 180-case subset: download BFCL v4 data from `github.com/ShishirPatil/gorilla` repository, extract first 50 `simple_python`, 50 `multiple`, 30 `parallel`, 20 `parallel_multiple`, 30 `irrelevance` cases. Convert from Gorilla format to OpenAPI format. Store as JSONL files with matching ground truth in `answers/` subdirectory.
 
 **Checkpoint**: BFCL loader parses test data, scorer evaluates function calls correctly.
@@ -48,9 +48,9 @@
 
 ### Implementation for User Story 1
 
-- [ ] T008 [US1] Write `test/cluster/basic_test.go` with `TestBasicNonStreaming`: use openai-go SDK to POST a non-streaming response to Antwort, verify response has valid ID (`resp_` prefix), model name matching `CLUSTER_MODEL`, non-empty output text, and usage statistics (prompt_tokens > 0, completion_tokens > 0). Record result to `ResultCollector` with latency.
-- [ ] T009 [US1] Add `TestBasicStreaming` to `test/cluster/basic_test.go`: use openai-go SDK streaming API, measure TTFT (time from request to first `response.output_text.delta` event), collect all events, verify complete lifecycle (response.created, content deltas, response.completed), verify assembled text is non-empty and coherent. Record TTFT and total duration to `ResultCollector`.
-- [ ] T010 [US1] Add `TestBasicMultipleRequests` to `test/cluster/basic_test.go`: send 10 sequential requests with temperature=0 and the same prompt, collect latencies, verify all responses are structurally valid. This provides the data for P50/P95/P99 latency calculation in reports.
+- [x] T008 [US1] Write `test/cluster/basic_test.go` with `TestBasicNonStreaming`: use openai-go SDK to POST a non-streaming response to Antwort, verify response has valid ID (`resp_` prefix), model name matching `CLUSTER_MODEL`, non-empty output text, and usage statistics (prompt_tokens > 0, completion_tokens > 0). Record result to `ResultCollector` with latency.
+- [x] T009 [US1] Add `TestBasicStreaming` to `test/cluster/basic_test.go`: use openai-go SDK streaming API, measure TTFT (time from request to first `response.output_text.delta` event), collect all events, verify complete lifecycle (response.created, content deltas, response.completed), verify assembled text is non-empty and coherent. Record TTFT and total duration to `ResultCollector`.
+- [x] T010 [US1] Add `TestBasicMultipleRequests` to `test/cluster/basic_test.go`: send 10 sequential requests with temperature=0 and the same prompt, collect latencies, verify all responses are structurally valid. This provides the data for P50/P95/P99 latency calculation in reports.
 
 **Checkpoint**: Basic inference validated against real cluster. `ResultCollector` has latency data.
 
@@ -64,9 +64,9 @@
 
 ### Implementation for User Story 2
 
-- [ ] T011 [US2] Write `test/cluster/provider_test.go` with `TestMultiProviderNonStreaming`: define a shared prompt, send it through the Antwort client (URL from `CLUSTER_ANTWORT_URL`). If `CLUSTER_VLLM_URL` is set, also send directly to vLLM using a raw HTTP client. Compare: both return valid response structure, model names match, output text is non-empty. Record per-path latencies to `ResultCollector` with `ProviderPath` field.
-- [ ] T012 [US2] Add `TestMultiProviderStreaming` to `test/cluster/provider_test.go`: same comparison for streaming. Measure TTFT per path. Record per-path TTFT to `ResultCollector`.
-- [ ] T013 [US2] Add `TestMultiProviderOverhead` to `test/cluster/provider_test.go`: send 5 identical requests through each available path, calculate per-path average latency, log the delta between Antwort and direct vLLM as "gateway overhead". Skip if `CLUSTER_VLLM_URL` is not set.
+- [x] T011 [US2] Write `test/cluster/provider_test.go` with `TestMultiProviderNonStreaming`: define a shared prompt, send it through the Antwort client (URL from `CLUSTER_ANTWORT_URL`). If `CLUSTER_VLLM_URL` is set, also send directly to vLLM using a raw HTTP client. Compare: both return valid response structure, model names match, output text is non-empty. Record per-path latencies to `ResultCollector` with `ProviderPath` field.
+- [x] T012 [US2] Add `TestMultiProviderStreaming` to `test/cluster/provider_test.go`: same comparison for streaming. Measure TTFT per path. Record per-path TTFT to `ResultCollector`.
+- [x] T013 [US2] Add `TestMultiProviderOverhead` to `test/cluster/provider_test.go`: send 5 identical requests through each available path, calculate per-path average latency, log the delta between Antwort and direct vLLM as "gateway overhead". Skip if `CLUSTER_VLLM_URL` is not set.
 
 **Checkpoint**: Multi-provider comparison works. Gateway overhead is measurable.
 
@@ -80,9 +80,9 @@
 
 ### Implementation for User Story 3
 
-- [ ] T014 [US3] Write `test/cluster/tools_test.go` with `TestToolCallSimple`: define a `get_weather` function tool, send a prompt like "What is the weather in San Francisco?", verify the response contains a function_call output item with name `get_weather` and arguments containing a location field. Use non-streaming mode.
-- [ ] T015 [US3] Add `TestToolCallNoCall` to `test/cluster/tools_test.go`: define tools but send a prompt that should not trigger any tool call (e.g., "What is 2+2?"), verify the response contains only text output with no function_call items.
-- [ ] T016 [US3] Add `TestToolCallStreaming` to `test/cluster/tools_test.go`: same as T014 but with streaming enabled. Verify function_call SSE events are received (`response.function_call_arguments.delta`, `response.function_call_arguments.done`).
+- [x] T014 [US3] Write `test/cluster/tools_test.go` with `TestToolCallSimple`: define a `get_weather` function tool, send a prompt like "What is the weather in San Francisco?", verify the response contains a function_call output item with name `get_weather` and arguments containing a location field. Use non-streaming mode.
+- [x] T015 [US3] Add `TestToolCallNoCall` to `test/cluster/tools_test.go`: define tools but send a prompt that should not trigger any tool call (e.g., "What is 2+2?"), verify the response contains only text output with no function_call items.
+- [x] T016 [US3] Add `TestToolCallStreaming` to `test/cluster/tools_test.go`: same as T014 but with streaming enabled. Verify function_call SSE events are received (`response.function_call_arguments.delta`, `response.function_call_arguments.done`).
 
 **Checkpoint**: Tool calling works with real model responses. Both streaming and non-streaming validated.
 
@@ -96,9 +96,9 @@
 
 ### Implementation for User Story 4
 
-- [ ] T017 [US4] Write `test/cluster/bfcl_test.go` with `TestBFCLSimple`: load `simple_python` cases from `testdata/bfcl/`, run each as a table-driven subtest. For each case: send prompt with tools to Antwort, extract function_call output items, parse arguments JSON, score against ground truth using `simpleChecker`. Record pass/fail per case to `ResultCollector` with category `bfcl_simple`.
-- [ ] T018 [US4] Add `TestBFCLMultiple`, `TestBFCLParallel`, `TestBFCLParallelMultiple`, `TestBFCLIrrelevance` to `test/cluster/bfcl_test.go`: each loads its category's test data, runs subtests, uses the appropriate scorer (multiple, parallel, irrelevance). Irrelevance tests verify NO function calls are produced.
-- [ ] T019 [US4] Add `TestBFCLAll` to `test/cluster/bfcl_test.go`: guarded by `-bfcl-all` test flag (registered in `TestMain`). Downloads full BFCL dataset from GitHub if not cached locally, runs all ~4,700 cases across all non-live categories. Skip if flag not set. Use `testing.Short()` to skip long-running tests.
+- [x] T017 [US4] Write `test/cluster/bfcl_test.go` with `TestBFCLSimple`: load `simple_python` cases from `testdata/bfcl/`, run each as a table-driven subtest. For each case: send prompt with tools to Antwort, extract function_call output items, parse arguments JSON, score against ground truth using `simpleChecker`. Record pass/fail per case to `ResultCollector` with category `bfcl_simple`.
+- [x] T018 [US4] Add `TestBFCLMultiple`, `TestBFCLParallel`, `TestBFCLParallelMultiple`, `TestBFCLIrrelevance` to `test/cluster/bfcl_test.go`: each loads its category's test data, runs subtests, uses the appropriate scorer (multiple, parallel, irrelevance). Irrelevance tests verify NO function calls are produced.
+- [x] T019 [US4] Add `TestBFCLAll` to `test/cluster/bfcl_test.go`: guarded by `-bfcl-all` test flag (registered in `TestMain`). Downloads full BFCL dataset from GitHub if not cached locally, runs all ~4,700 cases across all non-live categories. Skip if flag not set. Use `testing.Short()` to skip long-running tests.
 
 **Checkpoint**: BFCL benchmark produces per-category scores. Fixed subset is reproducible.
 
@@ -112,9 +112,9 @@
 
 ### Implementation for User Story 5
 
-- [ ] T020 [US5] Update `test/cluster/cluster_test.go` TestMain teardown to call `ResultCollector.WriteJSON()` after all tests complete. Write to `test/cluster/results/raw/<timestamp>_<model>.json`. Add `CLUSTER_ANTWORT_VERSION` env var (defaults to git commit hash via `git rev-parse --short HEAD`).
-- [ ] T021 [US5] Create `test/cluster/run.sh`: shell orchestrator that (1) checks cluster reachability via curl to `CLUSTER_ANTWORT_URL/healthz`, (2) prompts for model name if `CLUSTER_MODEL` not set, (3) runs `go test -tags cluster ./test/cluster/ -v -timeout 300s`, (4) calls `report.sh` to generate markdown from the JSON output.
-- [ ] T022 [US5] Create `test/cluster/report.sh`: reads the latest JSON from `test/cluster/results/raw/`, generates a timestamped markdown report in `test/cluster/results/` with model name, cluster details, Antwort version, per-category score table, latency percentiles table, and failure details section. Updates `latest.md` symlink and writes `latest.json`.
+- [x] T020 [US5] Update `test/cluster/cluster_test.go` TestMain teardown to call `ResultCollector.WriteJSON()` after all tests complete. Write to `test/cluster/results/raw/<timestamp>_<model>.json`. Add `CLUSTER_ANTWORT_VERSION` env var (defaults to git commit hash via `git rev-parse --short HEAD`).
+- [x] T021 [US5] Create `test/cluster/run.sh`: shell orchestrator that (1) checks cluster reachability via curl to `CLUSTER_ANTWORT_URL/healthz`, (2) prompts for model name if `CLUSTER_MODEL` not set, (3) runs `go test -tags cluster ./test/cluster/ -v -timeout 300s`, (4) calls `report.sh` to generate markdown from the JSON output.
+- [x] T022 [US5] Create `test/cluster/report.sh`: reads the latest JSON from `test/cluster/results/raw/`, generates a timestamped markdown report in `test/cluster/results/` with model name, cluster details, Antwort version, per-category score table, latency percentiles table, and failure details section. Updates `latest.md` symlink and writes `latest.json`.
 
 **Checkpoint**: Complete reporting pipeline works. `run.sh` produces publishable results.
 
@@ -128,10 +128,10 @@
 
 ### Implementation for User Story 6
 
-- [ ] T023 [P] [US6] Write `test/cluster/features_test.go` with `TestBackgroundSubmitAndPoll`: submit a request with `background: true`, verify 202 response with queued status, poll until completed or timeout (30s), verify final response has valid output. Requires Antwort deployed with PostgreSQL and background mode.
-- [ ] T024 [P] [US6] Add `TestRAGFileSearch` to `test/cluster/features_test.go`: upload a file via Files API, wait for processing, send a query with `file_search` tool, verify response includes citations. Requires Antwort deployed with vector store. Skip if Files API returns 404.
-- [ ] T025 [P] [US6] Add `TestAuthAccepted` and `TestAuthRejected` to `test/cluster/features_test.go`: test with valid API key (expect 200) and invalid key (expect 401). Skip if auth is not configured (probe with empty key, skip if 200).
-- [ ] T026 [P] [US6] Add `TestConversationChaining` to `test/cluster/features_test.go`: create a response, then create a second response with `previous_response_id` set to the first. Verify the second response references the first and produces contextually relevant output. Skip if storage is not configured.
+- [x] T023 [P] [US6] Write `test/cluster/features_test.go` with `TestBackgroundSubmitAndPoll`: submit a request with `background: true`, verify 202 response with queued status, poll until completed or timeout (30s), verify final response has valid output. Requires Antwort deployed with PostgreSQL and background mode.
+- [x] T024 [P] [US6] Add `TestRAGFileSearch` to `test/cluster/features_test.go`: upload a file via Files API, wait for processing, send a query with `file_search` tool, verify response includes citations. Requires Antwort deployed with vector store. Skip if Files API returns 404.
+- [x] T025 [P] [US6] Add `TestAuthAccepted` and `TestAuthRejected` to `test/cluster/features_test.go`: test with valid API key (expect 200) and invalid key (expect 401). Skip if auth is not configured (probe with empty key, skip if 200).
+- [x] T026 [P] [US6] Add `TestConversationChaining` to `test/cluster/features_test.go`: create a response, then create a second response with `previous_response_id` set to the first. Verify the second response references the first and produces contextually relevant output. Skip if storage is not configured.
 
 **Checkpoint**: Feature-specific tests validate advanced capabilities when infrastructure is available.
 
@@ -141,16 +141,16 @@
 
 **Goal**: Deploy the complete validation stack on ROSA HCP with a single recipe command.
 
-**Independent Test**: Run `/rosa:setup .claude/rosa-recipe.yaml` on a cluster, verify all components deploy.
+**Independent Test**: Run `/rosa:setup .claude/cc-rosa/recipe.yaml` on a cluster, verify all components deploy.
 
 ### Implementation for User Story 7
 
-- [ ] T030 [US7] Create `.claude/instills/rosa/antwort-minimal/INSTILL.md` with YAML frontmatter (`name: Antwort (Minimal)`, `id: antwort-minimal`, `requires: [model]`, params for namespace and backend_url). Create `install.md` with steps to apply quickstart 01-minimal kustomize manifests (`kustomize build quickstarts/01-minimal | oc apply -f -`), wait for rollout, and expose route. Create `uninstall.md` to delete the deployment.
-- [ ] T031 [P] [US7] Create `.claude/instills/rosa/antwort-production/INSTILL.md` (requires model), `install.md` (quickstart 02-production with in-memory storage), `uninstall.md`. Parameterize namespace, replicas, and backend URL.
-- [ ] T032 [P] [US7] Create `.claude/instills/rosa/antwort-rag/INSTILL.md` (requires model), `install.md` (deploy with file search, vector store config), `uninstall.md`. Parameterize vector store type and namespace.
-- [ ] T033 [P] [US7] Create `.claude/instills/rosa/antwort-background/INSTILL.md` (requires model), `install.md` (gateway + worker deployment from quickstart 09), `uninstall.md`. Parameterize PostgreSQL connection and worker count.
-- [ ] T034 [US7] Create `.claude/rosa-recipe.yaml`: declare cluster config (AAET profile, us-east-2), GPU machinepool (g5.xlarge), install chain (rhoai, model with configurable model name, antwort-minimal). Include recipe parameters for `model_name` (default: `Qwen/Qwen2.5-7B-Instruct`) and `antwort_namespace` (default: `antwort`).
-- [ ] T035 [US7] Test recipe deployment: run `/rosa:setup .claude/rosa-recipe.yaml` on a cluster, verify recipe-resolve.py outputs correct dependency order, confirm idempotent re-run skips completed steps. Document any issues in `test/cluster/README.md`.
+- [x] T030 [US7] Create `.claude/cc-rosa/instills/antwort-minimal/INSTILL.md` with YAML frontmatter (`name: Antwort (Minimal)`, `id: antwort-minimal`, `requires: [model]`, params for namespace and backend_url). Create `install.md` with steps to apply quickstart 01-minimal kustomize manifests (`kustomize build quickstarts/01-minimal | oc apply -f -`), wait for rollout, and expose route. Create `uninstall.md` to delete the deployment.
+- [x] T031 [P] [US7] Create `.claude/cc-rosa/instills/antwort-production/INSTILL.md` (requires model), `install.md` (quickstart 02-production with in-memory storage), `uninstall.md`. Parameterize namespace, replicas, and backend URL.
+- [x] T032 [P] [US7] Create `.claude/cc-rosa/instills/antwort-rag/INSTILL.md` (requires model), `install.md` (deploy with file search, vector store config), `uninstall.md`. Parameterize vector store type and namespace.
+- [x] T033 [P] [US7] Create `.claude/cc-rosa/instills/antwort-background/INSTILL.md` (requires model), `install.md` (gateway + worker deployment from quickstart 09), `uninstall.md`. Parameterize PostgreSQL connection and worker count.
+- [x] T034 [US7] Create `.claude/cc-rosa/recipe.yaml`: declare cluster config (AAET profile, us-east-2), GPU machinepool (g5.xlarge), install chain (rhoai, model with configurable model name, antwort-minimal). Include recipe parameters for `model_name` (default: `Qwen/Qwen2.5-7B-Instruct`) and `antwort_namespace` (default: `antwort`).
+- [ ] T035 [US7] Test recipe deployment: run `/rosa:setup .claude/cc-rosa/recipe.yaml` on a cluster, verify recipe-resolve.py outputs correct dependency order, confirm idempotent re-run skips completed steps. Document any issues in `test/cluster/README.md`.
 
 **Checkpoint**: Validation stack deployable with single recipe command. Instills discoverable by cc-rosa plugin.
 
@@ -160,7 +160,7 @@
 
 **Purpose**: Documentation, CI integration hints, and final cleanup
 
-- [ ] T027 [P] Create `docs/modules/operations/pages/validation.adoc` documenting the validation harness: purpose, how to run, environment variables, BFCL methodology, interpreting results. Update `docs/modules/operations/nav.adoc` to include the new page.
+- [x] T027 [P] Create `docs/modules/operations/pages/validation.adoc` documenting the validation harness: purpose, how to run, environment variables, BFCL methodology, interpreting results. Update `docs/modules/operations/nav.adoc` to include the new page.
 - [ ] T028 [P] Update `README.md` spec table to include spec 045. Add a "Validation" section under Platform Vision describing the real-cluster validation capability.
 - [ ] T029 Verify full validation pipeline by running `test/cluster/run.sh` against a live cluster (manual verification, not automated). Confirm: tests run, results JSON is written, markdown report is generated, `latest.md` symlink works.
 

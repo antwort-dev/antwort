@@ -1,27 +1,37 @@
 {
-  "model": "/mnt/models",
-  "antwort_version": "24f469f",
+  "model": "Qwen/Qwen2.5-7B-Instruct",
+  "antwort_version": "0e51fc6",
   "cluster": "",
-  "timestamp": "2026-03-09T12:59:56Z",
+  "timestamp": "2026-03-28T06:41:39Z",
   "categories": {
-    "auth": {
-      "passed": 0,
-      "total": 1,
-      "score": 0
+    "bfcl_irrelevance": {
+      "passed": 154,
+      "total": 240,
+      "score": 0.6416666666666667
+    },
+    "bfcl_multiple": {
+      "passed": 187,
+      "total": 200,
+      "score": 0.935
+    },
+    "bfcl_parallel": {
+      "passed": 179,
+      "total": 200,
+      "score": 0.895
+    },
+    "bfcl_parallel_multiple": {
+      "passed": 167,
+      "total": 200,
+      "score": 0.835
+    },
+    "bfcl_simple_python": {
+      "passed": 381,
+      "total": 400,
+      "score": 0.9525
     },
     "basic": {
       "passed": 11,
       "total": 11,
-      "score": 1
-    },
-    "bfcl_irrelevance": {
-      "passed": 2,
-      "total": 2,
-      "score": 1
-    },
-    "bfcl_simple_python": {
-      "passed": 3,
-      "total": 3,
       "score": 1
     },
     "conversations": {
@@ -30,8 +40,8 @@
       "score": 1
     },
     "provider_comparison": {
-      "passed": 2,
-      "total": 2,
+      "passed": 5,
+      "total": 5,
       "score": 1
     },
     "streaming": {
@@ -46,20 +56,875 @@
     }
   },
   "latency": {
-    "non_streaming_p50_ms": 230,
-    "non_streaming_p95_ms": 1511,
-    "non_streaming_p99_ms": 2143.7999999999997,
-    "streaming_ttft_p50_ms": 191.5,
-    "streaming_ttft_p95_ms": 191.95,
-    "streaming_ttft_p99_ms": 191.99
+    "non_streaming_p50_ms": 2206,
+    "non_streaming_p95_ms": 6379.249999999998,
+    "non_streaming_p99_ms": 10229.46,
+    "streaming_ttft_p50_ms": 193,
+    "streaming_ttft_p95_ms": 194.8,
+    "streaming_ttft_p99_ms": 194.96
   },
   "failures": [
     {
-      "test_name": "TestAuthRejected",
-      "category": "auth",
-      "error": "expected 401/403, got 400"
+      "test_name": "simple_python_61",
+      "category": "bfcl_simple_python",
+      "error": "parameter \"height\": value 60 not in acceptable values [70]"
+    },
+    {
+      "test_name": "simple_python_145",
+      "category": "bfcl_simple_python",
+      "error": "parameter \"interest_rate\": value 5 not in acceptable values [0.05]"
+    },
+    {
+      "test_name": "simple_python_162",
+      "category": "bfcl_simple_python",
+      "error": "parameter \"contract_type\": value rental not in acceptable values [Rental Agreement rental agreement]"
+    },
+    {
+      "test_name": "simple_python_166",
+      "category": "bfcl_simple_python",
+      "error": "parameter \"city\": value Chicago not in acceptable values [Chicago, IL. Chicago, IL]"
+    },
+    {
+      "test_name": "simple_python_196",
+      "category": "bfcl_simple_python",
+      "error": "parameter \"date\": value 2022-08-16 not in acceptable values [08-16-2022]"
+    },
+    {
+      "test_name": "simple_python_201",
+      "category": "bfcl_simple_python",
+      "error": "parameter \"year\": value 2023 not in acceptable values [ 2024]"
+    },
+    {
+      "test_name": "simple_python_202",
+      "category": "bfcl_simple_python",
+      "error": "parameter \"energy_type\": value solar not in acceptable values [renewable]"
+    },
+    {
+      "test_name": "simple_python_203",
+      "category": "bfcl_simple_python",
+      "error": "missing required parameter \"detail\""
+    },
+    {
+      "test_name": "simple_python_235",
+      "category": "bfcl_simple_python",
+      "error": "parameter \"event\": value Treaty of Lisbon signing not in acceptable values [Treaty of Lisbon Signing of the Treaty of Lisbon The signing of the Treaty of Lisbon]"
+    },
+    {
+      "test_name": "simple_python_241",
+      "category": "bfcl_simple_python",
+      "error": "parameter \"event\": value American Civil War not in acceptable values [Civil War]"
+    },
+    {
+      "test_name": "simple_python_259",
+      "category": "bfcl_simple_python",
+      "error": "parameter \"length\": value 12 not in acceptable values [30]"
+    },
+    {
+      "test_name": "simple_python_267",
+      "category": "bfcl_simple_python",
+      "error": "parameter \"month\": value  not in acceptable values []"
+    },
+    {
+      "test_name": "simple_python_279",
+      "category": "bfcl_simple_python",
+      "error": "parameter \"finish\": value Rosewood Finish not in acceptable values [Rosewood]"
+    },
+    {
+      "test_name": "simple_python_325",
+      "category": "bfcl_simple_python",
+      "error": "parameter \"season\": value 2022-2023 not in acceptable values []"
+    },
+    {
+      "test_name": "simple_python_335",
+      "category": "bfcl_simple_python",
+      "error": "parameter \"deck\": value [map[rank:Queen suit:Hearts]] not in acceptable values []"
+    },
+    {
+      "test_name": "simple_python_358",
+      "category": "bfcl_simple_python",
+      "error": "missing required parameter \"dish\""
+    },
+    {
+      "test_name": "simple_python_370",
+      "category": "bfcl_simple_python",
+      "error": "parameter \"quantity\": value [3 5] not in acceptable values [[3 1]]"
+    },
+    {
+      "test_name": "simple_python_373",
+      "category": "bfcl_simple_python",
+      "error": "parameter \"pack_size\": value [<nil> <nil> 12] not in acceptable values [[1 1 12]]"
+    },
+    {
+      "test_name": "simple_python_382",
+      "category": "bfcl_simple_python",
+      "error": "parameter \"start_date\": value 10th December 2022 not in acceptable values [2022-12-10 10/12/2022 Dec 10, 2022 December 10, 2022]"
+    },
+    {
+      "test_name": "multiple_7",
+      "category": "bfcl_multiple",
+      "error": "expected 1 function call, got 2"
+    },
+    {
+      "test_name": "multiple_10",
+      "category": "bfcl_multiple",
+      "error": "parameter \"columns\": value [email_address social_security_number] not in acceptable values [[email ssn] [ssn email] [email social_security_number] [social_security_number email] [email social security number] [social security number email]]"
+    },
+    {
+      "test_name": "multiple_32",
+      "category": "bfcl_multiple",
+      "error": "parameter \"round_off\": value 2 not in acceptable values [ 0]"
+    },
+    {
+      "test_name": "multiple_53",
+      "category": "bfcl_multiple",
+      "error": "parameter \"dependent_var\": value house_prices not in acceptable values [house_price house price]"
+    },
+    {
+      "test_name": "multiple_91",
+      "category": "bfcl_multiple",
+      "error": "parameter \"ingredientLimit\": value 5 not in acceptable values [4]"
+    },
+    {
+      "test_name": "multiple_103",
+      "category": "bfcl_multiple",
+      "error": "missing required parameter \"initial_velocity\""
+    },
+    {
+      "test_name": "multiple_149",
+      "category": "bfcl_multiple",
+      "error": "parameter \"language\": value en not in acceptable values [english English]"
+    },
+    {
+      "test_name": "multiple_151",
+      "category": "bfcl_multiple",
+      "error": "parameter \"sub_topics\": value [behavior group dynamics] not in acceptable values [[behaviour group dynamics] [group dynamics behaviour]]"
+    },
+    {
+      "test_name": "multiple_153",
+      "category": "bfcl_multiple",
+      "error": "parameter \"event\": value Treaty of Lisbon signing not in acceptable values [Treaty of Lisbon Signing of the Treaty of Lisbon]"
+    },
+    {
+      "test_name": "multiple_156",
+      "category": "bfcl_multiple",
+      "error": "parameter \"category\": value Physics not in acceptable values [ all]"
+    },
+    {
+      "test_name": "multiple_159",
+      "category": "bfcl_multiple",
+      "error": "parameter \"length\": value 12 not in acceptable values [30]"
+    },
+    {
+      "test_name": "multiple_164",
+      "category": "bfcl_multiple",
+      "error": "parameter \"finish\": value Rosewood Finish not in acceptable values [Rosewood]"
+    },
+    {
+      "test_name": "multiple_193",
+      "category": "bfcl_multiple",
+      "error": "parameter \"start_location\": value Eiffel Tower, Paris, France not in acceptable values [Eiffel Tower]"
+    },
+    {
+      "test_name": "parallel_5",
+      "category": "bfcl_parallel",
+      "error": "no match found for expected call \"streaming_services_shows_list_and_ratings\""
+    },
+    {
+      "test_name": "parallel_9",
+      "category": "bfcl_parallel",
+      "error": "function count mismatch: expected 2, got 1"
+    },
+    {
+      "test_name": "parallel_19",
+      "category": "bfcl_parallel",
+      "error": "no match found for expected call \"calculate_mortgage_payment\""
+    },
+    {
+      "test_name": "parallel_26",
+      "category": "bfcl_parallel",
+      "error": "function count mismatch: expected 4, got 2"
+    },
+    {
+      "test_name": "parallel_29",
+      "category": "bfcl_parallel",
+      "error": "no match found for expected call \"waste_calculation_calculate\""
+    },
+    {
+      "test_name": "parallel_34",
+      "category": "bfcl_parallel",
+      "error": "function count mismatch: expected 2, got 1"
+    },
+    {
+      "test_name": "parallel_44",
+      "category": "bfcl_parallel",
+      "error": "no match found for expected call \"concert_find_nearby\""
+    },
+    {
+      "test_name": "parallel_47",
+      "category": "bfcl_parallel",
+      "error": "no match found for expected call \"get_team_ranking\""
+    },
+    {
+      "test_name": "parallel_51",
+      "category": "bfcl_parallel",
+      "error": "no match found for expected call \"recipe_search_find\""
+    },
+    {
+      "test_name": "parallel_59",
+      "category": "bfcl_parallel",
+      "error": "no match found for expected call \"get_conversion_cost\""
+    },
+    {
+      "test_name": "parallel_71",
+      "category": "bfcl_parallel",
+      "error": "no match found for expected call \"calculate_derivative\""
+    },
+    {
+      "test_name": "parallel_89",
+      "category": "bfcl_parallel",
+      "error": "no match found for expected call \"get_directions\""
+    },
+    {
+      "test_name": "parallel_93",
+      "category": "bfcl_parallel",
+      "error": "no match found for expected call \"route_estimate_time\""
+    },
+    {
+      "test_name": "parallel_97",
+      "category": "bfcl_parallel",
+      "error": "no match found for expected call \"calculate_resonant_frequency\""
+    },
+    {
+      "test_name": "parallel_100",
+      "category": "bfcl_parallel",
+      "error": "function count mismatch: expected 4, got 2"
+    },
+    {
+      "test_name": "parallel_114",
+      "category": "bfcl_parallel",
+      "error": "function count mismatch: expected 6, got 3"
+    },
+    {
+      "test_name": "parallel_119",
+      "category": "bfcl_parallel",
+      "error": "no match found for expected call \"identify_bird\""
+    },
+    {
+      "test_name": "parallel_181",
+      "category": "bfcl_parallel",
+      "error": "no match found for expected call \"get_stock_prices\""
+    },
+    {
+      "test_name": "parallel_183",
+      "category": "bfcl_parallel",
+      "error": "function count mismatch: expected 3, got 0"
+    },
+    {
+      "test_name": "parallel_185",
+      "category": "bfcl_parallel",
+      "error": "no match found for expected call \"estimate_population\""
+    },
+    {
+      "test_name": "parallel_190",
+      "category": "bfcl_parallel",
+      "error": "function count mismatch: expected 4, got 3"
+    },
+    {
+      "test_name": "parallel_multiple_2",
+      "category": "bfcl_parallel_multiple",
+      "error": "function count mismatch: expected 2, got 3"
+    },
+    {
+      "test_name": "parallel_multiple_3",
+      "category": "bfcl_parallel_multiple",
+      "error": "no match found for expected call \"get_rectangle_property\""
+    },
+    {
+      "test_name": "parallel_multiple_15",
+      "category": "bfcl_parallel_multiple",
+      "error": "no match found for expected call \"restaurant_search\""
+    },
+    {
+      "test_name": "parallel_multiple_19",
+      "category": "bfcl_parallel_multiple",
+      "error": "no match found for expected call \"math_gaussian_integral\""
+    },
+    {
+      "test_name": "parallel_multiple_27",
+      "category": "bfcl_parallel_multiple",
+      "error": "no match found for expected call \"bank_account_transfer\""
+    },
+    {
+      "test_name": "parallel_multiple_28",
+      "category": "bfcl_parallel_multiple",
+      "error": "no match found for expected call \"criminal_record_get_offense_nature\""
+    },
+    {
+      "test_name": "parallel_multiple_29",
+      "category": "bfcl_parallel_multiple",
+      "error": "function count mismatch: expected 2, got 3"
+    },
+    {
+      "test_name": "parallel_multiple_31",
+      "category": "bfcl_parallel_multiple",
+      "error": "function count mismatch: expected 4, got 2"
+    },
+    {
+      "test_name": "parallel_multiple_32",
+      "category": "bfcl_parallel_multiple",
+      "error": "no match found for expected call \"weather_forecast_temperature\""
+    },
+    {
+      "test_name": "parallel_multiple_37",
+      "category": "bfcl_parallel_multiple",
+      "error": "no match found for expected call \"history_get_important_figures\""
+    },
+    {
+      "test_name": "parallel_multiple_54",
+      "category": "bfcl_parallel_multiple",
+      "error": "no match found for expected call \"GameGuideAPI_search_guide\""
+    },
+    {
+      "test_name": "parallel_multiple_55",
+      "category": "bfcl_parallel_multiple",
+      "error": "no match found for expected call \"recipe_prep_time\""
+    },
+    {
+      "test_name": "parallel_multiple_63",
+      "category": "bfcl_parallel_multiple",
+      "error": "no match found for expected call \"weather_get_by_city_date\""
+    },
+    {
+      "test_name": "parallel_multiple_64",
+      "category": "bfcl_parallel_multiple",
+      "error": "no match found for expected call \"wildlife_population_assess_growth\""
+    },
+    {
+      "test_name": "parallel_multiple_69",
+      "category": "bfcl_parallel_multiple",
+      "error": "no match found for expected call \"finance_property_depreciation\""
+    },
+    {
+      "test_name": "parallel_multiple_77",
+      "category": "bfcl_parallel_multiple",
+      "error": "no match found for expected call \"game_scores_get\""
+    },
+    {
+      "test_name": "parallel_multiple_78",
+      "category": "bfcl_parallel_multiple",
+      "error": "no match found for expected call \"maps_shortest_path\""
+    },
+    {
+      "test_name": "parallel_multiple_84",
+      "category": "bfcl_parallel_multiple",
+      "error": "function count mismatch: expected 2, got 4"
+    },
+    {
+      "test_name": "parallel_multiple_86",
+      "category": "bfcl_parallel_multiple",
+      "error": "function count mismatch: expected 2, got 1"
+    },
+    {
+      "test_name": "parallel_multiple_87",
+      "category": "bfcl_parallel_multiple",
+      "error": "function count mismatch: expected 3, got 5"
+    },
+    {
+      "test_name": "parallel_multiple_91",
+      "category": "bfcl_parallel_multiple",
+      "error": "no match found for expected call \"physical_calc_work\""
+    },
+    {
+      "test_name": "parallel_multiple_94",
+      "category": "bfcl_parallel_multiple",
+      "error": "no match found for expected call \"filter_list\""
+    },
+    {
+      "test_name": "parallel_multiple_97",
+      "category": "bfcl_parallel_multiple",
+      "error": "no match found for expected call \"calc_Simple_Interest\""
+    },
+    {
+      "test_name": "parallel_multiple_106",
+      "category": "bfcl_parallel_multiple",
+      "error": "no match found for expected call \"traffic_estimate\""
+    },
+    {
+      "test_name": "parallel_multiple_129",
+      "category": "bfcl_parallel_multiple",
+      "error": "no match found for expected call \"unit_conversion_convert\""
+    },
+    {
+      "test_name": "parallel_multiple_135",
+      "category": "bfcl_parallel_multiple",
+      "error": "no match found for expected call \"poker_game_winner\""
+    },
+    {
+      "test_name": "parallel_multiple_146",
+      "category": "bfcl_parallel_multiple",
+      "error": "no match found for expected call \"calculate_probability\""
+    },
+    {
+      "test_name": "parallel_multiple_154",
+      "category": "bfcl_parallel_multiple",
+      "error": "no match found for expected call \"predict_house_price\""
+    },
+    {
+      "test_name": "parallel_multiple_160",
+      "category": "bfcl_parallel_multiple",
+      "error": "no match found for expected call \"compound_interest\""
+    },
+    {
+      "test_name": "parallel_multiple_179",
+      "category": "bfcl_parallel_multiple",
+      "error": "no match found for expected call \"find_card_in_deck\""
+    },
+    {
+      "test_name": "parallel_multiple_184",
+      "category": "bfcl_parallel_multiple",
+      "error": "no match found for expected call \"player_statistic\""
+    },
+    {
+      "test_name": "parallel_multiple_190",
+      "category": "bfcl_parallel_multiple",
+      "error": "no match found for expected call \"maps_get_distance_duration\""
+    },
+    {
+      "test_name": "parallel_multiple_191",
+      "category": "bfcl_parallel_multiple",
+      "error": "no match found for expected call \"find_card_in_deck\""
+    },
+    {
+      "test_name": "irrelevance_0",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: calculate_triangle_area"
+    },
+    {
+      "test_name": "irrelevance_1",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: math_sum"
+    },
+    {
+      "test_name": "irrelevance_2",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: quadratic_equation_solver_solve"
+    },
+    {
+      "test_name": "irrelevance_5",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: calculate_perimeter"
+    },
+    {
+      "test_name": "irrelevance_6",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: calculate_area"
+    },
+    {
+      "test_name": "irrelevance_8",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: str_to_int"
+    },
+    {
+      "test_name": "irrelevance_9",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: numerical_integral"
+    },
+    {
+      "test_name": "irrelevance_10",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: calculus_compute_derivative"
+    },
+    {
+      "test_name": "irrelevance_11",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: get_closest_prime"
+    },
+    {
+      "test_name": "irrelevance_13",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: prime_factors"
+    },
+    {
+      "test_name": "irrelevance_18",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: calculate_vector_angle"
+    },
+    {
+      "test_name": "irrelevance_19",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: investment_calculator_calculate_return"
+    },
+    {
+      "test_name": "irrelevance_21",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: calculate_wave_amplitude"
+    },
+    {
+      "test_name": "irrelevance_22",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: magnetic_field_intensity"
+    },
+    {
+      "test_name": "irrelevance_25",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: thermodynamics_calculate_boiling_point"
+    },
+    {
+      "test_name": "irrelevance_26",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: thermodynamics_calc_gas_pressure"
+    },
+    {
+      "test_name": "irrelevance_27",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: calculate_heat"
+    },
+    {
+      "test_name": "irrelevance_32",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: cellBiology_getCellType"
+    },
+    {
+      "test_name": "irrelevance_33",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: identify_species"
+    },
+    {
+      "test_name": "irrelevance_38",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: retrieve_scientific_paper"
+    },
+    {
+      "test_name": "irrelevance_39",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: calculate_population_growth"
+    },
+    {
+      "test_name": "irrelevance_43",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: evolve_creatures"
+    },
+    {
+      "test_name": "irrelevance_44",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: gene_sequencer"
+    },
+    {
+      "test_name": "irrelevance_54",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: movies_search"
+    },
+    {
+      "test_name": "irrelevance_57",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: solve_quadratic_equation"
+    },
+    {
+      "test_name": "irrelevance_60",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: calculateFinalPrice"
+    },
+    {
+      "test_name": "irrelevance_63",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: probability_calculator, probability_calculator, probability_calculator, probability_calculator"
+    },
+    {
+      "test_name": "irrelevance_64",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: probability_coin_toss_heads"
+    },
+    {
+      "test_name": "irrelevance_65",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: probability_determine_population"
+    },
+    {
+      "test_name": "irrelevance_67",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: hypothesis_testing_get_p_value"
+    },
+    {
+      "test_name": "irrelevance_68",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: statistics_calculate_standard_error"
+    },
+    {
+      "test_name": "irrelevance_69",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: regression_model_predict"
+    },
+    {
+      "test_name": "irrelevance_70",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: calculate_mortgage_payment"
+    },
+    {
+      "test_name": "irrelevance_71",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: calculate_profit_margin"
+    },
+    {
+      "test_name": "irrelevance_72",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: calculate_internal_rate_of_return"
+    },
+    {
+      "test_name": "irrelevance_73",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: finance_predict_revenue"
+    },
+    {
+      "test_name": "irrelevance_74",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: investment_analysis_calculate_profit"
+    },
+    {
+      "test_name": "irrelevance_86",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: law_info_get_penalty"
+    },
+    {
+      "test_name": "irrelevance_94",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: case_info_get"
+    },
+    {
+      "test_name": "irrelevance_99",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: lawsuit_search"
+    },
+    {
+      "test_name": "irrelevance_101",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: get_average_monthly_temperature, get_average_monthly_temperature, get_average_monthly_temperature, get_average_monthly_temperature, get_average_monthly_temperature, get_average_monthly_temperature, get_average_monthly_temperature, get_average_monthly_temperature, get_average_monthly_temperature, get_average_monthly_temperature, get_average_monthly_temperature, get_average_monthly_temperature"
+    },
+    {
+      "test_name": "irrelevance_103",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: weather_forecast_get"
+    },
+    {
+      "test_name": "irrelevance_104",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: calculate_park_area"
+    },
+    {
+      "test_name": "irrelevance_107",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: soil_composition_analyze"
+    },
+    {
+      "test_name": "irrelevance_109",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: calculate_water_needs"
+    },
+    {
+      "test_name": "irrelevance_111",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: geo_location_based_products_fetch_eco_friendly_products"
+    },
+    {
+      "test_name": "irrelevance_112",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: geocode_address"
+    },
+    {
+      "test_name": "irrelevance_113",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: find_pois"
+    },
+    {
+      "test_name": "irrelevance_115",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: calculate_distance"
+    },
+    {
+      "test_name": "irrelevance_118",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: playoff_brackets"
+    },
+    {
+      "test_name": "irrelevance_121",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: medical_records_get_disease_info"
+    },
+    {
+      "test_name": "irrelevance_124",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: get_social_trends"
+    },
+    {
+      "test_name": "irrelevance_126",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: get_happiness_index"
+    },
+    {
+      "test_name": "irrelevance_127",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: sentiment_analysis_twitter"
+    },
+    {
+      "test_name": "irrelevance_131",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: psychology_color_representation"
+    },
+    {
+      "test_name": "irrelevance_132",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: historical_event_get_date"
+    },
+    {
+      "test_name": "irrelevance_135",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: add_dates"
+    },
+    {
+      "test_name": "irrelevance_139",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: space_star_info"
+    },
+    {
+      "test_name": "irrelevance_148",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: color_complimentary"
+    },
+    {
+      "test_name": "irrelevance_159",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: artwork_search"
+    },
+    {
+      "test_name": "irrelevance_160",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: most_frequent_visitor"
+    },
+    {
+      "test_name": "irrelevance_165",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: get_instrument_info"
+    },
+    {
+      "test_name": "irrelevance_166",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: instrument_rental_prices"
+    },
+    {
+      "test_name": "irrelevance_174",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: music_theory_primary_triads"
+    },
+    {
+      "test_name": "irrelevance_178",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: sports_analysis_get_top_scorer"
+    },
+    {
+      "test_name": "irrelevance_180",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: sports_analyzer_get_schedule"
+    },
+    {
+      "test_name": "irrelevance_182",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: get_nba_player_stats"
+    },
+    {
+      "test_name": "irrelevance_183",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: find_top_sports_celebrity"
+    },
+    {
+      "test_name": "irrelevance_184",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: sports_stats_get_player_stats"
+    },
+    {
+      "test_name": "irrelevance_188",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: sports_ranking_get_champion"
+    },
+    {
+      "test_name": "irrelevance_193",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: get_sport_team_details"
+    },
+    {
+      "test_name": "irrelevance_199",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: play_poker"
+    },
+    {
+      "test_name": "irrelevance_203",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: get_player_score"
+    },
+    {
+      "test_name": "irrelevance_206",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: game_find_best_weapon"
+    },
+    {
+      "test_name": "irrelevance_213",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: restaurant_finder"
+    },
+    {
+      "test_name": "irrelevance_218",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: prepare_food_get_recipe"
+    },
+    {
+      "test_name": "irrelevance_222",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: grocery_store_item_details"
+    },
+    {
+      "test_name": "irrelevance_223",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: grocery_shop_find_specific_product"
+    },
+    {
+      "test_name": "irrelevance_224",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: grocery_store_locate_nearby"
+    },
+    {
+      "test_name": "irrelevance_226",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: get_local_time"
+    },
+    {
+      "test_name": "irrelevance_227",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: calculate_sunrise"
+    },
+    {
+      "test_name": "irrelevance_228",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: get_local_time"
+    },
+    {
+      "test_name": "irrelevance_232",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: hotel_search_find_hotels"
+    },
+    {
+      "test_name": "irrelevance_234",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: convert_length"
+    },
+    {
+      "test_name": "irrelevance_236",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: get_flight_duration"
+    },
+    {
+      "test_name": "irrelevance_239",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: get_date"
     }
   ],
-  "total_passed": 23,
-  "total_tests": 24
+  "total_passed": 1089,
+  "total_tests": 1261
 }

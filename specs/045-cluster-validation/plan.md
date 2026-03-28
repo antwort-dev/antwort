@@ -138,7 +138,7 @@ The fixed 180-case subset is committed to `test/cluster/testdata/bfcl/` as JSONL
 
 ### DD6: cc-rosa Instills for Antwort Deployments
 
-Antwort deployment on ROSA HCP clusters is automated via project-level cc-rosa instills in `.claude/instills/rosa/`. Each instill follows the standard format (INSTILL.md with YAML frontmatter, install.md, uninstall.md). Instills are automatically discovered by the cc-rosa plugin hook.
+Antwort deployment on ROSA HCP clusters is automated via project-level cc-rosa instills in `.claude/cc-rosa/instills/`. Each instill follows the standard format (INSTILL.md with YAML frontmatter, install.md, uninstall.md). Instills are automatically discovered by the cc-rosa plugin hook.
 
 Instills to create:
 
@@ -151,6 +151,6 @@ Instills to create:
 
 ### DD7: Declarative Recipe for Validation Stack
 
-A single recipe file (`.claude/rosa-recipe.yaml`) deploys the complete validation stack via `/rosa:setup`. The recipe specifies cluster config, GPU machinepool, and the installation chain (rhoai -> model -> antwort-minimal). Recipe parameters allow customizing the model and Antwort configuration without editing the recipe.
+A single recipe file (`.claude/cc-rosa/recipe.yaml`) deploys the complete validation stack via `/rosa:setup`. The recipe specifies cluster config, GPU machinepool, and the installation chain (rhoai -> model -> antwort-minimal). Recipe parameters allow customizing the model and Antwort configuration without editing the recipe.
 
 Recipe supports idempotent reconciliation: re-running skips already-completed steps, making it safe to use for incremental deployment or recovery after partial failures.

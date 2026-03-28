@@ -24,6 +24,7 @@ var (
 	vllmURL        string
 	apiKey         string
 	model          string
+	modelName      string
 	testTimeout    time.Duration
 	antwortVersion string
 	collector      *ResultCollector
@@ -47,6 +48,7 @@ func TestMain(m *testing.M) {
 	vllmURL = os.Getenv("CLUSTER_VLLM_URL")
 	apiKey = envOr("CLUSTER_API_KEY", "")
 	model = envOr("CLUSTER_MODEL", "")
+	modelName = envOr("CLUSTER_MODEL_NAME", model)
 	antwortVersion = envOr("CLUSTER_ANTWORT_VERSION", "unknown")
 
 	timeoutSec, _ := strconv.Atoi(envOr("CLUSTER_TIMEOUT", "120"))
@@ -78,7 +80,7 @@ func TestMain(m *testing.M) {
 		os.Exit(0)
 	}
 
-	collector = NewResultCollector(model, antwortVersion, "")
+	collector = NewResultCollector(modelName, antwortVersion, "")
 
 	code := m.Run()
 

@@ -19,41 +19,35 @@ func bfclTestDataDir() string {
 }
 
 func TestBFCLSimple(t *testing.T) {
+	skipIfBFCLAll(t)
 	runBFCLCategory(t, "simple_python")
 }
 
 func TestBFCLIrrelevance(t *testing.T) {
+	skipIfBFCLAll(t)
 	runBFCLCategory(t, "irrelevance")
 }
 
 func TestBFCLMultiple(t *testing.T) {
-	dir := bfclTestDataDir()
-	cases, err := LoadBFCLCases(dir, "multiple")
-	if err != nil {
-		t.Skipf("multiple test data not available: %v", err)
-		return
-	}
-	runBFCLCases(t, cases, "multiple")
+	skipIfBFCLAll(t)
+	runBFCLCategory(t, "multiple")
 }
 
 func TestBFCLParallel(t *testing.T) {
-	dir := bfclTestDataDir()
-	cases, err := LoadBFCLCases(dir, "parallel")
-	if err != nil {
-		t.Skipf("parallel test data not available: %v", err)
-		return
-	}
-	runBFCLCases(t, cases, "parallel")
+	skipIfBFCLAll(t)
+	runBFCLCategory(t, "parallel")
 }
 
 func TestBFCLParallelMultiple(t *testing.T) {
-	dir := bfclTestDataDir()
-	cases, err := LoadBFCLCases(dir, "parallel_multiple")
-	if err != nil {
-		t.Skipf("parallel_multiple test data not available: %v", err)
-		return
+	skipIfBFCLAll(t)
+	runBFCLCategory(t, "parallel_multiple")
+}
+
+func skipIfBFCLAll(t *testing.T) {
+	t.Helper()
+	if bfclAll {
+		t.Skip("skipping individual category test, CLUSTER_BFCL_ALL runs all categories via TestBFCLAll")
 	}
-	runBFCLCases(t, cases, "parallel_multiple")
 }
 
 func TestBFCLAll(t *testing.T) {
