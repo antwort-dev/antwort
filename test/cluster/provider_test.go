@@ -60,10 +60,13 @@ func TestMultiProviderNonStreaming(t *testing.T) {
 		return
 	}
 
+	// Use Chat Completions API for direct vLLM (it doesn't support Responses API)
 	start = time.Now()
-	vllmResp, err := vllm.Responses.New(ctx, responses.ResponseNewParams{
+	chatResp, err := vllm.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
 		Model: model,
-		Input: userInput(comparisonPrompt),
+		Messages: []openai.ChatCompletionMessageParamUnion{
+			openai.UserMessage(comparisonPrompt),
+		},
 		Temperature: openai.Float(0),
 	})
 	vllmDuration := time.Since(start)
@@ -76,7 +79,10 @@ func TestMultiProviderNonStreaming(t *testing.T) {
 		vllmErr = "vllm request failed: " + err.Error()
 		t.Errorf("direct vLLM non-streaming failed: %v", err)
 	} else {
-		vllmText := extractOutputText(vllmResp)
+		vllmText := ""
+		if len(chatResp.Choices) > 0 {
+			vllmText = chatResp.Choices[0].Message.Content
+		}
 		if vllmText == "" {
 			vllmPassed = false
 			vllmErr = "vllm returned empty text"
@@ -146,28 +152,32 @@ func TestMultiProviderStreaming(t *testing.T) {
 		return
 	}
 
+	// Use Chat Completions streaming for direct vLLM
 	start = time.Now()
-	vllmStream := vllm.Responses.NewStreaming(ctx, responses.ResponseNewParams{
+	chatStream := vllm.Chat.Completions.NewStreaming(ctx, openai.ChatCompletionNewParams{
 		Model: model,
-		Input: userInput(comparisonPrompt),
+		Messages: []openai.ChatCompletionMessageParamUnion{
+			openai.UserMessage(comparisonPrompt),
+		},
 		Temperature: openai.Float(0),
 	})
 
 	var vllmTTFT time.Duration
 	firstToken = false
-	for vllmStream.Next() {
-		if !firstToken && vllmStream.Current().Type == "response.output_text.delta" {
+	for chatStream.Next() {
+		chunk := chatStream.Current()
+		if !firstToken && len(chunk.Choices) > 0 && chunk.Choices[0].Delta.Content != "" {
 			vllmTTFT = time.Since(start)
 			firstToken = true
 		}
 	}
 	vllmDuration := time.Since(start)
 
-	vllmPassed := vllmStream.Err() == nil
+	vllmPassed := chatStream.Err() == nil
 	var vllmErr string
 	if !vllmPassed {
-		vllmErr = vllmStream.Err().Error()
-		t.Errorf("direct vLLM streaming failed: %v", vllmStream.Err())
+		vllmErr = chatStream.Err().Error()
+		t.Errorf("direct vLLM streaming failed: %v", chatStream.Err())
 	}
 
 	collector.Record(TestResult{
@@ -208,9 +218,11 @@ func TestMultiProviderOverhead(t *testing.T) {
 		antwortTotal += time.Since(start)
 
 		start = time.Now()
-		_, err = vllm.Responses.New(ctx, responses.ResponseNewParams{
+		_, err = vllm.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
 			Model: model,
-			Input: userInput("What is 1+1? Answer with just the number."),
+			Messages: []openai.ChatCompletionMessageParamUnion{
+				openai.UserMessage("What is 1+1? Answer with just the number."),
+			},
 			Temperature: openai.Float(0),
 		})
 		if err != nil {

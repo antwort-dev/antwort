@@ -108,7 +108,7 @@ A developer wants to deploy the complete Antwort validation stack on a ROSA HCP 
 
 **Why this priority**: Without a repeatable deployment method, each validation run requires manual cluster setup. A recipe makes validation accessible to any team member with cluster access.
 
-**Independent Test**: Run `/rosa:setup .claude/rosa-recipe.yaml` on a fresh cluster, verify all components are deployed and Antwort is reachable.
+**Independent Test**: Run `/rosa:setup .claude/cc-rosa/recipe.yaml` on a fresh cluster, verify all components are deployed and Antwort is reachable.
 
 **Acceptance Scenarios**:
 
@@ -145,8 +145,8 @@ A developer wants to deploy the complete Antwort validation stack on a ROSA HCP 
 - **FR-013**: Each test category (basic inference, streaming, tool calling, BFCL, background, RAG, auth, conversations) MUST be independently runnable via `-run TestCategory`.
 - **FR-014**: The harness MUST maintain a `latest.md` symlink pointing to the most recent result file.
 - **FR-015**: The harness MUST NOT create or tear down clusters. Cluster lifecycle is managed externally (via cc-rosa or manual setup).
-- **FR-016**: The project MUST include cc-rosa instills in `.claude/instills/rosa/` for deploying Antwort in different configurations (minimal, production, RAG, background).
-- **FR-017**: The project MUST include a declarative cc-rosa recipe (`.claude/rosa-recipe.yaml`) that deploys the complete validation stack (RHOAI, model, Antwort) via `/rosa:setup`.
+- **FR-016**: The project MUST include cc-rosa instills in `.claude/cc-rosa/instills/` for deploying Antwort in different configurations (minimal, production, RAG, background).
+- **FR-017**: The project MUST include a declarative cc-rosa recipe (`.claude/cc-rosa/recipe.yaml`) that deploys the complete validation stack (RHOAI, model, Antwort) via `/rosa:setup`.
 - **FR-018**: The recipe MUST support idempotent reconciliation, so re-running it skips already-completed deployment steps.
 - **FR-019**: Instill parameters (model name, namespace, storage backend) MUST be configurable via recipe parameters or environment variables, not hardcoded.
 
@@ -165,7 +165,7 @@ A developer wants to deploy the complete Antwort validation stack on a ROSA HCP 
 - **SC-002**: Validation results are comparable across runs: same model + same BFCL subset produces consistent scores (within 5% variance for deterministic test cases with temperature=0).
 - **SC-003**: The multi-provider comparison reveals gateway overhead of less than 100ms P95 for non-streaming requests (exclusive of model inference time).
 - **SC-004**: Published validation results are accessible on the documentation site and updated after each committed run.
-- **SC-005**: A new developer can deploy the validation stack via `/rosa:setup .claude/rosa-recipe.yaml` and run the harness via `test/cluster/run.sh` or `make cluster-test`, following the README without additional guidance.
+- **SC-005**: A new developer can deploy the validation stack via `/rosa:setup .claude/cc-rosa/recipe.yaml` and run the harness via `test/cluster/run.sh` or `make cluster-test`, following the README without additional guidance.
 
 ## Assumptions
 

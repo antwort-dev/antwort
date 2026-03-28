@@ -16,9 +16,9 @@
 
 **Purpose**: Extend existing types and add annotation infrastructure
 
-- [ ] T001 [P] Extend `Annotation` struct with `FileID`, `Quote`, `URL`, `Title` fields (all `omitempty`) in `pkg/api/types.go`
-- [ ] T002 [P] Add `Metadata map[string]string` field to `ToolResult` struct in `pkg/tools/executor.go`
-- [ ] T003 [P] Add `EventAnnotationAdded = "response.output_text.annotation.added"` constant to `pkg/api/events.go`
+- [x] T001 [P] Extend `Annotation` struct with `FileID`, `Quote`, `URL`, `Title` fields (all `omitempty`) in `pkg/api/types.go`
+- [x] T002 [P] Add `Metadata map[string]string` field to `ToolResult` struct in `pkg/tools/executor.go`
+- [x] T003 [P] Add `EventAnnotationAdded = "response.output_text.annotation.added"` constant to `pkg/api/events.go`
 
 ---
 
@@ -28,9 +28,9 @@
 
 **CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T004 Define `SourceContext` struct (ToolName, FileID, URL, Title, Content) and `AnnotationGenerator` interface (Generate method) in `pkg/engine/annotations.go`
-- [ ] T005 Implement `SubstringMatcher` (finds longest common substrings between source content and output text, builds Annotation entries with character positions, configurable minimum match length) in `pkg/engine/annotations.go`
-- [ ] T006 Write tests for `SubstringMatcher` in `pkg/engine/annotations_test.go` (table-driven: exact match, partial match, no match fallback, multiple sources, overlapping ranges, empty text, unicode)
+- [x] T004 Define `SourceContext` struct (ToolName, FileID, URL, Title, Content) and `AnnotationGenerator` interface (Generate method) in `pkg/engine/annotations.go`
+- [x] T005 Implement `SubstringMatcher` (finds longest common substrings between source content and output text, builds Annotation entries with character positions, configurable minimum match length) in `pkg/engine/annotations.go`
+- [x] T006 Write tests for `SubstringMatcher` in `pkg/engine/annotations_test.go` (table-driven: exact match, partial match, no match fallback, multiple sources, overlapping ranges, empty text, unicode)
 
 **Checkpoint**: Annotation generator works in isolation with test fixtures.
 
@@ -44,12 +44,12 @@
 
 ### Implementation for User Story 1
 
-- [ ] T007 [US1] Populate `ToolResult.Metadata` in file_search provider: set `tool=file_search`, `file_id` from `SearchMatch.Metadata["file_id"]`, `content` from `SearchMatch.Content` in `pkg/tools/builtins/filesearch/provider.go`
-- [ ] T008 [US1] Add source context extraction helper: convert `ToolResult.Metadata` into `[]SourceContext` in `pkg/engine/annotations.go`
-- [ ] T009 [US1] Integrate annotation generator into non-streaming engine loop: after final provider response, extract source contexts from tool results, generate annotations, attach to `OutputContentPart.Annotations` in `pkg/engine/loop.go`
-- [ ] T010 [US1] Accept optional `AnnotationGenerator` in engine constructor, wire through to the loop in `pkg/engine/engine.go`
-- [ ] T011 [US1] Write tests for file_citation generation in `pkg/engine/annotations_test.go` (file_search metadata produces file_citation with file_id and quote, no metadata produces no annotations)
-- [ ] T012 [US1] Write integration test: mock provider returns text containing file_search content, verify response has file_citation annotations with correct positions in `pkg/engine/loop_test.go`
+- [x] T007 [US1] Populate `ToolResult.Metadata` in file_search provider: set `tool=file_search`, `file_id` from `SearchMatch.Metadata["file_id"]`, `content` from `SearchMatch.Content` in `pkg/tools/builtins/filesearch/provider.go`
+- [x] T008 [US1] Add source context extraction helper: convert `ToolResult.Metadata` into `[]SourceContext` in `pkg/engine/annotations.go`
+- [x] T009 [US1] Integrate annotation generator into non-streaming engine loop: after final provider response, extract source contexts from tool results, generate annotations, attach to `OutputContentPart.Annotations` in `pkg/engine/loop.go`
+- [x] T010 [US1] Accept optional `AnnotationGenerator` in engine constructor, wire through to the loop in `pkg/engine/engine.go`
+- [x] T011 [US1] Write tests for file_citation generation in `pkg/engine/annotations_test.go` (file_search metadata produces file_citation with file_id and quote, no metadata produces no annotations)
+- [x] T012 [US1] Write integration test: mock provider returns text containing file_search content, verify response has file_citation annotations with correct positions in `pkg/engine/loop_test.go`
 
 **Checkpoint**: Non-streaming responses with file_search include file_citation annotations.
 
@@ -63,9 +63,9 @@
 
 ### Implementation for User Story 2
 
-- [ ] T013 [US2] Populate `ToolResult.Metadata` in web_search provider: set `tool=web_search`, `url`, `title`, `content` from `SearchResult` fields in `pkg/tools/builtins/websearch/provider.go`
-- [ ] T014 [US2] Write tests for url_citation generation in `pkg/engine/annotations_test.go` (web_search metadata produces url_citation with url and title)
-- [ ] T015 [US2] Write integration test: mock provider returns text using web_search results, verify response has url_citation annotations in `pkg/engine/loop_test.go`
+- [x] T013 [US2] Populate `ToolResult.Metadata` in web_search provider: set `tool=web_search`, `url`, `title`, `content` from `SearchResult` fields in `pkg/tools/builtins/websearch/provider.go`
+- [x] T014 [US2] Write tests for url_citation generation in `pkg/engine/annotations_test.go` (web_search metadata produces url_citation with url and title)
+- [x] T015 [US2] Write integration test: mock provider returns text using web_search results, verify response has url_citation annotations in `pkg/engine/loop_test.go`
 
 **Checkpoint**: Non-streaming responses with web_search include url_citation annotations.
 
@@ -79,8 +79,8 @@
 
 ### Implementation for User Story 3
 
-- [ ] T016 [US3] Write test for mixed annotations in `pkg/engine/annotations_test.go` (both file_search and web_search sources produce both annotation types, non-overlapping ranges)
-- [ ] T017 [US3] Handle annotation range conflict resolution in `SubstringMatcher`: when sources overlap, prefer the longest match, split at sentence boundaries in `pkg/engine/annotations.go`
+- [x] T016 [US3] Write test for mixed annotations in `pkg/engine/annotations_test.go` (both file_search and web_search sources produce both annotation types, non-overlapping ranges)
+- [x] T017 [US3] Handle annotation range conflict resolution in `SubstringMatcher`: when sources overlap, prefer the longest match, split at sentence boundaries in `pkg/engine/annotations.go`
 
 **Checkpoint**: Mixed citation responses produce correct, non-overlapping annotations.
 
@@ -94,8 +94,8 @@
 
 ### Implementation for User Story 4
 
-- [ ] T018 [US4] Write test confirming no annotations when no tool results have metadata in `pkg/engine/annotations_test.go`
-- [ ] T019 [US4] Write test confirming no annotations when tool results exist but LLM output doesn't match any source content in `pkg/engine/annotations_test.go`
+- [x] T018 [US4] Write test confirming no annotations when no tool results have metadata in `pkg/engine/annotations_test.go`
+- [x] T019 [US4] Write test confirming no annotations when tool results exist but LLM output doesn't match any source content in `pkg/engine/annotations_test.go`
 
 **Checkpoint**: No false citations generated.
 
@@ -105,9 +105,9 @@
 
 **Purpose**: SSE event emission for annotations during streaming responses
 
-- [ ] T020 Add `MarshalJSON` case for `EventAnnotationAdded` in `pkg/api/events.go` (payload: annotation_index, annotation object with all fields)
-- [ ] T021 Integrate annotation generation into streaming engine loop: after text accumulation in `consumeStreamTurn()`, generate annotations, emit `EventAnnotationAdded` events after `EventOutputTextDone` and before `EventContentPartDone` in `pkg/engine/loop.go`
-- [ ] T022 Write test for streaming annotation events in `pkg/engine/loop_test.go` (verify EventAnnotationAdded emitted with correct sequence numbering and annotation data)
+- [x] T020 Add `MarshalJSON` case for `EventAnnotationAdded` in `pkg/api/events.go` (payload: annotation_index, annotation object with all fields)
+- [x] T021 Integrate annotation generation into streaming engine loop: after text accumulation in `consumeStreamTurn()`, generate annotations, emit `EventAnnotationAdded` events after `EventOutputTextDone` and before `EventContentPartDone` in `pkg/engine/loop.go`
+- [x] T022 Write test for streaming annotation events in `pkg/engine/loop_test.go` (verify EventAnnotationAdded emitted with correct sequence numbering and annotation data)
 
 ---
 
@@ -115,11 +115,11 @@
 
 **Purpose**: Edge cases, documentation, verification
 
-- [ ] T023 [P] Handle edge case: source content in tool result but no match in output (annotate entire output segment with source reference, no quote) in `pkg/engine/annotations.go`
-- [ ] T024 [P] Handle edge case: same source cited multiple times (each occurrence gets its own annotation with distinct positions) in `pkg/engine/annotations.go`
-- [ ] T025 Add Files API reference page update: document annotation fields in response output in `docs/modules/reference/pages/files-api.adoc`
-- [ ] T026 Add annotation documentation to API reference: document file_citation and url_citation annotation types in `docs/modules/reference/pages/api-reference.adoc`
-- [ ] T027 Verify `go vet ./pkg/api/... ./pkg/engine/... ./pkg/tools/...` pass with no errors
+- [x] T023 [P] Handle edge case: source content in tool result but no match in output (annotate entire output segment with source reference, no quote) in `pkg/engine/annotations.go`
+- [x] T024 [P] Handle edge case: same source cited multiple times (each occurrence gets its own annotation with distinct positions) in `pkg/engine/annotations.go`
+- [x] T025 Add Files API reference page update: document annotation fields in response output in `docs/modules/reference/pages/files-api.adoc`
+- [x] T026 Add annotation documentation to API reference: document file_citation and url_citation annotation types in `docs/modules/reference/pages/api-reference.adoc`
+- [x] T027 Verify `go vet ./pkg/api/... ./pkg/engine/... ./pkg/tools/...` pass with no errors
 
 ---
 

@@ -15,8 +15,8 @@
 
 **Purpose**: Create the unified workflow skeleton and shared test infrastructure
 
-- [ ] T001 (antwort-dnm.1) Create unified CI workflow skeleton with 4 empty jobs in `.github/workflows/ci.yml`
-- [ ] T002 (antwort-dnm.2) Delete the old workflow file `.github/workflows/api-conformance.yml`
+- [x] T001 (antwort-dnm.1) Create unified CI workflow skeleton with 4 empty jobs in `.github/workflows/ci.yml`
+- [x] T002 (antwort-dnm.2) Delete the old workflow file `.github/workflows/api-conformance.yml`
 
 ---
 
@@ -26,7 +26,7 @@
 
 **CRITICAL**: The kubernetes job (US4) depends on this Containerfile
 
-- [ ] T003 (antwort-nri.1) Create mock-backend container image at `Containerfile.mock` following the pattern in `Containerfile`
+- [x] T003 (antwort-nri.1) Create mock-backend container image at `Containerfile.mock` following the pattern in `Containerfile`
 
 **Checkpoint**: Mock-backend can be built as a container image
 
@@ -40,8 +40,8 @@
 
 ### Implementation for User Story 1
 
-- [ ] T004 (antwort-5hr.1) [US1] Implement the `lint-test` job in `.github/workflows/ci.yml` with Go 1.25 setup, `go vet ./...`, and `go test ./pkg/... -timeout 60s -count=1`
-- [ ] T005 (antwort-5hr.2) [US1] Add job timeout (5 min) and Go module caching to the lint-test job in `.github/workflows/ci.yml`
+- [x] T004 (antwort-5hr.1) [US1] Implement the `lint-test` job in `.github/workflows/ci.yml` with Go 1.25 setup, `go vet ./...`, and `go test ./pkg/... -timeout 60s -count=1`
+- [x] T005 (antwort-5hr.2) [US1] Add job timeout (5 min) and Go module caching to the lint-test job in `.github/workflows/ci.yml`
 
 **Checkpoint**: Pushing to a PR branch triggers lint + unit tests and reports pass/fail as a GitHub check
 
@@ -55,12 +55,12 @@
 
 ### Implementation for User Story 2
 
-- [ ] T006 (antwort-o1h.1) [US2] Implement the `conformance` job in `.github/workflows/ci.yml` with oasdiff validation step calling `./api/validate-oasdiff.sh`
-- [ ] T007 (antwort-o1h.2) [US2] Add Go integration tests step (`go test ./test/integration/ -timeout 120s -v -count=1`) to the conformance job in `.github/workflows/ci.yml`
-- [ ] T008 (antwort-o1h.3) [US2] Add server startup steps to the conformance job in `.github/workflows/ci.yml`: build binaries, start mock-backend (port 9090), start antwort server (port 8080), wait for health endpoints
-- [ ] T009 (antwort-o1h.4) [US2] Add OpenResponses compliance suite steps to the conformance job in `.github/workflows/ci.yml`: setup bun, clone repo, install deps, run tests with JSON output
-- [ ] T010 (antwort-o1h.5) [US2] Add step summary generation and artifact upload to the conformance job in `.github/workflows/ci.yml`
-- [ ] T011 (antwort-o1h.6) [US2] Add failure diagnostics step (server logs on failure) to the conformance job in `.github/workflows/ci.yml`
+- [x] T006 (antwort-o1h.1) [US2] Implement the `conformance` job in `.github/workflows/ci.yml` with oasdiff validation step calling `./api/validate-oasdiff.sh`
+- [x] T007 (antwort-o1h.2) [US2] Add Go integration tests step (`go test ./test/integration/ -timeout 120s -v -count=1`) to the conformance job in `.github/workflows/ci.yml`
+- [x] T008 (antwort-o1h.3) [US2] Add server startup steps to the conformance job in `.github/workflows/ci.yml`: build binaries, start mock-backend (port 9090), start antwort server (port 8080), wait for health endpoints
+- [x] T009 (antwort-o1h.4) [US2] Add OpenResponses compliance suite steps to the conformance job in `.github/workflows/ci.yml`: setup bun, clone repo, install deps, run tests with JSON output
+- [x] T010 (antwort-o1h.5) [US2] Add step summary generation and artifact upload to the conformance job in `.github/workflows/ci.yml`
+- [x] T011 (antwort-o1h.6) [US2] Add failure diagnostics step (server logs on failure) to the conformance job in `.github/workflows/ci.yml`
 
 **Checkpoint**: Conformance job runs oasdiff + integration tests + compliance suite and produces a summary table
 
@@ -74,12 +74,12 @@
 
 ### Implementation for User Story 3
 
-- [ ] T012 (antwort-ioc.1) [P] [US3] Create Python SDK test file at `test/sdk/python/test_antwort.py` with 6 test cases: basic response, streaming, tool calling, conversation chaining, structured output, model listing
-- [ ] T013 (antwort-ioc.2) [P] [US3] Create Python requirements file at `test/sdk/python/requirements.txt` with `openai` and `pytest` dependencies
-- [ ] T014 (antwort-ioc.3) [P] [US3] Create TypeScript SDK test file at `test/sdk/typescript/test_antwort.test.ts` with 6 test cases matching the Python tests
-- [ ] T015 (antwort-ioc.4) [P] [US3] Create TypeScript package file at `test/sdk/typescript/package.json` with `openai` dependency and bun test config
-- [ ] T016 (antwort-ioc.5) [US3] Implement the `sdk-clients` job in `.github/workflows/ci.yml`: build + start servers, setup Python 3.12, install requirements, run pytest, setup bun, install TS deps, run bun test
-- [ ] T017 (antwort-ioc.6) [US3] Add job timeout (10 min) and failure diagnostics to the sdk-clients job in `.github/workflows/ci.yml`
+- [x] T012 (antwort-ioc.1) [P] [US3] Create Python SDK test file at `test/sdk/python/test_antwort.py` with 6 test cases: basic response, streaming, tool calling, conversation chaining, structured output, model listing
+- [x] T013 (antwort-ioc.2) [P] [US3] Create Python requirements file at `test/sdk/python/requirements.txt` with `openai` and `pytest` dependencies
+- [x] T014 (antwort-ioc.3) [P] [US3] Create TypeScript SDK test file at `test/sdk/typescript/test_antwort.test.ts` with 6 test cases matching the Python tests
+- [x] T015 (antwort-ioc.4) [P] [US3] Create TypeScript package file at `test/sdk/typescript/package.json` with `openai` dependency and bun test config
+- [x] T016 (antwort-ioc.5) [US3] Implement the `sdk-clients` job in `.github/workflows/ci.yml`: build + start servers, setup Python 3.12, install requirements, run pytest, setup bun, install TS deps, run bun test
+- [x] T017 (antwort-ioc.6) [US3] Add job timeout (10 min) and failure diagnostics to the sdk-clients job in `.github/workflows/ci.yml`
 
 **Checkpoint**: SDK test job runs both Python and TypeScript tests against the live server and reports pass/fail
 
@@ -93,12 +93,12 @@
 
 ### Implementation for User Story 4
 
-- [ ] T018 (antwort-lbv.1) [P] [US4] Create CI kustomization overlay at `quickstarts/01-minimal/ci/kustomization.yaml` that patches image names, adds mock-backend deployment, sets imagePullPolicy to Never
-- [ ] T019 (antwort-lbv.2) [P] [US4] Create mock-backend K8s manifests at `quickstarts/01-minimal/ci/mock-backend.yaml` with Deployment + Service for the mock-backend image
-- [ ] T020 (antwort-lbv.3) [US4] Implement the `kubernetes` job in `.github/workflows/ci.yml`: docker build both images, install kind, create cluster, load images
-- [ ] T021 (antwort-lbv.4) [US4] Add deployment steps to the kubernetes job in `.github/workflows/ci.yml`: create namespace, kustomize build + apply from `quickstarts/01-minimal/ci/`, wait for Pod readiness (60s timeout)
-- [ ] T022 (antwort-lbv.5) [US4] Add smoke test steps to the kubernetes job in `.github/workflows/ci.yml`: port-forward, curl /healthz and /readyz, send test POST request to /v1/responses
-- [ ] T023 (antwort-lbv.6) [US4] Add cleanup and failure diagnostics to the kubernetes job in `.github/workflows/ci.yml`: kind delete cluster, kubectl logs on failure
+- [x] T018 (antwort-lbv.1) [P] [US4] Create CI kustomization overlay at `quickstarts/01-minimal/ci/kustomization.yaml` that patches image names, adds mock-backend deployment, sets imagePullPolicy to Never
+- [x] T019 (antwort-lbv.2) [P] [US4] Create mock-backend K8s manifests at `quickstarts/01-minimal/ci/mock-backend.yaml` with Deployment + Service for the mock-backend image
+- [x] T020 (antwort-lbv.3) [US4] Implement the `kubernetes` job in `.github/workflows/ci.yml`: docker build both images, install kind, create cluster, load images
+- [x] T021 (antwort-lbv.4) [US4] Add deployment steps to the kubernetes job in `.github/workflows/ci.yml`: create namespace, kustomize build + apply from `quickstarts/01-minimal/ci/`, wait for Pod readiness (60s timeout)
+- [x] T022 (antwort-lbv.5) [US4] Add smoke test steps to the kubernetes job in `.github/workflows/ci.yml`: port-forward, curl /healthz and /readyz, send test POST request to /v1/responses
+- [x] T023 (antwort-lbv.6) [US4] Add cleanup and failure diagnostics to the kubernetes job in `.github/workflows/ci.yml`: kind delete cluster, kubectl logs on failure
 
 **Checkpoint**: K8s job builds images, deploys to kind, and verifies a request round-trip through Kubernetes services
 
@@ -108,9 +108,9 @@
 
 **Purpose**: Final cleanup and validation across all jobs
 
-- [ ] T024 (antwort-6li.1) Add Go module caching (`actions/cache`) to all Go-based jobs (conformance, sdk-clients, kubernetes) in `.github/workflows/ci.yml`
-- [ ] T025 (antwort-6li.2) Verify all 4 jobs appear as separate GitHub status checks by pushing a test PR
-- [ ] T026 (antwort-6li.3) Add a `Makefile` target `ci-sdk-test` that runs SDK tests locally (start servers + pytest + bun test) in `Makefile`
+- [x] T024 (antwort-6li.1) Add Go module caching (`actions/cache`) to all Go-based jobs (conformance, sdk-clients, kubernetes) in `.github/workflows/ci.yml`
+- [x] T025 (antwort-6li.2) Verify all 4 jobs appear as separate GitHub status checks by pushing a test PR
+- [x] T026 (antwort-6li.3) Add a `Makefile` target `ci-sdk-test` that runs SDK tests locally (start servers + pytest + bun test) in `Makefile`
 
 ---
 

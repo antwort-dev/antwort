@@ -19,8 +19,8 @@
 
 **Independent Test**: Configure with Brave API key, trigger web_search, verify results returned.
 
-- [ ] T001 [P] [US1] Implement BraveAdapter (GET to Brave Web Search API, X-Subscription-Token auth, parse web.results into SearchResult, handle 401/429 errors) in `pkg/tools/builtins/websearch/brave.go`
-- [ ] T002 [US1] Write tests for BraveAdapter in `pkg/tools/builtins/websearch/brave_test.go` (table-driven with httptest: successful search, empty results, auth error 401, rate limit 429, malformed response, max_results limit)
+- [x] T001 [P] [US1] Implement BraveAdapter (GET to Brave Web Search API, X-Subscription-Token auth, parse web.results into SearchResult, handle 401/429 errors) in `pkg/tools/builtins/websearch/brave.go`
+- [x] T002 [US1] Write tests for BraveAdapter in `pkg/tools/builtins/websearch/brave_test.go` (table-driven with httptest: successful search, empty results, auth error 401, rate limit 429, malformed response, max_results limit)
 
 **Checkpoint**: Brave adapter works in isolation with mock server.
 
@@ -32,8 +32,8 @@
 
 **Independent Test**: Configure with Tavily API key, trigger web_search, verify results returned.
 
-- [ ] T003 [P] [US2] Implement TavilyAdapter (POST to Tavily Search API, Bearer auth, JSON body with query and max_results, parse results into SearchResult, handle 401/429 errors) in `pkg/tools/builtins/websearch/tavily.go`
-- [ ] T004 [US2] Write tests for TavilyAdapter in `pkg/tools/builtins/websearch/tavily_test.go` (table-driven with httptest: successful search, empty results, auth error 401, rate limit 429, malformed response, max_results in request body)
+- [x] T003 [P] [US2] Implement TavilyAdapter (POST to Tavily Search API, Bearer auth, JSON body with query and max_results, parse results into SearchResult, handle 401/429 errors) in `pkg/tools/builtins/websearch/tavily.go`
+- [x] T004 [US2] Write tests for TavilyAdapter in `pkg/tools/builtins/websearch/tavily_test.go` (table-driven with httptest: successful search, empty results, auth error 401, rate limit 429, malformed response, max_results in request body)
 
 **Checkpoint**: Tavily adapter works in isolation with mock server.
 
@@ -43,8 +43,8 @@
 
 **Goal**: Configuration wiring for backend selection.
 
-- [ ] T005 [US3] Add `brave` and `tavily` cases to the backend switch in `New()`, extract `api_key` from settings, validate required fields, create adapters in `pkg/tools/builtins/websearch/provider.go`
-- [ ] T006 [US3] Write tests for backend selection in `pkg/tools/builtins/websearch/provider_test.go` (brave with api_key works, tavily with api_key works, brave without api_key fails, unknown backend fails, searxng unchanged)
+- [x] T005 [US3] Add `brave` and `tavily` cases to the backend switch in `New()`, extract `api_key` from settings, validate required fields, create adapters in `pkg/tools/builtins/websearch/provider.go`
+- [x] T006 [US3] Write tests for backend selection in `pkg/tools/builtins/websearch/provider_test.go` (brave with api_key works, tavily with api_key works, brave without api_key fails, unknown backend fails, searxng unchanged)
 
 **Checkpoint**: All three backends selectable via configuration.
 
@@ -52,9 +52,9 @@
 
 ## Phase 5: Polish
 
-- [ ] T007 [P] Add Brave and Tavily to API reference documentation in `docs/modules/reference/pages/api-reference.adoc` (web_search backend options)
-- [ ] T008 [P] Update configuration reference with brave and tavily settings in `docs/modules/reference/pages/config-reference.adoc`
-- [ ] T009 Verify `go vet ./pkg/tools/builtins/websearch/...` and `go test ./pkg/tools/builtins/websearch/...` pass
+- [x] T007 [P] Add Brave and Tavily to API reference documentation in `docs/modules/reference/pages/api-reference.adoc` (web_search backend options)
+- [x] T008 [P] Update configuration reference with brave and tavily settings in `docs/modules/reference/pages/config-reference.adoc`
+- [x] T009 Verify `go vet ./pkg/tools/builtins/websearch/...` and `go test ./pkg/tools/builtins/websearch/...` pass
 
 ---
 

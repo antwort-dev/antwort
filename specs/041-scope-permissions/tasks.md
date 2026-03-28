@@ -19,10 +19,10 @@
 
 **Purpose**: Shared types and configuration for scope enforcement and permissions
 
-- [ ] T001 (antwort-77ha.1) [P] Create `Permissions` value type with `ParsePermissions(string) Permissions`, `String() string`, and `CanRead/CanWrite/CanDelete` check methods in `pkg/authz/permissions.go`
-- [ ] T002 (antwort-77ha.2) [P] Create role expansion logic with cycle detection in `pkg/auth/scope/roles.go`: `ExpandRoles(config map[string][]string) (map[string]map[string]bool, error)` resolving references and detecting cycles at startup
-- [ ] T003 (antwort-77ha.3) [P] Add `RoleScopes map[string][]string` field to `AuthorizationConfig` in `pkg/config/config.go`
-- [ ] T004 (antwort-77ha.4) [P] Add `VectorStoreIDs []string` field to `AgentProfileConfig` in `pkg/agent/config.go` and `AgentProfile` in `pkg/agent/profile.go`
+- [x] T001 (antwort-77ha.1) [P] Create `Permissions` value type with `ParsePermissions(string) Permissions`, `String() string`, and `CanRead/CanWrite/CanDelete` check methods in `pkg/authz/permissions.go`
+- [x] T002 (antwort-77ha.2) [P] Create role expansion logic with cycle detection in `pkg/auth/scope/roles.go`: `ExpandRoles(config map[string][]string) (map[string]map[string]bool, error)` resolving references and detecting cycles at startup
+- [x] T003 (antwort-77ha.3) [P] Add `RoleScopes map[string][]string` field to `AuthorizationConfig` in `pkg/config/config.go`
+- [x] T004 (antwort-77ha.4) [P] Add `VectorStoreIDs []string` field to `AgentProfileConfig` in `pkg/agent/config.go` and `AgentProfile` in `pkg/agent/profile.go`
 
 ---
 
@@ -32,11 +32,11 @@
 
 **Warning**: No user story work can begin until this phase is complete
 
-- [ ] T005 (antwort-e7kq.1) Create scope enforcement middleware in `pkg/auth/scope/middleware.go`: check effective scopes against hardcoded endpoint-to-scope map, return 403 with scope name on denial, no-op when nil/empty role config
-- [ ] T006 (antwort-e7kq.2) Create hardcoded endpoint-to-scope map in `pkg/auth/scope/middleware.go` covering all 20 endpoints from data-model.md
-- [ ] T007 (antwort-e7kq.3) Wire scope middleware into `cmd/server/main.go` after auth middleware, conditional on `RoleScopes` being configured
-- [ ] T008 (antwort-e7kq.4) Inject effective scopes (JWT union role-expanded) into context in `pkg/auth/middleware.go`
-- [ ] T009 (antwort-e7kq.5) Create PostgreSQL migration `pkg/storage/postgres/migrations/003_add_permissions.sql` adding `permissions TEXT NOT NULL DEFAULT 'rwd|---|---'` column to vector_stores and files tables
+- [x] T005 (antwort-e7kq.1) Create scope enforcement middleware in `pkg/auth/scope/middleware.go`: check effective scopes against hardcoded endpoint-to-scope map, return 403 with scope name on denial, no-op when nil/empty role config
+- [x] T006 (antwort-e7kq.2) Create hardcoded endpoint-to-scope map in `pkg/auth/scope/middleware.go` covering all 20 endpoints from data-model.md
+- [x] T007 (antwort-e7kq.3) Wire scope middleware into `cmd/server/main.go` after auth middleware, conditional on `RoleScopes` being configured
+- [x] T008 (antwort-e7kq.4) Inject effective scopes (JWT union role-expanded) into context in `pkg/auth/middleware.go`
+- [x] T009 (antwort-e7kq.5) Create PostgreSQL migration `pkg/storage/postgres/migrations/003_add_permissions.sql` adding `permissions TEXT NOT NULL DEFAULT 'rwd|---|---'` column to vector_stores and files tables
 
 **Checkpoint**: Scope middleware and permissions infrastructure ready
 
@@ -50,17 +50,17 @@
 
 ### Tests for User Story 1
 
-- [ ] T010 (antwort-8xc3.1) [P] [US1] Unit tests for role expansion: basic expansion, reference inheritance, cycle detection, undefined reference rejection in `pkg/auth/scope/scope_test.go`
-- [ ] T011 (antwort-8xc3.2) [P] [US1] Unit tests for scope middleware: scope match, wildcard `*`, missing scope returns 403, no config returns no-op in `pkg/auth/scope/scope_test.go`
-- [ ] T012 (antwort-8xc3.3) [P] [US1] Unit tests for Permissions type: parse valid strings, invalid strings, CanRead/CanWrite/CanDelete, String() round-trip in `pkg/authz/permissions_test.go`
+- [x] T010 (antwort-8xc3.1) [P] [US1] Unit tests for role expansion: basic expansion, reference inheritance, cycle detection, undefined reference rejection in `pkg/auth/scope/scope_test.go`
+- [x] T011 (antwort-8xc3.2) [P] [US1] Unit tests for scope middleware: scope match, wildcard `*`, missing scope returns 403, no config returns no-op in `pkg/auth/scope/scope_test.go`
+- [x] T012 (antwort-8xc3.3) [P] [US1] Unit tests for Permissions type: parse valid strings, invalid strings, CanRead/CanWrite/CanDelete, String() round-trip in `pkg/authz/permissions_test.go`
 
 ### Implementation for User Story 1
 
-- [ ] T013 (antwort-8xc3.4) [US1] Integration test: viewer role can GET but not POST responses in `tests/integration/scope_permissions_test.go`
-- [ ] T014 (antwort-8xc3.5) [US1] Integration test: user role inherits viewer scopes plus create in `tests/integration/scope_permissions_test.go`
-- [ ] T015 (antwort-8xc3.6) [US1] Integration test: admin wildcard `*` passes all endpoints in `tests/integration/scope_permissions_test.go`
-- [ ] T016 (antwort-8xc3.7) [US1] Integration test: JWT scopes union with role scopes in `tests/integration/scope_permissions_test.go`
-- [ ] T017 (antwort-8xc3.8) [US1] Integration test: no role_scopes config means no enforcement in `tests/integration/scope_permissions_test.go`
+- [x] T013 (antwort-8xc3.4) [US1] Integration test: viewer role can GET but not POST responses in `tests/integration/scope_permissions_test.go`
+- [x] T014 (antwort-8xc3.5) [US1] Integration test: user role inherits viewer scopes plus create in `tests/integration/scope_permissions_test.go`
+- [x] T015 (antwort-8xc3.6) [US1] Integration test: admin wildcard `*` passes all endpoints in `tests/integration/scope_permissions_test.go`
+- [x] T016 (antwort-8xc3.7) [US1] Integration test: JWT scopes union with role scopes in `tests/integration/scope_permissions_test.go`
+- [x] T017 (antwort-8xc3.8) [US1] Integration test: no role_scopes config means no enforcement in `tests/integration/scope_permissions_test.go`
 
 **Checkpoint**: Endpoint authorization fully functional
 
@@ -74,19 +74,19 @@
 
 ### Implementation for User Story 2
 
-- [ ] T018 (antwort-u406.1) [P] [US2] Add `Permissions` field to `VectorStore` struct in `pkg/tools/builtins/filesearch/store.go`
-- [ ] T019 (antwort-u406.2) [US2] Accept `permissions` JSON object on vector store create in `pkg/tools/builtins/filesearch/api.go`: parse `{"group": "r"}` into compact string, enforce owner level always `rwd`
-- [ ] T020 (antwort-u406.3) [US2] Accept `permissions` JSON object on vector store update (if update endpoint exists) in `pkg/tools/builtins/filesearch/api.go`
-- [ ] T021 (antwort-u406.4) [US2] Include `permissions` compact string in vector store GET/list responses in `pkg/tools/builtins/filesearch/api.go`
-- [ ] T022 (antwort-u406.5) [US2] Extend `handleListStores` in `pkg/tools/builtins/filesearch/api.go`: include stores where caller has group or others read permission (not just owner/admin)
-- [ ] T023 (antwort-u406.6) [US2] Extend `handleGetStore` in `pkg/tools/builtins/filesearch/api.go`: allow access based on group/others read permission
-- [ ] T024 (antwort-u406.7) [US2] Add permission check to file_search execution in `pkg/tools/builtins/filesearch/provider.go` (lines 249-268): after tenant and owner checks, check group/others read permission. Skip inaccessible stores silently.
-- [ ] T025 (antwort-u406.8) [US2] Integration test: default private store not visible to group members in `tests/integration/scope_permissions_test.go`
-- [ ] T026 (antwort-u406.9) [P] [US2] Integration test: group-read store visible to same-tenant user in `tests/integration/scope_permissions_test.go`
-- [ ] T027 (antwort-u406.10) [P] [US2] Integration test: group-read store not visible to different-tenant user in `tests/integration/scope_permissions_test.go`
-- [ ] T028 (antwort-u406.11) [P] [US2] Integration test: others-read store visible to different-tenant user in `tests/integration/scope_permissions_test.go`
-- [ ] T029 (antwort-u406.12) [US2] Integration test: permission revocation (update group to `---`) hides store from group in `tests/integration/scope_permissions_test.go`
-- [ ] T030 (antwort-u406.13) [US2] Integration test: file_search silently skips inaccessible store in `tests/integration/scope_permissions_test.go`
+- [x] T018 (antwort-u406.1) [P] [US2] Add `Permissions` field to `VectorStore` struct in `pkg/tools/builtins/filesearch/store.go`
+- [x] T019 (antwort-u406.2) [US2] Accept `permissions` JSON object on vector store create in `pkg/tools/builtins/filesearch/api.go`: parse `{"group": "r"}` into compact string, enforce owner level always `rwd`
+- [x] T020 (antwort-u406.3) [US2] Accept `permissions` JSON object on vector store update (if update endpoint exists) in `pkg/tools/builtins/filesearch/api.go`
+- [x] T021 (antwort-u406.4) [US2] Include `permissions` compact string in vector store GET/list responses in `pkg/tools/builtins/filesearch/api.go`
+- [x] T022 (antwort-u406.5) [US2] Extend `handleListStores` in `pkg/tools/builtins/filesearch/api.go`: include stores where caller has group or others read permission (not just owner/admin)
+- [x] T023 (antwort-u406.6) [US2] Extend `handleGetStore` in `pkg/tools/builtins/filesearch/api.go`: allow access based on group/others read permission
+- [x] T024 (antwort-u406.7) [US2] Add permission check to file_search execution in `pkg/tools/builtins/filesearch/provider.go` (lines 249-268): after tenant and owner checks, check group/others read permission. Skip inaccessible stores silently.
+- [x] T025 (antwort-u406.8) [US2] Integration test: default private store not visible to group members in `tests/integration/scope_permissions_test.go`
+- [x] T026 (antwort-u406.9) [P] [US2] Integration test: group-read store visible to same-tenant user in `tests/integration/scope_permissions_test.go`
+- [x] T027 (antwort-u406.10) [P] [US2] Integration test: group-read store not visible to different-tenant user in `tests/integration/scope_permissions_test.go`
+- [x] T028 (antwort-u406.11) [P] [US2] Integration test: others-read store visible to different-tenant user in `tests/integration/scope_permissions_test.go`
+- [x] T029 (antwort-u406.12) [US2] Integration test: permission revocation (update group to `---`) hides store from group in `tests/integration/scope_permissions_test.go`
+- [x] T030 (antwort-u406.13) [US2] Integration test: file_search silently skips inaccessible store in `tests/integration/scope_permissions_test.go`
 
 **Checkpoint**: Shared vector stores functional with permission enforcement
 
@@ -100,13 +100,13 @@
 
 ### Implementation for User Story 3
 
-- [ ] T031 (antwort-2x6v.1) [P] [US3] Add `Permissions` field to `File` struct in `pkg/files/types.go`
-- [ ] T032 (antwort-2x6v.2) [US3] Accept `permissions` JSON object on file upload in file create handler: parse into compact string, enforce owner level always `rwd`
-- [ ] T033 (antwort-2x6v.3) [US3] Include `permissions` compact string in file GET/list responses
-- [ ] T034 (antwort-2x6v.4) [US3] Extend file Get/List methods in `pkg/files/metadata.go`: allow access based on group/others read permission (not just owner)
-- [ ] T035 (antwort-2x6v.5) [US3] Integration test: group-read file accessible to same-tenant user in `tests/integration/scope_permissions_test.go`
-- [ ] T036 (antwort-2x6v.6) [P] [US3] Integration test: group-read file not accessible to different-tenant user in `tests/integration/scope_permissions_test.go`
-- [ ] T037 (antwort-2x6v.7) [US3] Integration test: file_citation annotation works for shared file in `tests/integration/scope_permissions_test.go`
+- [x] T031 (antwort-2x6v.1) [P] [US3] Add `Permissions` field to `File` struct in `pkg/files/types.go`
+- [x] T032 (antwort-2x6v.2) [US3] Accept `permissions` JSON object on file upload in file create handler: parse into compact string, enforce owner level always `rwd`
+- [x] T033 (antwort-2x6v.3) [US3] Include `permissions` compact string in file GET/list responses
+- [x] T034 (antwort-2x6v.4) [US3] Extend file Get/List methods in `pkg/files/metadata.go`: allow access based on group/others read permission (not just owner)
+- [x] T035 (antwort-2x6v.5) [US3] Integration test: group-read file accessible to same-tenant user in `tests/integration/scope_permissions_test.go`
+- [x] T036 (antwort-2x6v.6) [P] [US3] Integration test: group-read file not accessible to different-tenant user in `tests/integration/scope_permissions_test.go`
+- [x] T037 (antwort-2x6v.7) [US3] Integration test: file_citation annotation works for shared file in `tests/integration/scope_permissions_test.go`
 
 **Checkpoint**: Shared files functional with working citations
 
@@ -120,12 +120,12 @@
 
 ### Implementation for User Story 4
 
-- [ ] T038 (antwort-j10r.1) [US4] Add `VectorStoreIDs` union merge logic to `pkg/agent/merge.go`: combine profile and request store IDs, deduplicate
-- [ ] T039 (antwort-j10r.2) [US4] Wire VectorStoreIDs from profile config to AgentProfile in `pkg/agent/config.go` profile builder
-- [ ] T040 (antwort-j10r.3) [US4] Ensure file_search tool receives merged vector_store_ids from the engine/profile resolution layer
-- [ ] T041 (antwort-j10r.4) [US4] Integration test: profile stores merged with request stores (union) in `tests/integration/scope_permissions_test.go`
-- [ ] T042 (antwort-j10r.5) [P] [US4] Integration test: duplicate store IDs deduplicated in `tests/integration/scope_permissions_test.go`
-- [ ] T043 (antwort-j10r.6) [US4] Integration test: inaccessible store in merged list silently skipped in `tests/integration/scope_permissions_test.go`
+- [x] T038 (antwort-j10r.1) [US4] Add `VectorStoreIDs` union merge logic to `pkg/agent/merge.go`: combine profile and request store IDs, deduplicate
+- [x] T039 (antwort-j10r.2) [US4] Wire VectorStoreIDs from profile config to AgentProfile in `pkg/agent/config.go` profile builder
+- [x] T040 (antwort-j10r.3) [US4] Ensure file_search tool receives merged vector_store_ids from the engine/profile resolution layer
+- [x] T041 (antwort-j10r.4) [US4] Integration test: profile stores merged with request stores (union) in `tests/integration/scope_permissions_test.go`
+- [x] T042 (antwort-j10r.5) [P] [US4] Integration test: duplicate store IDs deduplicated in `tests/integration/scope_permissions_test.go`
+- [x] T043 (antwort-j10r.6) [US4] Integration test: inaccessible store in merged list silently skipped in `tests/integration/scope_permissions_test.go`
 
 **Checkpoint**: Agent profile union merge functional
 
@@ -139,10 +139,10 @@
 
 ### Implementation for User Story 5
 
-- [ ] T044 (antwort-jiyp.1) [US5] Verify scope middleware is no-op when role_scopes is empty/nil across all code paths
-- [ ] T045 (antwort-jiyp.2) [US5] Verify default permissions `rwd|---|---` on new resources when no permissions specified
-- [ ] T046 (antwort-jiyp.3) [US5] Integration test: no role_scopes config, all endpoints accessible in `tests/integration/scope_permissions_test.go`
-- [ ] T047 (antwort-jiyp.4) [P] [US5] Integration test: existing resources without permissions column accessible to owners after migration in `tests/integration/scope_permissions_test.go`
+- [x] T044 (antwort-jiyp.1) [US5] Verify scope middleware is no-op when role_scopes is empty/nil across all code paths
+- [x] T045 (antwort-jiyp.2) [US5] Verify default permissions `rwd|---|---` on new resources when no permissions specified
+- [x] T046 (antwort-jiyp.3) [US5] Integration test: no role_scopes config, all endpoints accessible in `tests/integration/scope_permissions_test.go`
+- [x] T047 (antwort-jiyp.4) [P] [US5] Integration test: existing resources without permissions column accessible to owners after migration in `tests/integration/scope_permissions_test.go`
 
 **Checkpoint**: Backward compatibility verified
 
@@ -152,10 +152,10 @@
 
 **Purpose**: Documentation and final validation
 
-- [ ] T048 (antwort-673v.1) [P] Update config reference with `auth.authorization.role_scopes` in `docs/modules/reference/pages/config-reference.adoc`
-- [ ] T049 (antwort-673v.2) [P] Add authorization and permissions tutorial in `docs/modules/tutorial/pages/authorization.adoc`
-- [ ] T050 (antwort-673v.3) [P] Update operations security guide with scope enforcement and permissions model in `docs/modules/operations/pages/security.adoc`
-- [ ] T051 (antwort-673v.4) Run existing conformance and SDK tests to verify no regressions
+- [x] T048 (antwort-673v.1) [P] Update config reference with `auth.authorization.role_scopes` in `docs/modules/reference/pages/config-reference.adoc`
+- [x] T049 (antwort-673v.2) [P] Add authorization and permissions tutorial in `docs/modules/tutorial/pages/authorization.adoc`
+- [x] T050 (antwort-673v.3) [P] Update operations security guide with scope enforcement and permissions model in `docs/modules/operations/pages/security.adoc`
+- [x] T051 (antwort-673v.4) Run existing conformance and SDK tests to verify no regressions
 
 ---
 
