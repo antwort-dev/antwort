@@ -64,7 +64,7 @@
 
 **Goal**: Per-tier request rate limiting.
 
-- [ ] T011 (antwort-6mj.1) [US5] Implement in-process rate limiter in `pkg/auth/ratelimit.go`: sliding window counter per (subject, tier) using sync.Map. Configurable requests-per-minute per tier. Fail open on internal errors. Write tests in `pkg/auth/ratelimit_test.go` covering within-limit, over-limit, unknown tier (use default), nil limiter (FR-021, FR-022, FR-023, FR-024, FR-025).
+- [x] T011 (antwort-6mj.1) [US5] Implement in-process rate limiter in `pkg/auth/ratelimit.go`: sliding window counter per (subject, tier) using sync.Map. Configurable requests-per-minute per tier. Fail open on internal errors. Write tests in `pkg/auth/ratelimit_test.go` covering within-limit, over-limit, unknown tier (use default), nil limiter (FR-021, FR-022, FR-023, FR-024, FR-025).
 - [x] T012 (antwort-6mj.2) [US5] Integrate rate limiter into auth middleware in `pkg/auth/middleware.go`: after successful authentication, check rate limit. Return 429 if exceeded.
 
 **Checkpoint**: Rate limiting works.

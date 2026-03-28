@@ -17,8 +17,8 @@
 
 **Purpose**: Create package structure and file ID generation
 
-- [ ] T001 Create `pkg/files/` package directory and initial `doc.go`
-- [ ] T002 [P] Add `NewFileID()` and `ValidateFileID()` functions to `pkg/api/id.go` following existing `resp_`/`item_` pattern with `file_` prefix
+- [x] T001 Create `pkg/files/` package directory and initial `doc.go`
+- [x] T002 [P] Add `NewFileID()` and `ValidateFileID()` functions to `pkg/api/id.go` following existing `resp_`/`item_` pattern with `file_` prefix
 
 ---
 
@@ -28,15 +28,15 @@
 
 **CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T003 [P] Define core types (File, FileStatus, Chunk, ExtractionResult, VectorPoint) in `pkg/files/types.go` per data-model.md
-- [ ] T004 [P] Define FileStore interface (Store, Retrieve, Delete) in `pkg/files/filestore.go` per data-model.md
-- [ ] T005 [P] Define FileMetadataStore interface (Save, Get, List, Delete, Update) in `pkg/files/metadata.go` per data-model.md
-- [ ] T006 [P] Define ContentExtractor interface (Extract, SupportedFormats) in `pkg/files/extractor.go` per data-model.md
-- [ ] T007 [P] Define Chunker interface (Chunk) in `pkg/files/chunker.go` per data-model.md
-- [ ] T008 [P] Define VectorIndexer interface (UpsertPoints, DeletePointsByFile) in `pkg/files/indexer.go` per data-model.md and research R1
-- [ ] T009 [P] Define VectorStoreFileRecord type and VectorStoreFileStore interface (Save, Get, List, Delete, ListByFile) in `pkg/files/vsfiles.go` per data-model.md
-- [ ] T010 Implement MemoryMetadataStore (in-memory FileMetadataStore with RWMutex, user-scoped List) in `pkg/files/metadata.go`
-- [ ] T011 [P] Implement MemoryVectorStoreFileStore (in-memory VectorStoreFileStore with RWMutex) in `pkg/files/vsfiles.go`
+- [x] T003 [P] Define core types (File, FileStatus, Chunk, ExtractionResult, VectorPoint) in `pkg/files/types.go` per data-model.md
+- [x] T004 [P] Define FileStore interface (Store, Retrieve, Delete) in `pkg/files/filestore.go` per data-model.md
+- [x] T005 [P] Define FileMetadataStore interface (Save, Get, List, Delete, Update) in `pkg/files/metadata.go` per data-model.md
+- [x] T006 [P] Define ContentExtractor interface (Extract, SupportedFormats) in `pkg/files/extractor.go` per data-model.md
+- [x] T007 [P] Define Chunker interface (Chunk) in `pkg/files/chunker.go` per data-model.md
+- [x] T008 [P] Define VectorIndexer interface (UpsertPoints, DeletePointsByFile) in `pkg/files/indexer.go` per data-model.md and research R1
+- [x] T009 [P] Define VectorStoreFileRecord type and VectorStoreFileStore interface (Save, Get, List, Delete, ListByFile) in `pkg/files/vsfiles.go` per data-model.md
+- [x] T010 Implement MemoryMetadataStore (in-memory FileMetadataStore with RWMutex, user-scoped List) in `pkg/files/metadata.go`
+- [x] T011 [P] Implement MemoryVectorStoreFileStore (in-memory VectorStoreFileStore with RWMutex) in `pkg/files/vsfiles.go`
 
 **Checkpoint**: All interfaces defined, in-memory stores ready. User story implementation can begin.
 
@@ -50,21 +50,21 @@
 
 ### Implementation for User Story 1
 
-- [ ] T012 [P] [US1] Implement MemoryFileStore (in-memory FileStore for testing) in `pkg/files/filestore.go`
-- [ ] T013 [P] [US1] Implement FilesystemStore (filesystem FileStore with user-scoped subdirectories, configurable base dir) in `pkg/files/filestore.go`
-- [ ] T014 [P] [US1] Implement PassthroughExtractor for text, Markdown, and CSV (reads content directly, returns ExtractionResult) in `pkg/files/extractor.go`
-- [ ] T015 [P] [US1] Implement FixedSizeChunker (character-based with ~4 chars/token ratio, whitespace-aware boundaries, configurable size and overlap) in `pkg/files/chunker.go`
-- [ ] T016 [US1] Add UpsertPoints and DeletePointsByFile methods to QdrantBackend in `pkg/tools/builtins/filesearch/qdrant.go` implementing the VectorIndexer interface from `pkg/files/`
-- [ ] T017 [US1] Implement IngestionPipeline (goroutine worker pool: extract, chunk, embed, index with status updates at each stage) in `pkg/files/pipeline.go`
-- [ ] T018 [US1] Implement file upload handler (POST /files: multipart parsing, size validation, purpose validation, MIME detection, store file, save metadata) in `pkg/files/api.go`
-- [ ] T019 [US1] Implement add-file-to-store handler (POST /vector_stores/{store_id}/files: validate file and store exist, create VectorStoreFileRecord, trigger pipeline) in `pkg/files/vsfiles_api.go`
-- [ ] T020 [US1] Implement FilesProvider (FunctionProvider with Name="files", empty Tools, Routes for all endpoints) in `pkg/files/provider.go`
-- [ ] T021 [US1] Implement New() constructor for FilesProvider (parse settings map, create FileStore, MetadataStore, extractors, chunker, pipeline, VectorStoreFileStore) in `pkg/files/provider.go`
-- [ ] T022 [US1] Wire FilesProvider into server: add "files" case to `createFunctionRegistry` in `cmd/server/main.go`, pass EmbeddingClient and VectorIndexer from shared Qdrant backend
-- [ ] T023 [US1] Write tests for MemoryFileStore and FilesystemStore in `pkg/files/filestore_test.go` (table-driven: store/retrieve/delete, user isolation, missing file errors)
-- [ ] T024 [US1] Write tests for FixedSizeChunker in `pkg/files/chunker_test.go` (table-driven: short text, exact boundary, overlap, whitespace splitting, empty input)
-- [ ] T025 [US1] Write tests for IngestionPipeline in `pkg/files/pipeline_test.go` (status transitions, failure at each stage, concurrent ingestions, worker pool limits)
-- [ ] T026 [US1] Write integration test for upload-to-search flow in `pkg/files/api_test.go` (upload text file, add to store, verify status=completed, search via EmbeddingClient mock)
+- [x] T012 [P] [US1] Implement MemoryFileStore (in-memory FileStore for testing) in `pkg/files/filestore.go`
+- [x] T013 [P] [US1] Implement FilesystemStore (filesystem FileStore with user-scoped subdirectories, configurable base dir) in `pkg/files/filestore.go`
+- [x] T014 [P] [US1] Implement PassthroughExtractor for text, Markdown, and CSV (reads content directly, returns ExtractionResult) in `pkg/files/extractor.go`
+- [x] T015 [P] [US1] Implement FixedSizeChunker (character-based with ~4 chars/token ratio, whitespace-aware boundaries, configurable size and overlap) in `pkg/files/chunker.go`
+- [x] T016 [US1] Add UpsertPoints and DeletePointsByFile methods to QdrantBackend in `pkg/tools/builtins/filesearch/qdrant.go` implementing the VectorIndexer interface from `pkg/files/`
+- [x] T017 [US1] Implement IngestionPipeline (goroutine worker pool: extract, chunk, embed, index with status updates at each stage) in `pkg/files/pipeline.go`
+- [x] T018 [US1] Implement file upload handler (POST /files: multipart parsing, size validation, purpose validation, MIME detection, store file, save metadata) in `pkg/files/api.go`
+- [x] T019 [US1] Implement add-file-to-store handler (POST /vector_stores/{store_id}/files: validate file and store exist, create VectorStoreFileRecord, trigger pipeline) in `pkg/files/vsfiles_api.go`
+- [x] T020 [US1] Implement FilesProvider (FunctionProvider with Name="files", empty Tools, Routes for all endpoints) in `pkg/files/provider.go`
+- [x] T021 [US1] Implement New() constructor for FilesProvider (parse settings map, create FileStore, MetadataStore, extractors, chunker, pipeline, VectorStoreFileStore) in `pkg/files/provider.go`
+- [x] T022 [US1] Wire FilesProvider into server: add "files" case to `createFunctionRegistry` in `cmd/server/main.go`, pass EmbeddingClient and VectorIndexer from shared Qdrant backend
+- [x] T023 [US1] Write tests for MemoryFileStore and FilesystemStore in `pkg/files/filestore_test.go` (table-driven: store/retrieve/delete, user isolation, missing file errors)
+- [x] T024 [US1] Write tests for FixedSizeChunker in `pkg/files/chunker_test.go` (table-driven: short text, exact boundary, overlap, whitespace splitting, empty input)
+- [x] T025 [US1] Write tests for IngestionPipeline in `pkg/files/pipeline_test.go` (status transitions, failure at each stage, concurrent ingestions, worker pool limits)
+- [x] T026 [US1] Write integration test for upload-to-search flow in `pkg/files/api_test.go` (upload text file, add to store, verify status=completed, search via EmbeddingClient mock)
 
 **Checkpoint**: User Story 1 fully functional. Upload text file, ingest into vector store, search content.
 
@@ -78,11 +78,11 @@
 
 ### Implementation for User Story 2
 
-- [ ] T027 [P] [US2] Implement list files handler (GET /files: pagination via ListOptions, user-scoped, purpose filter) in `pkg/files/api.go`
-- [ ] T028 [P] [US2] Implement get file handler (GET /files/{file_id}: user-scoped metadata retrieval) in `pkg/files/api.go`
-- [ ] T029 [P] [US2] Implement content download handler (GET /files/{file_id}/content: stream file bytes with Content-Type and Content-Disposition) in `pkg/files/api.go`
-- [ ] T030 [US2] Implement delete file handler with cascade (DELETE /files/{file_id}: query VectorStoreFileStore.ListByFile, delete chunks via VectorIndexer.DeletePointsByFile per store, remove VectorStoreFileRecords, delete from FileStore, delete from FileMetadataStore) in `pkg/files/api.go`
-- [ ] T031 [US2] Write tests for file lifecycle handlers in `pkg/files/api_test.go` (table-driven: list pagination, get metadata, download content, delete cascade, cross-user 404)
+- [x] T027 [P] [US2] Implement list files handler (GET /files: pagination via ListOptions, user-scoped, purpose filter) in `pkg/files/api.go`
+- [x] T028 [P] [US2] Implement get file handler (GET /files/{file_id}: user-scoped metadata retrieval) in `pkg/files/api.go`
+- [x] T029 [P] [US2] Implement content download handler (GET /files/{file_id}/content: stream file bytes with Content-Type and Content-Disposition) in `pkg/files/api.go`
+- [x] T030 [US2] Implement delete file handler with cascade (DELETE /files/{file_id}: query VectorStoreFileStore.ListByFile, delete chunks via VectorIndexer.DeletePointsByFile per store, remove VectorStoreFileRecords, delete from FileStore, delete from FileMetadataStore) in `pkg/files/api.go`
+- [x] T031 [US2] Write tests for file lifecycle handlers in `pkg/files/api_test.go` (table-driven: list pagination, get metadata, download content, delete cascade, cross-user 404)
 
 **Checkpoint**: Full file CRUD works. Upload, list, get, download, delete with cascade.
 
@@ -96,10 +96,10 @@
 
 ### Implementation for User Story 3
 
-- [ ] T032 [US3] Implement DoclingExtractor (HTTP client to docling-serve POST /v1/convert/file: multipart form, to_formats=md, do_ocr config, X-Api-Key auth, parse md_content from response, configurable timeout) in `pkg/files/docling.go`
-- [ ] T033 [US3] Implement extractor selection logic in pipeline: route to DoclingExtractor for PDF/DOCX/PPTX/XLSX/HTML/images, PassthroughExtractor for text/Markdown/CSV. When DoclingExtractor is nil and format requires it, fail with descriptive error in `pkg/files/pipeline.go`
-- [ ] T034 [US3] Write tests for DoclingExtractor in `pkg/files/docling_test.go` (table-driven with httptest.Server mock: successful Markdown extraction, OCR toggle, API key auth, timeout, error responses, empty content)
-- [ ] T035 [US3] Write tests for extractor selection in `pkg/files/pipeline_test.go` (table-driven: PDF routes to docling, text routes to passthrough, unknown format error)
+- [x] T032 [US3] Implement DoclingExtractor (HTTP client to docling-serve POST /v1/convert/file: multipart form, to_formats=md, do_ocr config, X-Api-Key auth, parse md_content from response, configurable timeout) in `pkg/files/docling.go`
+- [x] T033 [US3] Implement extractor selection logic in pipeline: route to DoclingExtractor for PDF/DOCX/PPTX/XLSX/HTML/images, PassthroughExtractor for text/Markdown/CSV. When DoclingExtractor is nil and format requires it, fail with descriptive error in `pkg/files/pipeline.go`
+- [x] T034 [US3] Write tests for DoclingExtractor in `pkg/files/docling_test.go` (table-driven with httptest.Server mock: successful Markdown extraction, OCR toggle, API key auth, timeout, error responses, empty content)
+- [x] T035 [US3] Write tests for extractor selection in `pkg/files/pipeline_test.go` (table-driven: PDF routes to docling, text routes to passthrough, unknown format error)
 
 **Checkpoint**: Multi-format extraction works. PDF, DOCX, images via Docling; text/MD via passthrough.
 
@@ -113,9 +113,9 @@
 
 ### Implementation for User Story 4
 
-- [ ] T036 [US4] Add nil-safe Docling handling to pipeline extractor selection: when DoclingExtractor is nil, return `NewInvalidRequestError` with message "PDF/DOCX extraction requires an external extraction service (docling-serve)" in `pkg/files/pipeline.go`
-- [ ] T037 [US4] Add connection error handling in DoclingExtractor: wrap HTTP errors with context ("extraction service unreachable"), distinguish timeout from connection refused in `pkg/files/docling.go`
-- [ ] T038 [US4] Write tests for degradation scenarios in `pkg/files/pipeline_test.go` (table-driven: nil docling + text succeeds, nil docling + PDF fails with descriptive error, docling unreachable + PDF fails with connection error)
+- [x] T036 [US4] Add nil-safe Docling handling to pipeline extractor selection: when DoclingExtractor is nil, return `NewInvalidRequestError` with message "PDF/DOCX extraction requires an external extraction service (docling-serve)" in `pkg/files/pipeline.go`
+- [x] T037 [US4] Add connection error handling in DoclingExtractor: wrap HTTP errors with context ("extraction service unreachable"), distinguish timeout from connection refused in `pkg/files/docling.go`
+- [x] T038 [US4] Write tests for degradation scenarios in `pkg/files/pipeline_test.go` (table-driven: nil docling + text succeeds, nil docling + PDF fails with descriptive error, docling unreachable + PDF fails with connection error)
 
 **Checkpoint**: Graceful degradation verified. Simple formats work without Docling; complex formats produce actionable errors.
 
@@ -129,9 +129,9 @@
 
 ### Implementation for User Story 5
 
-- [ ] T039 [P] [US5] Implement list files in store handler (GET /vector_stores/{store_id}/files: pagination, status filter) in `pkg/files/vsfiles_api.go`
-- [ ] T040 [US5] Implement remove file from store handler (DELETE /vector_stores/{store_id}/files/{file_id}: delete chunks via VectorIndexer, delete VectorStoreFileRecord, file itself remains) in `pkg/files/vsfiles_api.go`
-- [ ] T041 [US5] Write tests for vector store file management in `pkg/files/vsfiles_api_test.go` (table-driven: add file triggers ingestion, list with status filter, remove deletes chunks only, multi-store isolation)
+- [x] T039 [P] [US5] Implement list files in store handler (GET /vector_stores/{store_id}/files: pagination, status filter) in `pkg/files/vsfiles_api.go`
+- [x] T040 [US5] Implement remove file from store handler (DELETE /vector_stores/{store_id}/files/{file_id}: delete chunks via VectorIndexer, delete VectorStoreFileRecord, file itself remains) in `pkg/files/vsfiles_api.go`
+- [x] T041 [US5] Write tests for vector store file management in `pkg/files/vsfiles_api_test.go` (table-driven: add file triggers ingestion, list with status filter, remove deletes chunks only, multi-store isolation)
 
 **Checkpoint**: Vector store file management works. Add, list, remove files per store with independent chunk lifecycle.
 
@@ -145,10 +145,10 @@
 
 ### Implementation for User Story 6
 
-- [ ] T042 [P] [US6] Define FileBatch and FileBatchCounts types in `pkg/files/types.go` and add `NewBatchID()` to `pkg/api/id.go` with `batch_` prefix
-- [ ] T043 [US6] Implement batch create handler (POST /vector_stores/{store_id}/file_batches: validate file IDs, create batch record, queue all files for ingestion via pipeline) in `pkg/files/vsfiles_api.go`
-- [ ] T044 [US6] Implement batch status handler (GET /vector_stores/{store_id}/file_batches/{batch_id}: compute file counts from VectorStoreFileStore) in `pkg/files/vsfiles_api.go`
-- [ ] T045 [US6] Write tests for batch operations in `pkg/files/vsfiles_api_test.go` (batch creation, status polling, partial failures, all completed)
+- [x] T042 [P] [US6] Define FileBatch and FileBatchCounts types in `pkg/files/types.go` and add `NewBatchID()` to `pkg/api/id.go` with `batch_` prefix
+- [x] T043 [US6] Implement batch create handler (POST /vector_stores/{store_id}/file_batches: validate file IDs, create batch record, queue all files for ingestion via pipeline) in `pkg/files/vsfiles_api.go`
+- [x] T044 [US6] Implement batch status handler (GET /vector_stores/{store_id}/file_batches/{batch_id}: compute file counts from VectorStoreFileStore) in `pkg/files/vsfiles_api.go`
+- [x] T045 [US6] Write tests for batch operations in `pkg/files/vsfiles_api_test.go` (batch creation, status polling, partial failures, all completed)
 
 **Checkpoint**: Batch ingestion works. Bulk add with progress tracking.
 
@@ -158,12 +158,12 @@
 
 **Purpose**: Observability, edge cases, and hardening
 
-- [ ] T046 [P] Register Prometheus metrics (files_uploaded_total, ingestion_duration_seconds, ingestion_status_total, extraction_duration_seconds, chunking_chunks_total) in `pkg/files/provider.go` via Collectors() method
-- [ ] T047 [P] Add metrics instrumentation to pipeline stages (record extraction duration, ingestion duration, chunk count, upload count by MIME type) in `pkg/files/pipeline.go` and `pkg/files/api.go`
-- [ ] T048 Handle edge case: file deleted during active ingestion (check file existence before each pipeline stage, cancel and clean up partial chunks) in `pkg/files/pipeline.go`
-- [ ] T049 Handle edge case: empty extraction result (set status=failed with "no extractable content found") in `pkg/files/pipeline.go`
-- [ ] T050 [P] Write tests for edge cases in `pkg/files/pipeline_test.go` (delete during ingestion, empty extraction, embedding service down)
-- [ ] T051 Verify `go vet` and `go test ./pkg/files/...` pass with no errors
+- [x] T046 [P] Register Prometheus metrics (files_uploaded_total, ingestion_duration_seconds, ingestion_status_total, extraction_duration_seconds, chunking_chunks_total) in `pkg/files/provider.go` via Collectors() method
+- [x] T047 [P] Add metrics instrumentation to pipeline stages (record extraction duration, ingestion duration, chunk count, upload count by MIME type) in `pkg/files/pipeline.go` and `pkg/files/api.go`
+- [x] T048 Handle edge case: file deleted during active ingestion (check file existence before each pipeline stage, cancel and clean up partial chunks) in `pkg/files/pipeline.go`
+- [x] T049 Handle edge case: empty extraction result (set status=failed with "no extractable content found") in `pkg/files/pipeline.go`
+- [x] T050 [P] Write tests for edge cases in `pkg/files/pipeline_test.go` (delete during ingestion, empty extraction, embedding service down)
+- [x] T051 Verify `go vet` and `go test ./pkg/files/...` pass with no errors
 
 ---
 

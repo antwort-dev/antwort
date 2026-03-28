@@ -17,9 +17,9 @@
 
 **Purpose**: Amend Spec 001 types and create package structure
 
-- [ ] T001 (antwort-iq0.1) Add `ResponseStatusRequiresAction ResponseStatus = "requires_action"` to `pkg/api/types.go`. Add `requires_action` as terminal event to SSE writer's `terminalEvents` map in `pkg/transport/http/sse.go`.
-- [ ] T002 (antwort-iq0.2) Update state machine in `pkg/api/state.go`: add `requires_action` as valid transition from `in_progress`, add `requires_action` as terminal status (empty allowed transitions). Update tests in `pkg/api/state_test.go` for the new transitions.
-- [ ] T003 (antwort-iq0.3) Create package directory `pkg/tools/` and `pkg/tools/doc.go` with package documentation describing the tool executor interface and types.
+- [x] T001 (antwort-iq0.1) Add `ResponseStatusRequiresAction ResponseStatus = "requires_action"` to `pkg/api/types.go`. Add `requires_action` as terminal event to SSE writer's `terminalEvents` map in `pkg/transport/http/sse.go`.
+- [x] T002 (antwort-iq0.2) Update state machine in `pkg/api/state.go`: add `requires_action` as valid transition from `in_progress`, add `requires_action` as terminal status (empty allowed transitions). Update tests in `pkg/api/state_test.go` for the new transitions.
+- [x] T003 (antwort-iq0.3) Create package directory `pkg/tools/` and `pkg/tools/doc.go` with package documentation describing the tool executor interface and types.
 
 ---
 
@@ -29,10 +29,10 @@
 
 **CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T004 (antwort-48b.1) Define ToolExecutor interface (Kind, CanExecute, Execute), ToolKind enum (Function, MCP, Sandbox), ToolCall, and ToolResult types in `pkg/tools/executor.go` (FR-001, FR-002, FR-003). Write interface contract tests in `pkg/tools/executor_test.go` verifying a mock executor satisfies the interface.
-- [ ] T005 (antwort-48b.2) [P] Implement allowed_tools filtering in `pkg/tools/filter.go`: FilterAllowedTools function that checks tool call names against the allowed list, returns allowed/rejected split. Write table-driven tests in `pkg/tools/filter_test.go` covering: all allowed, some rejected, empty allowed list (all pass), unknown tool name (FR-008, FR-009, FR-010).
-- [ ] T006 (antwort-48b.3) [P] Add `MaxAgenticTurns` (int, default 10) and `Executors` ([]ToolExecutor, nil-safe) fields to Config in `pkg/engine/config.go` (FR-004, FR-015).
-- [ ] T007 (antwort-48b.4) Update Engine constructor `New()` in `pkg/engine/engine.go` to accept executors from Config. Store executors in Engine struct. Add helper `hasExecutors()` and `findExecutor(toolName)` methods. Ensure nil/empty executors preserves existing single-shot behavior (FR-004).
+- [x] T004 (antwort-48b.1) Define ToolExecutor interface (Kind, CanExecute, Execute), ToolKind enum (Function, MCP, Sandbox), ToolCall, and ToolResult types in `pkg/tools/executor.go` (FR-001, FR-002, FR-003). Write interface contract tests in `pkg/tools/executor_test.go` verifying a mock executor satisfies the interface.
+- [x] T005 (antwort-48b.2) [P] Implement allowed_tools filtering in `pkg/tools/filter.go`: FilterAllowedTools function that checks tool call names against the allowed list, returns allowed/rejected split. Write table-driven tests in `pkg/tools/filter_test.go` covering: all allowed, some rejected, empty allowed list (all pass), unknown tool name (FR-008, FR-009, FR-010).
+- [x] T006 (antwort-48b.3) [P] Add `MaxAgenticTurns` (int, default 10) and `Executors` ([]ToolExecutor, nil-safe) fields to Config in `pkg/engine/config.go` (FR-004, FR-015).
+- [x] T007 (antwort-48b.4) Update Engine constructor `New()` in `pkg/engine/engine.go` to accept executors from Config. Store executors in Engine struct. Add helper `hasExecutors()` and `findExecutor(toolName)` methods. Ensure nil/empty executors preserves existing single-shot behavior (FR-004).
 
 **Checkpoint**: Tool types and executor interface ready. User story implementation can now begin.
 
@@ -46,8 +46,8 @@
 
 ### Implementation for User Story 1
 
-- [ ] T008 (antwort-99y.1) [US1] Write engine backward compatibility tests in `pkg/engine/engine_test.go`: verify that engine with no executors returns function_call items with `completed` status (same as Spec 003 behavior). Test `tool_choice: "none"` sends tools but does not enter loop. Test `tool_choice: "required"` with no tool calls returns response as-is.
-- [ ] T009 (antwort-99y.2) [US1] Implement `tool_choice: "none"` enforcement in `pkg/engine/engine.go`: when tool_choice is "none", skip agentic loop entry regardless of tool calls in response. Tool calls remain in output with `completed` status (FR-005, FR-006).
+- [x] T008 (antwort-99y.1) [US1] Write engine backward compatibility tests in `pkg/engine/engine_test.go`: verify that engine with no executors returns function_call items with `completed` status (same as Spec 003 behavior). Test `tool_choice: "none"` sends tools but does not enter loop. Test `tool_choice: "required"` with no tool calls returns response as-is.
+- [x] T009 (antwort-99y.2) [US1] Implement `tool_choice: "none"` enforcement in `pkg/engine/engine.go`: when tool_choice is "none", skip agentic loop entry regardless of tool calls in response. Tool calls remain in output with `completed` status (FR-005, FR-006).
 
 **Checkpoint**: Existing single-shot behavior preserved. No executors = same behavior as Spec 003.
 
@@ -61,13 +61,13 @@
 
 ### Implementation for User Story 2
 
-- [ ] T010 (antwort-a79.1) [US2] Implement agentic loop for non-streaming in `pkg/engine/loop.go`: `runAgenticLoop` function that accepts provider, executors, translated request, and config. Loop calls provider.Complete, checks for tool calls, dispatches to executors, collects results, appends to conversation, and repeats. Return final Response with all accumulated output items and cumulative usage. Respects MaxAgenticTurns (FR-011, FR-012, FR-013, FR-015, FR-017, FR-027, FR-028).
-- [ ] T011 (antwort-a79.2) [US2] Implement concurrent tool execution in `pkg/engine/loop.go`: when multiple tool calls in a turn, use sync.WaitGroup to fan out execution, collect results via channel, feed all back before next inference call (FR-016).
-- [ ] T012 (antwort-a79.3) [US2] Implement executor dispatch in `pkg/engine/loop.go`: for each tool call, find matching executor via CanExecute, call Execute, convert ToolResult to api.Item (function_call_output). If executor returns error, create function_call_output with is_error=true (FR-027, FR-029).
-- [ ] T013 (antwort-a79.4) [US2] Integrate agentic loop into `pkg/engine/engine.go`: in CreateResponse, after provider response, check if tool calls exist AND executors are registered AND tool_choice != "none". If so, call runAgenticLoop. For non-streaming, wrap single-turn Complete in loop. For streaming, extend handleStreaming to support multi-turn (FR-011, FR-022, FR-023, FR-024, FR-025).
-- [ ] T014 (antwort-a79.5) [US2] Implement streaming agentic loop in `pkg/engine/loop.go`: `runAgenticLoopStreaming` that manages event emission across turns. Emit response.created/in_progress once at start. Between turns (tool execution), emit output_item.added/done for tool results. Emit response.completed once at end. Use existing streamState for sequence numbers (FR-022, FR-023, FR-024, FR-025).
-- [ ] T015 (antwort-a79.6) [US2] Write agentic loop non-streaming tests in `pkg/engine/loop_test.go`: 2-turn loop (tool call -> result -> final answer), 3-turn loop, multiple concurrent tool calls in one turn, tool error fed back to model, max turns limit produces incomplete, context cancellation. Use mock provider with turn-aware responses and mock executor.
-- [ ] T016 (antwort-a79.7) [US2] Write agentic loop streaming tests in `pkg/engine/loop_test.go`: verify single continuous event stream across 2 turns, response.created once, response.completed once, intermediate tool call items emitted correctly. Test context cancellation mid-turn.
+- [x] T010 (antwort-a79.1) [US2] Implement agentic loop for non-streaming in `pkg/engine/loop.go`: `runAgenticLoop` function that accepts provider, executors, translated request, and config. Loop calls provider.Complete, checks for tool calls, dispatches to executors, collects results, appends to conversation, and repeats. Return final Response with all accumulated output items and cumulative usage. Respects MaxAgenticTurns (FR-011, FR-012, FR-013, FR-015, FR-017, FR-027, FR-028).
+- [x] T011 (antwort-a79.2) [US2] Implement concurrent tool execution in `pkg/engine/loop.go`: when multiple tool calls in a turn, use sync.WaitGroup to fan out execution, collect results via channel, feed all back before next inference call (FR-016).
+- [x] T012 (antwort-a79.3) [US2] Implement executor dispatch in `pkg/engine/loop.go`: for each tool call, find matching executor via CanExecute, call Execute, convert ToolResult to api.Item (function_call_output). If executor returns error, create function_call_output with is_error=true (FR-027, FR-029).
+- [x] T013 (antwort-a79.4) [US2] Integrate agentic loop into `pkg/engine/engine.go`: in CreateResponse, after provider response, check if tool calls exist AND executors are registered AND tool_choice != "none". If so, call runAgenticLoop. For non-streaming, wrap single-turn Complete in loop. For streaming, extend handleStreaming to support multi-turn (FR-011, FR-022, FR-023, FR-024, FR-025).
+- [x] T014 (antwort-a79.5) [US2] Implement streaming agentic loop in `pkg/engine/loop.go`: `runAgenticLoopStreaming` that manages event emission across turns. Emit response.created/in_progress once at start. Between turns (tool execution), emit output_item.added/done for tool results. Emit response.completed once at end. Use existing streamState for sequence numbers (FR-022, FR-023, FR-024, FR-025).
+- [x] T015 (antwort-a79.6) [US2] Write agentic loop non-streaming tests in `pkg/engine/loop_test.go`: 2-turn loop (tool call -> result -> final answer), 3-turn loop, multiple concurrent tool calls in one turn, tool error fed back to model, max turns limit produces incomplete, context cancellation. Use mock provider with turn-aware responses and mock executor.
+- [x] T016 (antwort-a79.7) [US2] Write agentic loop streaming tests in `pkg/engine/loop_test.go`: verify single continuous event stream across 2 turns, response.created once, response.completed once, intermediate tool call items emitted correctly. Test context cancellation mid-turn.
 
 **Checkpoint**: Multi-turn agentic loop works for both streaming and non-streaming. Tools executed concurrently. Errors fed back gracefully.
 
@@ -81,10 +81,10 @@
 
 ### Implementation for User Story 3
 
-- [ ] T017 (antwort-9yj.1) [US3] Implement function-tool detection in `pkg/engine/loop.go`: when checking tool calls against executors, if any tool call has no matching executor (all CanExecute return false), classify the turn as requiring client action. Return response with `requires_action` status and function_call items in output (FR-018, FR-019).
-- [ ] T018 (antwort-9yj.2) [US3] Handle mixed tool kinds in `pkg/engine/loop.go`: if a turn contains both server-executable and client-executable tool calls, pause the entire turn with `requires_action` (do not execute server-side tools partially). All tool calls returned to client.
-- [ ] T019 (antwort-9yj.3) [US3] Implement streaming requires_action terminal event in `pkg/engine/engine.go`: when the loop returns requires_action status during streaming, emit response with `requires_action` status in the terminal event (FR-024, FR-026).
-- [ ] T020 (antwort-9yj.4) [US3] Write requires_action tests in `pkg/engine/engine_test.go`: non-streaming requires_action with function tools, streaming requires_action, follow-up request with previous_response_id and function_call_output continues conversation (FR-021). Test mixed tool kinds pauses entire turn.
+- [x] T017 (antwort-9yj.1) [US3] Implement function-tool detection in `pkg/engine/loop.go`: when checking tool calls against executors, if any tool call has no matching executor (all CanExecute return false), classify the turn as requiring client action. Return response with `requires_action` status and function_call items in output (FR-018, FR-019).
+- [x] T018 (antwort-9yj.2) [US3] Handle mixed tool kinds in `pkg/engine/loop.go`: if a turn contains both server-executable and client-executable tool calls, pause the entire turn with `requires_action` (do not execute server-side tools partially). All tool calls returned to client.
+- [x] T019 (antwort-9yj.3) [US3] Implement streaming requires_action terminal event in `pkg/engine/engine.go`: when the loop returns requires_action status during streaming, emit response with `requires_action` status in the terminal event (FR-024, FR-026).
+- [x] T020 (antwort-9yj.4) [US3] Write requires_action tests in `pkg/engine/engine_test.go`: non-streaming requires_action with function tools, streaming requires_action, follow-up request with previous_response_id and function_call_output continues conversation (FR-021). Test mixed tool kinds pauses entire turn.
 
 **Checkpoint**: Client-executed function tools return requires_action. Follow-up requests continue correctly.
 
@@ -98,8 +98,8 @@
 
 ### Implementation for User Story 4
 
-- [ ] T021 (antwort-cr5.1) [US4] Integrate allowed_tools filtering into agentic loop in `pkg/engine/loop.go`: before dispatching tool calls, check each against allowed_tools list using filter.go. For rejected calls, create function_call_output with is_error=true and descriptive message. Feed rejected results back to model alongside successful results (FR-008, FR-009, FR-010).
-- [ ] T022 (antwort-cr5.2) [US4] Write allowed_tools tests in `pkg/engine/loop_test.go`: all tools allowed (no filter), some tools rejected (error fed back), empty allowed_tools (all pass), model calls unknown tool (error fed back).
+- [x] T021 (antwort-cr5.1) [US4] Integrate allowed_tools filtering into agentic loop in `pkg/engine/loop.go`: before dispatching tool calls, check each against allowed_tools list using filter.go. For rejected calls, create function_call_output with is_error=true and descriptive message. Feed rejected results back to model alongside successful results (FR-008, FR-009, FR-010).
+- [x] T022 (antwort-cr5.2) [US4] Write allowed_tools tests in `pkg/engine/loop_test.go`: all tools allowed (no filter), some tools rejected (error fed back), empty allowed_tools (all pass), model calls unknown tool (error fed back).
 
 **Checkpoint**: Allowed tools filtering prevents execution of restricted tools with clear error feedback.
 
@@ -113,9 +113,9 @@
 
 ### Implementation for User Story 5
 
-- [ ] T023 (antwort-3li.1) [US5] Verify max turns enforcement in `pkg/engine/loop_test.go`: configure MaxAgenticTurns=2, mock provider always returns tool calls, verify loop terminates with `incomplete` status and accumulated output items.
-- [ ] T024 (antwort-3li.2) [US5] Verify context cancellation in `pkg/engine/loop_test.go`: cancel context mid-turn during tool execution, verify loop terminates with `cancelled` status.
-- [ ] T025 (antwort-3li.3) [US5] Verify provider error mid-loop in `pkg/engine/loop_test.go`: provider returns error on turn 2, verify loop terminates with `failed` status and error details.
+- [x] T023 (antwort-3li.1) [US5] Verify max turns enforcement in `pkg/engine/loop_test.go`: configure MaxAgenticTurns=2, mock provider always returns tool calls, verify loop terminates with `incomplete` status and accumulated output items.
+- [x] T024 (antwort-3li.2) [US5] Verify context cancellation in `pkg/engine/loop_test.go`: cancel context mid-turn during tool execution, verify loop terminates with `cancelled` status.
+- [x] T025 (antwort-3li.3) [US5] Verify provider error mid-loop in `pkg/engine/loop_test.go`: provider returns error on turn 2, verify loop terminates with `failed` status and error details.
 
 **Checkpoint**: All termination conditions verified. Safety limits prevent runaway loops.
 
@@ -125,11 +125,11 @@
 
 **Purpose**: Edge cases, documentation, and final validation
 
-- [ ] T026 (antwort-0of.1) [P] Handle edge case: executor registered but CanExecute returns false for all tools in `pkg/engine/loop.go`. Verify behavior matches function-tool path (requires_action).
-- [ ] T027 (antwort-0of.2) [P] Handle edge case: model returns tool call referencing unknown tool (not in request's tool list). Feed error back to model.
-- [ ] T028 (antwort-0of.3) [P] Handle edge case: model returns both text content and tool calls. Verify both included in output, tool calls trigger loop.
-- [ ] T029 (antwort-0of.4) Run `go vet ./...` and `go test ./...` across all packages to verify compilation and test passing.
-- [ ] T030 (antwort-0of.5) Validate quickstart.md code examples compile and match actual API signatures.
+- [x] T026 (antwort-0of.1) [P] Handle edge case: executor registered but CanExecute returns false for all tools in `pkg/engine/loop.go`. Verify behavior matches function-tool path (requires_action).
+- [x] T027 (antwort-0of.2) [P] Handle edge case: model returns tool call referencing unknown tool (not in request's tool list). Feed error back to model.
+- [x] T028 (antwort-0of.3) [P] Handle edge case: model returns both text content and tool calls. Verify both included in output, tool calls trigger loop.
+- [x] T029 (antwort-0of.4) Run `go vet ./...` and `go test ./...` across all packages to verify compilation and test passing.
+- [x] T030 (antwort-0of.5) Validate quickstart.md code examples compile and match actual API signatures.
 
 ---
 

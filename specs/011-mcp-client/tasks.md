@@ -21,7 +21,7 @@
 **Goal**: Connect to MCP server, handshake, discover tools.
 
 - [x] T004 [US1] Create `pkg/tools/mcp/client.go`: MCPClient struct wrapping the SDK client. Connect method (performs handshake), DiscoverTools method (calls tools/list, caches result), Close method. Use configured MCPAuthProvider for headers (FR-001, FR-002, FR-003).
-- [ ] T005 [US1] Write client tests in `pkg/tools/mcp/client_test.go`: mock MCP server (httptest) returning tool list, test handshake, test tool discovery, test unreachable server (graceful error).
+- [x] T005 [US1] Write client tests in `pkg/tools/mcp/client_test.go`: mock MCP server (httptest) returning tool list, test handshake, test tool discovery, test unreachable server (graceful error).
 
 **Checkpoint**: MCPClient connects and discovers tools.
 
@@ -45,7 +45,7 @@
 
 - [x] T009 [US1] [US2] Add MCP tool merging in `pkg/engine/engine.go`: before translateRequest, if MCPExecutor is configured, call DiscoveredTools and merge with request tools (FR-009, FR-010).
 - [x] T010 [US1] [US2] Wire MCP executor in `cmd/server/main.go`: read MCP config from env (ANTWORT_MCP_SERVERS JSON), create MCPExecutor, add to engine's Executors list (FR-015).
-- [ ] T011 [US2] Write engine integration test: mock MCP server + mock provider, verify agentic loop calls MCP tool and produces final answer (SC-001, SC-005).
+- [x] T011 [US2] Write engine integration test: mock MCP server + mock provider, verify agentic loop calls MCP tool and produces final answer (SC-001, SC-005).
 
 **Checkpoint**: Full end-to-end MCP flow works.
 
