@@ -1,10 +1,11 @@
 # Antwort Validation Stack Recipe
-# Deploy the complete validation stack on ROSA HCP via: /rosa:setup .claude/rosa-recipe.yaml
+# Deploy the complete validation stack on ROSA HCP via: /rosa:setup .claude/cc-rosa/recipe.yaml
 #
 # This recipe provisions RHOAI, a model, and Antwort for cluster validation testing.
 # Re-running is safe (idempotent reconciliation skips completed steps).
 
 cluster:
+  name: rhuss-dev
   profile: aaet
 
 gpu:
