@@ -30,8 +30,8 @@
 ## Phase 4: Config + Polish
 
 - [x] T013 Add observability.metrics config to config struct (enabled/path).
-- [ ] T014 [P] Run `go vet ./...` and `go test ./...`.
-- [ ] T015 [P] Run `make conformance` to verify no regressions.
+- [x] T014 [P] Run `go vet ./...` and `go test ./...`.
+- [x] T015 [P] Run `make conformance` to verify no regressions.
 
 ---
 
