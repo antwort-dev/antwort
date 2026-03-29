@@ -72,4 +72,44 @@ The spec explicitly defers cardinality management to operators via Prometheus re
 - The spec mentions 35 total metrics (SC-001) but counts 12 existing + 23 new. The existing count of 12 includes 4 OTel `gen_ai_*` metrics. Are the `gen_ai_*` metrics counted in the "35 total" or are they separate (which would make the real total 39)?
 
 ---
+
+## Code Review Guide
+
+> This section covers the implementation. Start here if you want to review code rather than spec.
+
+### Where to start (the core change)
+
+Open `pkg/observability/metrics.go` and scroll past the existing spec 013 metrics. Lines ~90-320 contain all 23 new metric definitions grouped by layer. This is the single source of truth for metric names, types, labels, and bucket configurations. Verify these match the spec's FR-001 through FR-026.
+
+### File-by-file review order
+
+Review in this order for best context flow:
+
+1. **`pkg/observability/metrics.go`** (definitions) - Are names, types, and labels correct? Is `ConversationDepthBuckets` appropriate?
+2. **`pkg/observability/metrics_test.go`** (registration test) - Does `TestMetricsRegistered` cover all 35 metrics?
+3. **`pkg/engine/engine.go`** (response metrics) - Check `responseMode()` helper. Verify `ResponsesActive` Inc/Dec pairing. Check `ResponsesChainedTotal` placement.
+4. **`pkg/engine/loop.go`** (engine metrics) - Check iteration counting in both `runAgenticLoop` and `runAgenticLoopStreaming`. Verify `EngineToolDuration` wraps `exec.Execute()`. Check `EngineConversationDepth` records before the loop starts.
+5. **`pkg/engine/background.go`** (background metrics) - Check `BackgroundQueued` Inc (in engine.go:handleBackground) / Dec (in pollOnce) pairing. Check `BackgroundStaleTotal` in `detectStale`. Check heartbeat age recording.
+6. **`pkg/storage/memory/memory.go`** (storage metrics) - Check all 4 methods instrumented. Note metrics are recorded inside the mutex (acceptable, see review-findings.md FINDING-8).
+7. **`pkg/storage/postgres/postgres.go`** (storage metrics) - Same pattern as memory. Check `recordConnectionsActive()` helper.
+8. **`pkg/files/api.go`** + **`pkg/files/pipeline.go`** (file metrics) - Check `FilesUploadedTotal` and `FilesIngestionDuration`.
+9. **`pkg/files/provider.go`** (renamed local metrics) - Verify local metrics renamed to avoid conflict with centralized ones.
+10. **`pkg/tools/builtins/filesearch/provider.go`** (search metrics) - Check `VectorstoreSearchesTotal` and `VectorstoreSearchDuration` in the search loop.
+
+### Patterns to watch for
+
+- **Metric name conflicts**: The files package had local metrics with the same `antwort_` names as the centralized ones. These were renamed (FINDING-1/2 in review-findings.md). Verify the rename is clean.
+- **Inc/Dec gauge pairing**: `ResponsesActive` (engine.go) and `BackgroundQueued` (engine.go + background.go) use Inc/Dec. Verify all paths decrement correctly, especially error paths.
+- **Duration recording at all exit points**: `ResponsesTotal` and `ResponsesDuration` are recorded at 6+ exit points across engine.go and loop.go. Verify all paths record (especially the "max turns reached" and "abnormal stream closure" paths).
+- **Iteration duration for final turn**: The deep review found that iteration duration was not recorded for the final answer turn (no tool calls). This was fixed. Verify the fix at `loop.go` in both streaming and non-streaming loops.
+
+### What the deep review already caught
+
+See `specs/046-metrics-taxonomy/review-findings.md` for the full list. Key fixes applied:
+- Prometheus registration panic from duplicate metric names (Critical, fixed)
+- BackgroundQueued gauge always 0 (Important, fixed)
+- EngineIterationDuration missing final turn (Important, fixed)
+- Abnormal stream closure recorded as "completed" (Important, fixed)
+
+---
 *Full context in linked spec and plan.*
