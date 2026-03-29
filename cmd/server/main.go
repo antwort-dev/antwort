@@ -32,6 +32,7 @@ import (
 	"github.com/rhuss/antwort/pkg/observability"
 	"github.com/rhuss/antwort/pkg/provider"
 	"github.com/rhuss/antwort/pkg/provider/litellm"
+	"github.com/rhuss/antwort/pkg/provider/resilience"
 	"github.com/rhuss/antwort/pkg/provider/responses"
 	"github.com/rhuss/antwort/pkg/provider/vllm"
 	"github.com/rhuss/antwort/pkg/storage/memory"
@@ -88,6 +89,9 @@ func run() error {
 		return fmt.Errorf("creating provider: %w", err)
 	}
 	defer prov.Close()
+
+	// Wrap provider with resilience (circuit breaker + retry) if enabled.
+	prov = resilience.Wrap(prov, cfg.Resilience)
 
 	// Create storage from config.
 	store, err := createStore(cfg)

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/rhuss/antwort/pkg/api"
 )
@@ -39,7 +41,9 @@ func MapHTTPError(resp *http.Response) *api.APIError {
 		if message == "" {
 			message = "backend rate limit exceeded"
 		}
-		return api.NewTooManyRequestsError(message)
+		apiErr := api.NewTooManyRequestsError(message)
+		apiErr.RetryAfter = parseRetryAfter(resp.Header.Get("Retry-After"))
+		return apiErr
 
 	case resp.StatusCode >= http.StatusInternalServerError:
 		if message == "" {
@@ -59,6 +63,27 @@ func MapHTTPError(resp *http.Response) *api.APIError {
 // DNS resolution failure) into an APIError with a descriptive message.
 func MapNetworkError(err error) *api.APIError {
 	return api.NewServerError(fmt.Sprintf("backend connection error: %s", err.Error()))
+}
+
+// parseRetryAfter parses the Retry-After header value.
+// Supports both seconds (integer) and HTTP-date formats.
+// Returns 0 if the header is empty or cannot be parsed.
+func parseRetryAfter(value string) time.Duration {
+	if value == "" {
+		return 0
+	}
+	// Try seconds format first.
+	if seconds, err := strconv.Atoi(value); err == nil && seconds > 0 {
+		return time.Duration(seconds) * time.Second
+	}
+	// Try HTTP-date format.
+	if t, err := http.ParseTime(value); err == nil {
+		d := time.Until(t)
+		if d > 0 {
+			return d
+		}
+	}
+	return 0
 }
 
 // ExtractErrorMessage tries to parse the response body as a ChatErrorResponse

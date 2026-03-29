@@ -55,6 +55,8 @@ Auto-generated from all feature plans. Last updated: 2026-03-29
 - N/A (file-based results only, no database) (045-cluster-validation)
 - Go 1.22+ (consistent with all existing specs) + `prometheus/client_golang` (existing from spec 013). No new dependencies. (046-metrics-taxonomy)
 - N/A (metrics are ephemeral Prometheus scrape targets, no persistence) (046-metrics-taxonomy)
+- Go 1.22+ (consistent with all existing specs) + None (Go standard library only: `sync/atomic`, `math/rand`, `time`, `context`, `errors`, `net`, `strconv`, `net/http`, `fmt`, `log/slog`) (047-backend-resilience)
+- N/A (all state is in-memory, resets on restart) (047-backend-resilience)
 
 - Go 1.22+ + None (Go standard library only: `encoding/json`, `crypto/rand`, `errors`, `fmt`, `strings`, `regexp`) (001-core-protocol)
 
@@ -74,9 +76,9 @@ tests/
 Go 1.22+: Follow standard conventions
 
 ## Recent Changes
+- 047-backend-resilience: Added Go 1.22+ (consistent with all existing specs) + None (Go standard library only: `sync/atomic`, `math/rand`, `time`, `context`, `errors`, `net`, `strconv`, `net/http`, `fmt`, `log/slog`)
 - 046-metrics-taxonomy: Added Go 1.22+ (consistent with all existing specs) + `prometheus/client_golang` (existing from spec 013). No new dependencies.
 - 045-cluster-validation: Added Go 1.22+ (consistent with all existing specs) + Go standard library + `github.com/openai/openai-go` (existing test dependency from spec 043)
-- 044-async-responses: Added Go 1.22+ (consistent with all existing specs) + Go standard library only for core. `pgx/v5` for PostgreSQL adapter (existing dependency).
 
 
 <!-- MANUAL ADDITIONS START -->

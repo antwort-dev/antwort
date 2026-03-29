@@ -104,6 +104,18 @@ This makes it straightforward to customize a shared config file per environment 
 | `ANTWORT_DEBUG`
 | `logging.debug`
 | Comma-separated debug categories (e.g., `providers,engine`). Enables category-specific debug logging at DEBUG level.
+
+| `ANTWORT_RESILIENCE_ENABLED`
+| `resilience.enabled`
+| Set to `true` to enable circuit breaker and retry for backend communication.
+
+| `ANTWORT_RESILIENCE_FAILURE_THRESHOLD`
+| `resilience.failure_threshold`
+| Parsed as an integer. Consecutive failures before circuit opens. Default: `5`.
+
+| `ANTWORT_RESILIENCE_MAX_ATTEMPTS`
+| `resilience.max_attempts`
+| Parsed as an integer. Total request attempts (1 = no retry). Default: `3`.
 |===
 
 [[json-encoded-variables]]

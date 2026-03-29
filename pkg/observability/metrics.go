@@ -319,6 +319,46 @@ var (
 	)
 )
 
+// Resilience Layer metrics (spec 047).
+var (
+	// ResilienceCircuitBreakerState tracks the current circuit breaker state per provider.
+	// Values: 0=closed, 1=open, 2=half-open.
+	ResilienceCircuitBreakerState = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "antwort_resilience_circuit_breaker_state",
+			Help: "Circuit breaker state (0=closed, 1=open, 2=half-open)",
+		},
+		[]string{"provider"},
+	)
+
+	// ResilienceCircuitBreakerTransitionsTotal counts circuit breaker state transitions.
+	ResilienceCircuitBreakerTransitionsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "antwort_resilience_circuit_breaker_transitions_total",
+			Help: "Circuit breaker state transitions",
+		},
+		[]string{"provider", "from", "to"},
+	)
+
+	// ResilienceRetryAttemptsTotal counts retry attempts by provider and outcome.
+	ResilienceRetryAttemptsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "antwort_resilience_retry_attempts_total",
+			Help: "Retry attempts by outcome (success, failure, rate_limited)",
+		},
+		[]string{"provider", "outcome"},
+	)
+
+	// ResilienceRetryExhaustedTotal counts requests where all retries were exhausted.
+	ResilienceRetryExhaustedTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "antwort_resilience_retry_exhausted_total",
+			Help: "Requests where all retry attempts were exhausted",
+		},
+		[]string{"provider"},
+	)
+)
+
 // OTel GenAI semantic convention metrics.
 var (
 	// GenAIClientTokenUsage records token usage per operation following the
@@ -413,6 +453,12 @@ func init() {
 		BackgroundClaimedTotal,
 		BackgroundStaleTotal,
 		BackgroundWorkerHeartbeatAge,
+
+		// Spec 047: Resilience Layer.
+		ResilienceCircuitBreakerState,
+		ResilienceCircuitBreakerTransitionsTotal,
+		ResilienceRetryAttemptsTotal,
+		ResilienceRetryExhaustedTotal,
 	)
 }
 

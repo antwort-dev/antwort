@@ -1,6 +1,9 @@
 package api
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 // ErrorType represents the category of an API error.
 type ErrorType string
@@ -15,10 +18,11 @@ const (
 
 // APIError represents a structured API error with type, code, param, and message.
 type APIError struct {
-	Type    ErrorType `json:"type"`
-	Code    string    `json:"code,omitempty"`
-	Param   string    `json:"param,omitempty"`
-	Message string    `json:"message"`
+	Type       ErrorType     `json:"type"`
+	Code       string        `json:"code,omitempty"`
+	Param      string        `json:"param,omitempty"`
+	Message    string        `json:"message"`
+	RetryAfter time.Duration `json:"-"` // Populated from Retry-After header on 429 responses.
 }
 
 // Error implements the error interface.

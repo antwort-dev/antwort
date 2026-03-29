@@ -1,0 +1,130 @@
+= Backend Resilience
+:navtitle: Backend Resilience
+
+Antwort can protect your deployment from backend failures using a built-in circuit breaker and automatic retry.
+When enabled, transient errors (connection drops, 502/503/504) are retried transparently, and sustained outages trigger fast-fail to prevent request pile-up.
+
+== Enabling Resilience
+
+Add a `resilience` block to your `config.yaml`:
+
+[source,yaml]
+----
+resilience:
+  enabled: true
+----
+
+This enables resilience with sensible defaults (5 failure threshold, 3 retry attempts, 100ms initial backoff).
+Without the `resilience` block, Antwort behaves as a transparent proxy and propagates all errors directly.
+
+== Tuning the Circuit Breaker
+
+The circuit breaker has three states:
+
+* **Closed** (normal): requests pass through to the backend.
+* **Open** (fast-fail): after `failure_threshold` consecutive failures, requests fail immediately without contacting the backend.
+* **Half-open** (probing): after `reset_timeout`, one probe request tests whether the backend has recovered.
+
+Tune the thresholds based on your deployment:
+
+[source,yaml]
+----
+resilience:
+  enabled: true
+  failure_threshold: 10    # more tolerant (default: 5)
+  reset_timeout: 60s       # wait longer before probing (default: 30s)
+----
+
+For backends with frequent but brief interruptions (e.g., rolling restarts), a higher threshold avoids unnecessary circuit trips.
+
+== Tuning Retries
+
+Retry settings control how many times Antwort re-attempts a failed request before giving up:
+
+[source,yaml]
+----
+resilience:
+  enabled: true
+  max_attempts: 5          # try up to 5 times (default: 3)
+  backoff_base: 200ms      # start with 200ms wait (default: 100ms)
+  backoff_max: 5s           # cap at 5s (default: 2s)
+----
+
+Retries use exponential backoff with jitter.
+The wait between attempts grows exponentially (200ms, 400ms, 800ms, ...) but never exceeds `backoff_max`.
+Jitter adds randomness to prevent thundering herd effects when multiple replicas retry simultaneously.
+
+Only transient errors are retried:
+
+* HTTP 502, 503, 504 from the backend
+* Connection refused or reset
+* Request timeout
+
+Client errors (400, 401, 404, 422) are never retried.
+
+== Rate Limiting (429 Handling)
+
+When the backend returns HTTP 429 (Too Many Requests), Antwort respects the `Retry-After` header:
+
+* If the header specifies a wait duration, Antwort waits that long before retrying.
+* If the header is absent, standard exponential backoff applies.
+* 429 responses never count toward the circuit breaker failure threshold, because the backend is healthy, just busy.
+
+The maximum wait from a `Retry-After` header is capped by `retry_after_max` (default: 30s).
+
+== Streaming Requests
+
+For streaming requests, Antwort retries only the connection phase.
+If the initial connection to the backend fails (connection refused, timeout), the connection is retried with the same backoff logic.
+Once the first SSE event is received, no further retry is attempted.
+If the stream drops mid-response, the client receives an error and can retry using `previous_response_id`.
+
+== Monitoring Resilience
+
+When resilience is enabled, Antwort exposes Prometheus metrics on the `/metrics` endpoint:
+
+[cols="2,1,3"]
+|===
+| Metric | Type | Description
+
+| `antwort_resilience_circuit_breaker_state`
+| gauge
+| Current state (0=closed, 1=open, 2=half-open). Label: `provider`.
+
+| `antwort_resilience_circuit_breaker_transitions_total`
+| counter
+| State transition count. Labels: `provider`, `from`, `to`.
+
+| `antwort_resilience_retry_attempts_total`
+| counter
+| Retry attempts. Labels: `provider`, `outcome` (success, failure, rate_limited).
+
+| `antwort_resilience_retry_exhausted_total`
+| counter
+| Requests where all retry attempts failed. Label: `provider`.
+|===
+
+For detailed retry logging, enable the `providers` debug category:
+
+[source,yaml]
+----
+logging:
+  debug: providers
+----
+
+This logs each retry attempt with timing, wait duration, and the triggering error.
+
+== Environment Variable Overrides
+
+For Kubernetes deployments, the most common settings can be overridden via environment variables:
+
+[source,yaml]
+----
+env:
+  - name: ANTWORT_RESILIENCE_ENABLED
+    value: "true"
+  - name: ANTWORT_RESILIENCE_FAILURE_THRESHOLD
+    value: "10"
+  - name: ANTWORT_RESILIENCE_MAX_ATTEMPTS
+    value: "5"
+----

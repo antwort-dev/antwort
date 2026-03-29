@@ -389,6 +389,54 @@ When enabled, security-relevant events and state-changing operations are logged 
 | File path for audit log output.
 Required when `audit.output` is `file`.
 
+5+h| Resilience
+
+| `resilience.enabled`
+| bool
+| `false`
+| `ANTWORT_RESILIENCE_ENABLED`
+| Enable circuit breaker and retry for backend communication.
+When disabled, errors propagate directly to clients (default behavior).
+
+| `resilience.failure_threshold`
+| int
+| `5`
+| `ANTWORT_RESILIENCE_FAILURE_THRESHOLD`
+| Number of consecutive failures before the circuit breaker opens (fast-fail mode).
+
+| `resilience.reset_timeout`
+| duration
+| `30s`
+|
+| Time the circuit stays open before allowing a single probe request to test recovery.
+
+| `resilience.max_attempts`
+| int
+| `3`
+| `ANTWORT_RESILIENCE_MAX_ATTEMPTS`
+| Total request attempts including the original (1 = no retry).
+
+| `resilience.backoff_base`
+| duration
+| `100ms`
+|
+| Initial backoff duration for exponential retry.
+Each subsequent attempt doubles the wait (with jitter).
+
+| `resilience.backoff_max`
+| duration
+| `2s`
+|
+| Maximum backoff cap.
+Retry wait never exceeds this value regardless of attempt count.
+
+| `resilience.retry_after_max`
+| duration
+| `30s`
+|
+| Maximum wait for 429 Retry-After headers.
+If the backend requests a wait longer than this, the cap applies.
+
 5+h| Logging
 
 | `logging.level`
@@ -419,3 +467,4 @@ The gateway validates the configuration on startup and exits with an error if an
 * `audit.format` (if set) must be `json` or `text`.
 * `audit.output` (if set) must be `stdout` or `file`.
 * When `audit.output` is `file`, `audit.file` must be non-empty.
+* When `resilience.enabled` is `true`: `failure_threshold` must be > 0, `max_attempts` must be >= 1, and all duration fields must be > 0.
