@@ -1,0 +1,316 @@
+= Prometheus Metrics Reference
+:description: Complete reference for all Prometheus metrics exposed by Antwort.
+
+Antwort exposes Prometheus metrics at the `/metrics` endpoint (configurable via `observability.metrics.path`).
+All metrics use the `antwort_` prefix.
+Enable metrics with `observability.metrics.enabled: true` in the configuration.
+
+== HTTP Layer (Spec 013)
+
+[cols="3,1,2,3"]
+|===
+| Metric | Type | Labels | Description
+
+| `antwort_requests_total`
+| Counter
+| `method`, `status`, `model`
+| Total HTTP requests by method, status class (2xx/4xx/5xx), and model.
+
+| `antwort_request_duration_seconds`
+| Histogram
+| `method`, `model`
+| HTTP request duration.
+
+| `antwort_streaming_connections_active`
+| Gauge
+| (none)
+| Current number of active SSE streaming connections.
+|===
+
+== Provider Layer (Spec 013)
+
+[cols="3,1,2,3"]
+|===
+| Metric | Type | Labels | Description
+
+| `antwort_provider_requests_total`
+| Counter
+| `provider`, `model`, `status`
+| Requests sent to backend LLM providers.
+
+| `antwort_provider_latency_seconds`
+| Histogram
+| `provider`, `model`
+| Backend provider latency.
+
+| `antwort_provider_tokens_total`
+| Counter
+| `provider`, `model`, `direction`
+| Tokens processed per provider call (input/output).
+|===
+
+== Tool Layer (Spec 013)
+
+[cols="3,1,2,3"]
+|===
+| Metric | Type | Labels | Description
+
+| `antwort_tool_executions_total`
+| Counter
+| `tool_name`, `status`
+| Tool executions by name and outcome (success/error).
+
+| `antwort_ratelimit_rejected_total`
+| Counter
+| `tier`
+| Requests rejected by the rate limiter.
+|===
+
+== OTel GenAI Semantic Conventions (Spec 013)
+
+[cols="3,1,2,3"]
+|===
+| Metric | Type | Labels | Description
+
+| `gen_ai_client_token_usage`
+| Histogram
+| `gen_ai_operation_name`, `gen_ai_provider_name`, `gen_ai_token_type`, `gen_ai_request_model`, `gen_ai_response_model`
+| GenAI client token usage following OTel semantic conventions.
+
+| `gen_ai_client_operation_duration_seconds`
+| Histogram
+| `gen_ai_operation_name`, `gen_ai_provider_name`, `gen_ai_request_model`, `gen_ai_response_model`, `error_type`
+| GenAI client operation duration.
+
+| `gen_ai_server_time_to_first_token_seconds`
+| Histogram
+| `gen_ai_operation_name`, `gen_ai_provider_name`, `gen_ai_request_model`
+| Time to first token for streaming responses.
+
+| `gen_ai_server_time_per_output_token_seconds`
+| Histogram
+| `gen_ai_operation_name`, `gen_ai_provider_name`, `gen_ai_request_model`
+| Per-token decode latency.
+|===
+
+== Responses Layer (Spec 046)
+
+[cols="3,1,2,3"]
+|===
+| Metric | Type | Labels | Description
+
+| `antwort_responses_total`
+| Counter
+| `model`, `status`, `mode`
+| Total responses by model, completion status (completed/failed/cancelled/incomplete), and mode (sync/streaming/background).
+
+| `antwort_responses_duration_seconds`
+| Histogram
+| `model`, `mode`
+| End-to-end response duration by model and delivery mode.
+
+| `antwort_responses_active`
+| Gauge
+| `mode`
+| Currently in-flight responses by mode.
+
+| `antwort_responses_chained_total`
+| Counter
+| `model`
+| Responses using `previous_response_id` for conversation chaining.
+
+| `antwort_responses_tokens_total`
+| Counter
+| `model`, `type`
+| Cumulative token usage per response (input/output).
+This counts total tokens for the entire response, including all agentic loop turns.
+|===
+
+== Engine Layer (Spec 046)
+
+[cols="3,1,2,3"]
+|===
+| Metric | Type | Labels | Description
+
+| `antwort_engine_iterations_total`
+| Counter
+| `model`
+| Total agentic loop iterations (turns) by model.
+
+| `antwort_engine_iteration_duration_seconds`
+| Histogram
+| `model`
+| Duration per agentic loop iteration (provider call + tool execution).
+
+| `antwort_engine_max_iterations_hit_total`
+| Counter
+| `model`
+| Responses that exhausted the max iteration limit.
+
+| `antwort_engine_tool_duration_seconds`
+| Histogram
+| `tool_name`
+| Tool execution duration by tool name.
+
+| `antwort_engine_conversation_depth`
+| Histogram
+| `model`
+| Number of items in rehydrated conversation history at loop start.
+Uses custom buckets: 1, 2, 5, 10, 20, 50.
+|===
+
+== Storage Layer (Spec 046)
+
+[cols="3,1,2,3"]
+|===
+| Metric | Type | Labels | Description
+
+| `antwort_storage_operations_total`
+| Counter
+| `backend`, `operation`, `result`
+| Storage operations by backend (memory/postgres), operation type (get/save/delete/list), and result (success/error).
+
+| `antwort_storage_operation_duration_seconds`
+| Histogram
+| `backend`, `operation`
+| Storage operation latency by backend and operation type.
+
+| `antwort_storage_responses_stored`
+| Gauge
+| `backend`
+| Current number of responses in storage.
+
+| `antwort_storage_connections_active`
+| Gauge
+| (none)
+| Active PostgreSQL connection pool connections.
+Only populated when using the PostgreSQL backend.
+|===
+
+== Files and Vector Store Layer (Spec 046)
+
+[cols="3,1,2,3"]
+|===
+| Metric | Type | Labels | Description
+
+| `antwort_files_uploaded_total`
+| Counter
+| `content_type`
+| Total files uploaded by MIME content type.
+
+| `antwort_files_ingestion_duration_seconds`
+| Histogram
+| (none)
+| File ingestion pipeline duration (extract, chunk, embed, store).
+
+| `antwort_vectorstore_searches_total`
+| Counter
+| `store_id`, `result`
+| Vector store searches by store identifier and result (success/error).
+
+| `antwort_vectorstore_search_duration_seconds`
+| Histogram
+| (none)
+| Vector store search latency.
+
+| `antwort_vectorstore_items_stored`
+| Gauge
+| `store_id`
+| Current item count per vector store.
+|===
+
+== Background Workers Layer (Spec 046)
+
+[cols="3,1,2,3"]
+|===
+| Metric | Type | Labels | Description
+
+| `antwort_background_queued`
+| Gauge
+| (none)
+| Current depth of the background response queue.
+Incremented when a response is queued, decremented when claimed by a worker.
+
+| `antwort_background_claimed_total`
+| Counter
+| `worker_id`
+| Responses claimed by each background worker.
+
+| `antwort_background_stale_total`
+| Counter
+| (none)
+| Stale responses detected and reclaimed.
+
+| `antwort_background_worker_heartbeat_age_seconds`
+| Gauge
+| `worker_id`
+| Time since the last heartbeat update for each worker.
+|===
+
+== Histogram Bucket Configurations
+
+All duration histograms use LLM-tuned buckets unless noted:
+
+[source]
+----
+LLMBuckets:              0.1, 0.5, 1, 2, 5, 10, 30, 60, 120 (seconds)
+ConversationDepthBuckets: 1, 2, 5, 10, 20, 50 (item count)
+TokenBuckets:            1, 4, 16, 64, 256, 1024, 4096, 16384 (token count)
+----
+
+== Label Cardinality
+
+Some labels accept unbounded values.
+Operators should use Prometheus relabeling to control cardinality in production.
+
+[cols="2,1,3"]
+|===
+| Label | Cardinality | Notes
+
+| `model`
+| Unbounded
+| Comes from the request `model` field.
+Use `metric_relabel_configs` to group or drop high-cardinality model names.
+
+| `tool_name`
+| Medium (3-20)
+| Built-in tools are fixed. MCP tools add cardinality per configured server.
+
+| `store_id`
+| Medium
+| One series per vector store.
+Grows with store count.
+
+| `worker_id`
+| Low-Medium
+| One series per worker process.
+New ID on each restart.
+Consider using stable identifiers (pod name) in Kubernetes.
+
+| `content_type`
+| Low-Medium
+| MIME types from uploaded files.
+
+| `status`, `mode`, `operation`, `result`, `backend`
+| Fixed (2-4 values)
+| Bounded enums, no cardinality risk.
+|===
+
+== Example Prometheus Relabeling
+
+To drop high-cardinality model labels:
+
+[source,yaml]
+----
+metric_relabel_configs:
+  - source_labels: [__name__, model]
+    regex: "antwort_responses_total;(.+)"
+    target_label: model
+    replacement: "${1}"
+    action: replace
+----
+
+== See Also
+
+* xref:config-reference.adoc[Configuration Reference] for `observability.metrics.enabled` and `observability.metrics.path`
+* xref:environment-variables.adoc[Environment Variables] for `ANTWORT_DEBUG` and `ANTWORT_LOG_LEVEL`
