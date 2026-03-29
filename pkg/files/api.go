@@ -13,6 +13,7 @@ import (
 
 	"github.com/rhuss/antwort/pkg/api"
 	"github.com/rhuss/antwort/pkg/audit"
+	"github.com/rhuss/antwort/pkg/observability"
 	"github.com/rhuss/antwort/pkg/storage"
 )
 
@@ -131,8 +132,9 @@ func (a *FilesAPI) handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Record upload metric.
+	// Record upload metrics.
 	filesUploadedTotal.WithLabelValues(fileMIMEType).Inc()
+	observability.FilesUploadedTotal.WithLabelValues(fileMIMEType).Inc()
 
 	a.auditLogger.Log(r.Context(), "resource.created", "resource_type", "file", "resource_id", fileID)
 

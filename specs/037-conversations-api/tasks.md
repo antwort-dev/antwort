@@ -11,10 +11,10 @@
 
 **Purpose**: Types, ID generation, interface definition
 
-- [ ] T001 [P] Add Conversation and ConversationList types to `pkg/api/types.go` (ID, Object, Name, UserID, CreatedAt, UpdatedAt, Metadata fields)
-- [ ] T002 [P] Add `NewConversationID()` and `ValidateConversationID()` with `conv_` prefix to `pkg/api/id.go`
-- [ ] T003 Add ConversationStore interface (SaveConversation, GetConversation, DeleteConversation, ListConversations, ListConversationItems) to `pkg/transport/handler.go`
-- [ ] T004 Add `conversation_id` optional field to `CreateResponseRequest` and `Response` types in `pkg/api/types.go`
+- [x] T001 [P] Add Conversation and ConversationList types to `pkg/api/types.go` (ID, Object, Name, UserID, CreatedAt, UpdatedAt, Metadata fields)
+- [x] T002 [P] Add `NewConversationID()` and `ValidateConversationID()` with `conv_` prefix to `pkg/api/id.go`
+- [x] T003 Add ConversationStore interface (SaveConversation, GetConversation, DeleteConversation, ListConversations, ListConversationItems) to `pkg/transport/handler.go`
+- [x] T004 Add `conversation_id` optional field to `CreateResponseRequest` and `Response` types in `pkg/api/types.go`
 
 ---
 
@@ -22,8 +22,8 @@
 
 **Purpose**: In-memory store implementation
 
-- [ ] T005 Implement in-memory ConversationStore (RWMutex, map-based, tenant-scoped, soft delete, pagination) in `pkg/storage/memory/conversations.go`
-- [ ] T006 Write tests for in-memory ConversationStore in `pkg/storage/memory/conversations_test.go` (table-driven: CRUD, tenant isolation, soft delete, pagination, item management)
+- [x] T005 Implement in-memory ConversationStore (RWMutex, map-based, tenant-scoped, soft delete, pagination) in `pkg/storage/memory/conversations.go`
+- [x] T006 Write tests for in-memory ConversationStore in `pkg/storage/memory/conversations_test.go` (table-driven: CRUD, tenant isolation, soft delete, pagination, item management)
 
 **Checkpoint**: ConversationStore works in isolation with tests.
 
@@ -33,13 +33,13 @@
 
 **Goal**: Create conversations and link responses to them.
 
-- [ ] T007 [US1] Implement conversation HTTP handlers (create, get) in `pkg/transport/http/conversations.go`
-- [ ] T008 [US1] Register conversation routes in HTTP adapter mux (POST/GET /v1/conversations, GET /v1/conversations/{id}) in `pkg/transport/http/adapter.go`
-- [ ] T009 [US1] Accept optional ConversationStore in engine constructor, store on Engine struct in `pkg/engine/engine.go`
-- [ ] T010 [US1] In engine CreateResponse: when conversation_id is set and previous_response_id is not, load conversation items and convert to ProviderMessages for history in `pkg/engine/engine.go`
-- [ ] T011 [US1] After response completion: if conversation_id is set, add input + output items to the conversation via ConversationStore in `pkg/engine/engine.go`
-- [ ] T012 [US1] Wire ConversationStore into server: pass memory store to adapter and engine in `cmd/server/main.go`
-- [ ] T013 [US1] Write integration tests for create conversation and response with conversation_id in `pkg/transport/http/conversations_test.go`
+- [x] T007 [US1] Implement conversation HTTP handlers (create, get) in `pkg/transport/http/conversations.go`
+- [x] T008 [US1] Register conversation routes in HTTP adapter mux (POST/GET /v1/conversations, GET /v1/conversations/{id}) in `pkg/transport/http/adapter.go`
+- [x] T009 [US1] Accept optional ConversationStore in engine constructor, store on Engine struct in `pkg/engine/engine.go`
+- [x] T010 [US1] In engine CreateResponse: when conversation_id is set and previous_response_id is not, load conversation items and convert to ProviderMessages for history in `pkg/engine/engine.go`
+- [x] T011 [US1] After response completion: if conversation_id is set, add input + output items to the conversation via ConversationStore in `pkg/engine/engine.go`
+- [x] T012 [US1] Wire ConversationStore into server: pass memory store to adapter and engine in `cmd/server/main.go`
+- [x] T013 [US1] Write integration tests for create conversation and response with conversation_id in `pkg/transport/http/conversations_test.go`
 
 **Checkpoint**: Create conversation, send response with conversation_id, history used as context.
 
@@ -49,8 +49,8 @@
 
 **Goal**: List conversations with pagination.
 
-- [ ] T014 [US2] Implement list conversations handler (GET /v1/conversations: pagination, tenant-scoped) in `pkg/transport/http/conversations.go`
-- [ ] T015 [US2] Write tests for list with pagination and ordering in `pkg/transport/http/conversations_test.go`
+- [x] T014 [US2] Implement list conversations handler (GET /v1/conversations: pagination, tenant-scoped) in `pkg/transport/http/conversations.go`
+- [x] T015 [US2] Write tests for list with pagination and ordering in `pkg/transport/http/conversations_test.go`
 
 **Checkpoint**: List conversations with cursor-based pagination.
 
@@ -60,10 +60,10 @@
 
 **Goal**: List and add items within conversations.
 
-- [ ] T016 [US3] Implement list items handler (GET /v1/conversations/{id}/items: pagination) in `pkg/transport/http/conversations.go`
-- [ ] T017 [US3] Implement add item handler (POST /v1/conversations/{id}/items: add message item directly) in `pkg/transport/http/conversations.go`
-- [ ] T018 [US3] Register item routes in adapter mux in `pkg/transport/http/adapter.go`
-- [ ] T019 [US3] Write tests for item listing and direct item addition in `pkg/transport/http/conversations_test.go`
+- [x] T016 [US3] Implement list items handler (GET /v1/conversations/{id}/items: pagination) in `pkg/transport/http/conversations.go`
+- [x] T017 [US3] Implement add item handler (POST /v1/conversations/{id}/items: add message item directly) in `pkg/transport/http/conversations.go`
+- [x] T018 [US3] Register item routes in adapter mux in `pkg/transport/http/adapter.go`
+- [x] T019 [US3] Write tests for item listing and direct item addition in `pkg/transport/http/conversations_test.go`
 
 **Checkpoint**: Add items directly, list items with pagination.
 
@@ -73,8 +73,8 @@
 
 **Goal**: Delete conversations (soft delete, responses preserved).
 
-- [ ] T020 [US4] Implement delete conversation handler (DELETE /v1/conversations/{id}) in `pkg/transport/http/conversations.go`
-- [ ] T021 [US4] Write tests for delete (soft delete, responses still accessible) in `pkg/transport/http/conversations_test.go`
+- [x] T020 [US4] Implement delete conversation handler (DELETE /v1/conversations/{id}) in `pkg/transport/http/conversations.go`
+- [x] T021 [US4] Write tests for delete (soft delete, responses still accessible) in `pkg/transport/http/conversations_test.go`
 
 **Checkpoint**: Delete conversation, verify responses still accessible by ID.
 
@@ -84,8 +84,8 @@
 
 **Goal**: Verify previous_response_id works unchanged.
 
-- [ ] T022 [US5] Write test confirming previous_response_id without conversation_id works identically to pre-existing behavior in `pkg/engine/loop_test.go`
-- [ ] T023 [US5] Write test confirming both conversation_id and previous_response_id set: previous_response_id provides history in `pkg/engine/loop_test.go`
+- [x] T022 [US5] Write test confirming previous_response_id without conversation_id works identically to pre-existing behavior in `pkg/engine/loop_test.go`
+- [x] T023 [US5] Write test confirming both conversation_id and previous_response_id set: previous_response_id provides history in `pkg/engine/loop_test.go`
 
 **Checkpoint**: Existing clients unaffected.
 
@@ -95,17 +95,17 @@
 
 **Purpose**: API reference and tutorial pages.
 
-- [ ] T024 [P] Create conversations API reference page in `docs/modules/reference/pages/conversations-api.adoc` (all 6 endpoints with schemas)
-- [ ] T025 [P] Update existing API reference to document conversation_id field on create response in `docs/modules/reference/pages/api-reference.adoc`
-- [ ] T026 [P] Create conversations tutorial page in `docs/modules/tutorial/pages/conversations.adoc` (create, multi-turn, list history)
-- [ ] T027 [P] Update reference and tutorial nav.adoc files
+- [x] T024 [P] Create conversations API reference page in `docs/modules/reference/pages/conversations-api.adoc` (all 6 endpoints with schemas)
+- [x] T025 [P] Update existing API reference to document conversation_id field on create response in `docs/modules/reference/pages/api-reference.adoc`
+- [x] T026 [P] Create conversations tutorial page in `docs/modules/tutorial/pages/conversations.adoc` (create, multi-turn, list history)
+- [x] T027 [P] Update reference and tutorial nav.adoc files
 
 ---
 
 ## Phase 9: Polish
 
-- [ ] T028 Verify `go vet ./pkg/api/... ./pkg/transport/... ./pkg/engine/... ./pkg/storage/...` pass
-- [ ] T029 Verify `go test ./pkg/transport/http/... ./pkg/storage/memory/... ./pkg/engine/...` pass
+- [x] T028 Verify `go vet ./pkg/api/... ./pkg/transport/... ./pkg/engine/... ./pkg/storage/...` pass
+- [x] T029 Verify `go test ./pkg/transport/http/... ./pkg/storage/memory/... ./pkg/engine/...` pass
 
 ---
 

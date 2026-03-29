@@ -17,9 +17,9 @@
 
 **Purpose**: Create project structure, add dependencies, set up recording format
 
-- [ ] T001 Add `github.com/openai/openai-go` dependency to `go.mod` via `go get github.com/openai/openai-go`. This is a test-only dependency used by E2E tests.
-- [ ] T002 Create `test/e2e/` directory structure with `e2e_test.go` containing `TestMain`, environment variable parsing (ANTWORT_BASE_URL, ANTWORT_API_KEY, ANTWORT_ALICE_KEY, ANTWORT_BOB_KEY, ANTWORT_MODEL, ANTWORT_AUDIT_FILE), and openai-go client factory helpers. Include build tag `//go:build e2e` so these tests don't run with `go test ./...` (only via explicit `go test -tags e2e ./test/e2e/`).
-- [ ] T003 Create `test/e2e/recordings/README.md` documenting the recording JSON format (request, response, streaming, chunks, metadata fields) and how to create new recordings.
+- [x] T001 Add `github.com/openai/openai-go` dependency to `go.mod` via `go get github.com/openai/openai-go`. This is a test-only dependency used by E2E tests.
+- [x] T002 Create `test/e2e/` directory structure with `e2e_test.go` containing `TestMain`, environment variable parsing (ANTWORT_BASE_URL, ANTWORT_API_KEY, ANTWORT_ALICE_KEY, ANTWORT_BOB_KEY, ANTWORT_MODEL, ANTWORT_AUDIT_FILE), and openai-go client factory helpers. Include build tag `//go:build e2e` so these tests don't run with `go test ./...` (only via explicit `go test -tags e2e ./test/e2e/`).
+- [x] T003 Create `test/e2e/recordings/README.md` documenting the recording JSON format (request, response, streaming, chunks, metadata fields) and how to create new recordings.
 
 **Checkpoint**: E2E test skeleton exists, openai-go SDK available, recording format documented.
 
@@ -31,13 +31,13 @@
 
 **CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T004 Add request normalization and hashing to `cmd/mock-backend/main.go`: create `normalizeRequest(method, path string, body []byte) string` that sorts JSON keys recursively, strips `stream_options`, and returns SHA256 hex hash of `method + "\n" + path + "\n" + normalized_body`.
-- [ ] T005 Add recording file loader to `cmd/mock-backend/main.go`: create `loadRecordings(dir string) (map[string]*Recording, error)` that reads all `*.json` files from the directory, parses them into Recording structs, and indexes by request hash. Recording struct has Request, Response, Streaming, Chunks, and Metadata fields.
-- [ ] T006 Add replay request handler to `cmd/mock-backend/main.go`: when `--recordings-dir` flag is set, intercept all requests to `/v1/chat/completions` and `/v1/responses`. Compute request hash, look up recording, return stored response. For streaming recordings, write SSE chunks with 1ms delay between each. Return 500 with diagnostic JSON (hash, available hashes) on miss.
-- [ ] T007 Add `--recordings-dir`, `--mode`, and `--record-target` CLI flags to `cmd/mock-backend/main.go`. When `--recordings-dir` is empty, use existing deterministic mock behavior (backward compatible). Parse flags using `flag` package.
-- [ ] T008 Add record mode to `cmd/mock-backend/main.go`: when `--mode record` or `--mode record-if-missing`, forward requests to `--record-target` URL, capture the response, save as JSON recording file in `--recordings-dir`. For streaming responses, buffer all SSE chunks before saving.
-- [ ] T009 Write tests for replay logic in `cmd/mock-backend/main_test.go`: test request normalization (key sorting, stream_options removal), hash computation (deterministic for same input), recording loading (valid JSON, corrupt file, empty dir), replay matching (hit, miss, streaming), and backward compatibility (no recordings-dir = deterministic mock).
-- [ ] T010 Handcraft initial recording files in `test/e2e/recordings/` based on the existing mock-backend response format (see `cmd/mock-backend/main.go` response structures). Create at minimum: `chat-basic.json` (non-streaming Chat Completion with model, choices, usage), `chat-streaming.json` (streaming with SSE chunks including role, content deltas, finish, and [DONE]), `chat-tool-call.json` (tool call turn with get_weather function), `chat-tool-result.json` (final text response after tool result). Use the recording format from `test/e2e/recordings/README.md`. Llama-stack conversion (T027) is a separate, later task.
+- [x] T004 Add request normalization and hashing to `cmd/mock-backend/main.go`: create `normalizeRequest(method, path string, body []byte) string` that sorts JSON keys recursively, strips `stream_options`, and returns SHA256 hex hash of `method + "\n" + path + "\n" + normalized_body`.
+- [x] T005 Add recording file loader to `cmd/mock-backend/main.go`: create `loadRecordings(dir string) (map[string]*Recording, error)` that reads all `*.json` files from the directory, parses them into Recording structs, and indexes by request hash. Recording struct has Request, Response, Streaming, Chunks, and Metadata fields.
+- [x] T006 Add replay request handler to `cmd/mock-backend/main.go`: when `--recordings-dir` flag is set, intercept all requests to `/v1/chat/completions` and `/v1/responses`. Compute request hash, look up recording, return stored response. For streaming recordings, write SSE chunks with 1ms delay between each. Return 500 with diagnostic JSON (hash, available hashes) on miss.
+- [x] T007 Add `--recordings-dir`, `--mode`, and `--record-target` CLI flags to `cmd/mock-backend/main.go`. When `--recordings-dir` is empty, use existing deterministic mock behavior (backward compatible). Parse flags using `flag` package.
+- [x] T008 Add record mode to `cmd/mock-backend/main.go`: when `--mode record` or `--mode record-if-missing`, forward requests to `--record-target` URL, capture the response, save as JSON recording file in `--recordings-dir`. For streaming responses, buffer all SSE chunks before saving.
+- [x] T009 Write tests for replay logic in `cmd/mock-backend/main_test.go`: test request normalization (key sorting, stream_options removal), hash computation (deterministic for same input), recording loading (valid JSON, corrupt file, empty dir), replay matching (hit, miss, streaming), and backward compatibility (no recordings-dir = deterministic mock).
+- [x] T010 Handcraft initial recording files in `test/e2e/recordings/` based on the existing mock-backend response format (see `cmd/mock-backend/main.go` response structures). Create at minimum: `chat-basic.json` (non-streaming Chat Completion with model, choices, usage), `chat-streaming.json` (streaming with SSE chunks including role, content deltas, finish, and [DONE]), `chat-tool-call.json` (tool call turn with get_weather function), `chat-tool-result.json` (final text response after tool result). Use the recording format from `test/e2e/recordings/README.md`. Llama-stack conversion (T027) is a separate, later task.
 
 **Checkpoint**: Mock-backend supports replay mode. Recordings exist. Can start the replay backend and get deterministic LLM responses.
 
@@ -51,9 +51,9 @@
 
 ### Implementation for User Story 5
 
-- [ ] T011 [US5] Write `test/e2e/replay_test.go` with tests that start the replay backend in-process (using `httptest.NewServer`) and verify: non-streaming replay returns correct response body, streaming replay returns correct SSE chunks, missing recording returns 500 with diagnostic info, no recordings-dir falls back to deterministic mock.
-- [ ] T012 [US5] Add a Responses API recording (`test/e2e/recordings/responses-api-basic.json`) in the Responses API format and verify the replay backend serves it correctly for requests to `/v1/responses`.
-- [ ] T013 [US5] Verify recording-if-missing mode works: start with partial recordings, send both known and unknown requests (pointing at a test HTTP server as record-target), verify known requests are replayed and unknown requests are recorded to new files.
+- [x] T011 [US5] Write `test/e2e/replay_test.go` with tests that start the replay backend in-process (using `httptest.NewServer`) and verify: non-streaming replay returns correct response body, streaming replay returns correct SSE chunks, missing recording returns 500 with diagnostic info, no recordings-dir falls back to deterministic mock.
+- [x] T012 [US5] Add a Responses API recording (`test/e2e/recordings/responses-api-basic.json`) in the Responses API format and verify the replay backend serves it correctly for requests to `/v1/responses`.
+- [x] T013 [US5] Verify recording-if-missing mode works: start with partial recordings, send both known and unknown requests (pointing at a test HTTP server as record-target), verify known requests are replayed and unknown requests are recorded to new files.
 
 **Checkpoint**: Replay backend is fully functional and tested for both protocols.
 
@@ -67,11 +67,11 @@
 
 ### Implementation for User Story 1
 
-- [ ] T014 [US1] Write `test/e2e/responses_test.go` with `TestE2ECreateResponse`: use openai-go SDK to POST a non-streaming response, verify the response has a valid ID, model, output text, and usage matching the recording.
-- [ ] T015 [US1] Add `TestE2EStreamingResponse` to `test/e2e/responses_test.go`: use openai-go SDK streaming API, collect all events, verify complete SSE lifecycle (response.created, text deltas, response.completed) and final text content.
-- [ ] T016 [US1] Add `TestE2EGetResponse` to `test/e2e/responses_test.go`: create a response, then GET it by ID, verify the stored response matches.
-- [ ] T017 [US1] Add `TestE2EListResponses` to `test/e2e/responses_test.go`: create multiple responses, list them, verify count and ordering.
-- [ ] T018 [US1] Add `TestE2EDeleteResponse` to `test/e2e/responses_test.go`: create a response, delete it, verify GET returns not found.
+- [x] T014 [US1] Write `test/e2e/responses_test.go` with `TestE2ECreateResponse`: use openai-go SDK to POST a non-streaming response, verify the response has a valid ID, model, output text, and usage matching the recording.
+- [x] T015 [US1] Add `TestE2EStreamingResponse` to `test/e2e/responses_test.go`: use openai-go SDK streaming API, collect all events, verify complete SSE lifecycle (response.created, text deltas, response.completed) and final text content.
+- [x] T016 [US1] Add `TestE2EGetResponse` to `test/e2e/responses_test.go`: create a response, then GET it by ID, verify the stored response matches.
+- [x] T017 [US1] Add `TestE2EListResponses` to `test/e2e/responses_test.go`: create multiple responses, list them, verify count and ordering.
+- [x] T018 [US1] Add `TestE2EDeleteResponse` to `test/e2e/responses_test.go`: create a response, delete it, verify GET returns not found.
 
 **Checkpoint**: Core API lifecycle works end-to-end through SDK.
 
@@ -85,9 +85,9 @@
 
 ### Implementation for User Story 2
 
-- [ ] T019 [US2] Write `test/e2e/auth_test.go` with `TestE2EAuthAccepted`: create openai-go client with valid API key, make a request, verify 200 success.
-- [ ] T020 [US2] Add `TestE2EAuthRejected` to `test/e2e/auth_test.go`: create client with invalid API key, verify request is rejected.
-- [ ] T021 [US2] Add `TestE2EOwnershipIsolation` to `test/e2e/auth_test.go`: alice creates a response, bob tries to GET it (should get not found), alice GETs it (should succeed).
+- [x] T019 [US2] Write `test/e2e/auth_test.go` with `TestE2EAuthAccepted`: create openai-go client with valid API key, make a request, verify 200 success.
+- [x] T020 [US2] Add `TestE2EAuthRejected` to `test/e2e/auth_test.go`: create client with invalid API key, verify request is rejected.
+- [x] T021 [US2] Add `TestE2EOwnershipIsolation` to `test/e2e/auth_test.go`: alice creates a response, bob tries to GET it (should get not found), alice GETs it (should succeed).
 
 **Checkpoint**: Multi-user auth and isolation work end-to-end.
 
@@ -101,8 +101,8 @@
 
 ### Implementation for User Story 3
 
-- [ ] T022 [US3] Write `test/e2e/agentic_test.go` with `TestE2EToolCallNonStreaming`: send a request with tools configured that triggers a tool call recording, verify the final response includes both the tool call output and the LLM's final text response.
-- [ ] T023 [US3] Add `TestE2EToolCallStreaming` to `test/e2e/agentic_test.go`: same scenario with streaming enabled, verify tool lifecycle SSE events are received.
+- [x] T022 [US3] Write `test/e2e/agentic_test.go` with `TestE2EToolCallNonStreaming`: send a request with tools configured that triggers a tool call recording, verify the final response includes both the tool call output and the LLM's final text response.
+- [x] T023 [US3] Add `TestE2EToolCallStreaming` to `test/e2e/agentic_test.go`: same scenario with streaming enabled, verify tool lifecycle SSE events are received.
 
 **Checkpoint**: Agentic loop with tool calling works end-to-end.
 
@@ -116,8 +116,8 @@
 
 ### Implementation for User Story 4
 
-- [ ] T024 [US4] Write `test/e2e/audit_test.go` with `TestE2EAuditEvents`: make authenticated requests (create, delete), then retrieve the audit log via `kubectl exec <pod> -- cat /tmp/audit.log` (use ANTWORT_POD_NAME env var or discover via `kubectl get pods -l app.kubernetes.io/name=antwort`). Parse JSON lines, verify auth.success and resource.created/resource.deleted events with correct fields. For local dev mode (no cluster), read the file directly from ANTWORT_AUDIT_FILE path.
-- [ ] T025 [US4] Add `TestE2EAuditAuthFailure` to `test/e2e/audit_test.go`: send request with invalid key, retrieve audit log via same mechanism as T024, verify auth.failure event.
+- [x] T024 [US4] Write `test/e2e/audit_test.go` with `TestE2EAuditEvents`: make authenticated requests (create, delete), then retrieve the audit log via `kubectl exec <pod> -- cat /tmp/audit.log` (use ANTWORT_POD_NAME env var or discover via `kubectl get pods -l app.kubernetes.io/name=antwort`). Parse JSON lines, verify auth.success and resource.created/resource.deleted events with correct fields. For local dev mode (no cluster), read the file directly from ANTWORT_AUDIT_FILE path.
+- [x] T025 [US4] Add `TestE2EAuditAuthFailure` to `test/e2e/audit_test.go`: send request with invalid key, retrieve audit log via same mechanism as T024, verify auth.failure event.
 
 **Checkpoint**: Audit logging works in deployed environment.
 
@@ -131,8 +131,8 @@
 
 ### Implementation for User Story 6
 
-- [ ] T026 [US6] Write recording integration test in `cmd/mock-backend/main_test.go`: start mock-backend in record mode pointing at a test HTTP server, send requests, verify JSON recording files are created in the recordings directory with correct format and content.
-- [ ] T027 [US6] Create `scripts/convert-llamastack-recordings.go`: reads llama-stack recording JSON files, strips `__type__`/`__data__` wrappers, reconstructs SSE chunks for streaming responses, outputs antwort recording format. Filters for Chat Completions format only.
+- [x] T026 [US6] Write recording integration test in `cmd/mock-backend/main_test.go`: start mock-backend in record mode pointing at a test HTTP server, send requests, verify JSON recording files are created in the recordings directory with correct format and content.
+- [x] T027 [US6] Create `scripts/convert-llamastack-recordings.go`: reads llama-stack recording JSON files, strips `__type__`/`__data__` wrappers, reconstructs SSE chunks for streaming responses, outputs antwort recording format. Filters for Chat Completions format only.
 
 **Checkpoint**: Recording and conversion tools work.
 
@@ -142,11 +142,11 @@
 
 **Purpose**: CI pipeline integration, kustomize overlay, documentation
 
-- [ ] T028 [P] Create `quickstarts/01-minimal/e2e/kustomization.yaml` extending the `ci` overlay: add auth configuration (API keys for alice/bob), audit logging configuration (enabled, JSON format, file output), and replay-backend recordings mount.
-- [ ] T029 [P] Update `.github/workflows/ci.yml` to extend the `kubernetes` job with E2E test steps: deploy using e2e overlay, wait for readiness, run `go test -tags e2e ./test/e2e/ -v` with port-forward and appropriate env vars.
-- [ ] T030 [P] Add `make e2e` target to `Makefile` for local E2E test execution: starts replay-backend with recordings, starts antwort with auth+audit config, runs E2E tests, cleans up.
-- [ ] T031 Update `Containerfile.mock` to support the new `--recordings-dir` flag: ensure the distroless image can access a mounted recordings directory. No code changes needed if recordings are mounted at runtime.
-- [ ] T032 Run full CI pipeline locally (or validate existing tests still pass): `go test ./pkg/... ./test/integration/... -timeout 120s` to verify no regressions from the openai-go dependency addition.
+- [x] T028 [P] Create `quickstarts/01-minimal/e2e/kustomization.yaml` extending the `ci` overlay: add auth configuration (API keys for alice/bob), audit logging configuration (enabled, JSON format, file output), and replay-backend recordings mount.
+- [x] T029 [P] Update `.github/workflows/ci.yml` to extend the `kubernetes` job with E2E test steps: deploy using e2e overlay, wait for readiness, run `go test -tags e2e ./test/e2e/ -v` with port-forward and appropriate env vars.
+- [x] T030 [P] Add `make e2e` target to `Makefile` for local E2E test execution: starts replay-backend with recordings, starts antwort with auth+audit config, runs E2E tests, cleans up.
+- [x] T031 Update `Containerfile.mock` to support the new `--recordings-dir` flag: ensure the distroless image can access a mounted recordings directory. No code changes needed if recordings are mounted at runtime.
+- [x] T032 Run full CI pipeline locally (or validate existing tests still pass): `go test ./pkg/... ./test/integration/... -timeout 120s` to verify no regressions from the openai-go dependency addition.
 
 ---
 

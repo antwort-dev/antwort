@@ -12,7 +12,7 @@
 
 ## Phase 2: Infrastructure Wrapping (P1)
 
-- [ ] T004 [US2] Create `pkg/tools/registry/middleware.go`: wrapProviderRoutes() that wraps each provider's routes with auth middleware + metrics middleware + tenant injection. Record antwort_builtin_api_requests_total and antwort_builtin_api_duration_seconds (FR-009, FR-011, FR-013).
+- [x] T004 [US2] Create `pkg/tools/registry/middleware.go`: wrapProviderRoutes() that wraps each provider's routes with auth middleware + metrics middleware + tenant injection. Record antwort_builtin_api_requests_total and antwort_builtin_api_duration_seconds (FR-009, FR-011, FR-013).
 - [x] T005 [US2] Add automatic execution metrics to registry.go: record antwort_builtin_tool_executions_total and antwort_builtin_tool_duration_seconds on every Execute call (FR-010).
 - [x] T006 [US2] [US3] Implement HTTPHandler() on registry that merges all wrapped provider routes. Register provider custom collectors with Prometheus registry (FR-008, FR-012).
 - [ ] T007 [US2] Write middleware tests: auth bypass without credentials fails, metrics recorded, tenant propagated.

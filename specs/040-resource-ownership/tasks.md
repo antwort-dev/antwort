@@ -19,10 +19,10 @@
 
 **Purpose**: Auth infrastructure changes needed before any ownership filtering
 
-- [ ] T001 (antwort-ggy4.1) Add `RolesClaim` config field and role extraction logic to JWT authenticator in `pkg/auth/jwt/jwt.go`
-- [ ] T002 (antwort-ggy4.2) [P] Add `IsAdmin(identity *Identity, adminRole string) bool` helper to `pkg/auth/auth.go` that checks `Identity.Metadata["roles"]` for the configured admin role name
-- [ ] T003 (antwort-ggy4.3) [P] Add `ownerFromCtx(ctx) string` helper function to `pkg/storage/owner.go` that extracts `Identity.Subject` from context (follows `userFromCtx` pattern from Files API)
-- [ ] T004 (antwort-ggy4.4) [P] Add `isAdmin(ctx, adminRole) bool` helper to `pkg/storage/owner.go` that combines identity extraction with admin role check
+- [x] T001 (antwort-ggy4.1) Add `RolesClaim` config field and role extraction logic to JWT authenticator in `pkg/auth/jwt/jwt.go`
+- [x] T002 (antwort-ggy4.2) [P] Add `IsAdmin(identity *Identity, adminRole string) bool` helper to `pkg/auth/auth.go` that checks `Identity.Metadata["roles"]` for the configured admin role name
+- [x] T003 (antwort-ggy4.3) [P] Add `ownerFromCtx(ctx) string` helper function to `pkg/storage/owner.go` that extracts `Identity.Subject` from context (follows `userFromCtx` pattern from Files API)
+- [x] T004 (antwort-ggy4.4) [P] Add `isAdmin(ctx, adminRole) bool` helper to `pkg/storage/owner.go` that combines identity extraction with admin role check
 
 ---
 
@@ -32,8 +32,8 @@
 
 **Warning**: No user story work can begin until this phase is complete
 
-- [ ] T005 (antwort-bon0.1) Create PostgreSQL migration `pkg/storage/postgres/migrations/002_add_owner.sql` adding `owner TEXT NOT NULL DEFAULT ''` column and index to responses, conversations, and vector_stores tables
-- [ ] T006 (antwort-bon0.2) Add `authorization.admin_role` and `jwt.roles_claim` fields to configuration struct in `pkg/config/` (or wherever config is defined)
+- [x] T005 (antwort-bon0.1) Create PostgreSQL migration `pkg/storage/postgres/migrations/002_add_owner.sql` adding `owner TEXT NOT NULL DEFAULT ''` column and index to responses, conversations, and vector_stores tables
+- [x] T006 (antwort-bon0.2) Add `authorization.admin_role` and `jwt.roles_claim` fields to configuration struct in `pkg/config/` (or wherever config is defined)
 
 **Checkpoint**: Foundation ready, owner helpers and migration in place
 
@@ -47,25 +47,25 @@
 
 ### Implementation for User Story 1
 
-- [ ] T007 (antwort-z2r2.1) [P] [US1] Add `owner` field to memory store `entry` struct and set from `ownerFromCtx(ctx)` in `SaveResponse` in `pkg/storage/memory/memory.go`
-- [ ] T008 (antwort-z2r2.2) [P] [US1] Add `owner` field to memory store `convEntry` struct and set from `ownerFromCtx(ctx)` in `SaveConversation` in `pkg/storage/memory/conversations.go`
-- [ ] T009 (antwort-z2r2.3) [US1] Add owner filtering to `GetResponse` in `pkg/storage/memory/memory.go`: extract owner from context, return `ErrNotFound` if owner mismatch (skip if owner empty or no identity)
-- [ ] T010 (antwort-z2r2.4) [US1] Add owner filtering to `ListResponses` in `pkg/storage/memory/memory.go`: filter results by owner (skip if no identity)
-- [ ] T011 (antwort-z2r2.5) [US1] Add owner filtering to `DeleteResponse` in `pkg/storage/memory/memory.go`: return `ErrNotFound` if owner mismatch
-- [ ] T012 (antwort-z2r2.6) [US1] Add owner filtering to `GetResponseForChain` in `pkg/storage/memory/memory.go`: return `ErrNotFound` if `previous_response_id` belongs to different owner
-- [ ] T013 (antwort-z2r2.7) [US1] Add owner filtering to `GetInputItems` in `pkg/storage/memory/memory.go`: check parent response owner
-- [ ] T014 (antwort-z2r2.8) [US1] Add owner filtering to `GetConversation`, `ListConversations`, `DeleteConversation` in `pkg/storage/memory/conversations.go`
-- [ ] T015 (antwort-z2r2.9) [US1] Add owner filtering to `AddItems` and `ListItems` in `pkg/storage/memory/conversations.go`: verify conversation owner before allowing item operations
-- [ ] T016 (antwort-z2r2.10) [US1] Add `owner` column to PostgreSQL `SaveResponse` insert and owner filtering to `getResponse`, `ListResponses`, `DeleteResponse` in `pkg/storage/postgres/postgres.go`
-- [ ] T017 (antwort-z2r2.11) [US1] Add owner filtering to vector store management endpoints (create sets owner, list/get/delete filter by owner) in `pkg/transport/http/vectorstores.go` or equivalent handler
-- [ ] T018 (antwort-z2r2.12) [US1] Add debug-level logging for ownership denials via `slog.Debug` in each store method that filters by owner (subject, resource ID, operation)
+- [x] T007 (antwort-z2r2.1) [P] [US1] Add `owner` field to memory store `entry` struct and set from `ownerFromCtx(ctx)` in `SaveResponse` in `pkg/storage/memory/memory.go`
+- [x] T008 (antwort-z2r2.2) [P] [US1] Add `owner` field to memory store `convEntry` struct and set from `ownerFromCtx(ctx)` in `SaveConversation` in `pkg/storage/memory/conversations.go`
+- [x] T009 (antwort-z2r2.3) [US1] Add owner filtering to `GetResponse` in `pkg/storage/memory/memory.go`: extract owner from context, return `ErrNotFound` if owner mismatch (skip if owner empty or no identity)
+- [x] T010 (antwort-z2r2.4) [US1] Add owner filtering to `ListResponses` in `pkg/storage/memory/memory.go`: filter results by owner (skip if no identity)
+- [x] T011 (antwort-z2r2.5) [US1] Add owner filtering to `DeleteResponse` in `pkg/storage/memory/memory.go`: return `ErrNotFound` if owner mismatch
+- [x] T012 (antwort-z2r2.6) [US1] Add owner filtering to `GetResponseForChain` in `pkg/storage/memory/memory.go`: return `ErrNotFound` if `previous_response_id` belongs to different owner
+- [x] T013 (antwort-z2r2.7) [US1] Add owner filtering to `GetInputItems` in `pkg/storage/memory/memory.go`: check parent response owner
+- [x] T014 (antwort-z2r2.8) [US1] Add owner filtering to `GetConversation`, `ListConversations`, `DeleteConversation` in `pkg/storage/memory/conversations.go`
+- [x] T015 (antwort-z2r2.9) [US1] Add owner filtering to `AddItems` and `ListItems` in `pkg/storage/memory/conversations.go`: verify conversation owner before allowing item operations
+- [x] T016 (antwort-z2r2.10) [US1] Add `owner` column to PostgreSQL `SaveResponse` insert and owner filtering to `getResponse`, `ListResponses`, `DeleteResponse` in `pkg/storage/postgres/postgres.go`
+- [x] T017 (antwort-z2r2.11) [US1] Add owner filtering to vector store management endpoints (create sets owner, list/get/delete filter by owner) in `pkg/transport/http/vectorstores.go` or equivalent handler
+- [x] T018 (antwort-z2r2.12) [US1] Add debug-level logging for ownership denials via `slog.Debug` in each store method that filters by owner (subject, resource ID, operation)
 
 ### Tests for User Story 1
 
-- [ ] T019 (antwort-z2r2.13) [US1] Integration test: two users creating and listing responses in isolation in `tests/integration/ownership_test.go`
-- [ ] T020 (antwort-z2r2.14) [P] [US1] Integration test: two users creating and listing conversations in isolation in `tests/integration/ownership_test.go`
-- [ ] T021 (antwort-z2r2.15) [P] [US1] Integration test: user cannot GET another user's response by ID (returns 404) in `tests/integration/ownership_test.go`
-- [ ] T022 (antwort-z2r2.16) [P] [US1] Integration test: `previous_response_id` chaining fails with 404 when referencing another user's response in `tests/integration/ownership_test.go`
+- [x] T019 (antwort-z2r2.13) [US1] Integration test: two users creating and listing responses in isolation in `tests/integration/ownership_test.go`
+- [x] T020 (antwort-z2r2.14) [P] [US1] Integration test: two users creating and listing conversations in isolation in `tests/integration/ownership_test.go`
+- [x] T021 (antwort-z2r2.15) [P] [US1] Integration test: user cannot GET another user's response by ID (returns 404) in `tests/integration/ownership_test.go`
+- [x] T022 (antwort-z2r2.16) [P] [US1] Integration test: `previous_response_id` chaining fails with 404 when referencing another user's response in `tests/integration/ownership_test.go`
 
 **Checkpoint**: User data isolation fully functional and tested
 
@@ -79,19 +79,19 @@
 
 ### Implementation for User Story 2
 
-- [ ] T023 (antwort-mvz1.1) [US2] Add admin bypass to owner filtering in `GetResponse`, `ListResponses`, `DeleteResponse` in `pkg/storage/memory/memory.go`: if `isAdmin(ctx, adminRole)` and same tenant, skip owner check for read/delete
-- [ ] T024 (antwort-mvz1.2) [US2] Add admin bypass to owner filtering in `GetConversation`, `ListConversations`, `DeleteConversation` in `pkg/storage/memory/conversations.go`
-- [ ] T025 (antwort-mvz1.3) [US2] Ensure admin CANNOT bypass owner check for write operations: `AddItems` in conversations must still check owner even for admin
-- [ ] T026 (antwort-mvz1.4) [US2] Add admin bypass to PostgreSQL store queries (read and delete only, not write) in `pkg/storage/postgres/postgres.go`
-- [ ] T027 (antwort-mvz1.5) [US2] Add admin bypass to vector store management (read and delete) in handlers
-- [ ] T028 (antwort-mvz1.6) [US2] Pass admin role name from configuration through to storage helpers (wire config to storage layer)
+- [x] T023 (antwort-mvz1.1) [US2] Add admin bypass to owner filtering in `GetResponse`, `ListResponses`, `DeleteResponse` in `pkg/storage/memory/memory.go`: if `isAdmin(ctx, adminRole)` and same tenant, skip owner check for read/delete
+- [x] T024 (antwort-mvz1.2) [US2] Add admin bypass to owner filtering in `GetConversation`, `ListConversations`, `DeleteConversation` in `pkg/storage/memory/conversations.go`
+- [x] T025 (antwort-mvz1.3) [US2] Ensure admin CANNOT bypass owner check for write operations: `AddItems` in conversations must still check owner even for admin
+- [x] T026 (antwort-mvz1.4) [US2] Add admin bypass to PostgreSQL store queries (read and delete only, not write) in `pkg/storage/postgres/postgres.go`
+- [x] T027 (antwort-mvz1.5) [US2] Add admin bypass to vector store management (read and delete) in handlers
+- [x] T028 (antwort-mvz1.6) [US2] Pass admin role name from configuration through to storage helpers (wire config to storage layer)
 
 ### Tests for User Story 2
 
-- [ ] T029 (antwort-mvz1.7) [US2] Integration test: admin can list all responses in their tenant in `tests/integration/ownership_test.go`
-- [ ] T030 (antwort-mvz1.8) [P] [US2] Integration test: admin can delete another user's response in `tests/integration/ownership_test.go`
-- [ ] T031 (antwort-mvz1.9) [P] [US2] Integration test: admin cannot add items to another user's conversation (returns 404) in `tests/integration/ownership_test.go`
-- [ ] T032 (antwort-mvz1.10) [P] [US2] Integration test: admin in tenant-a cannot see resources from tenant-b in `tests/integration/ownership_test.go`
+- [x] T029 (antwort-mvz1.7) [US2] Integration test: admin can list all responses in their tenant in `tests/integration/ownership_test.go`
+- [x] T030 (antwort-mvz1.8) [P] [US2] Integration test: admin can delete another user's response in `tests/integration/ownership_test.go`
+- [x] T031 (antwort-mvz1.9) [P] [US2] Integration test: admin cannot add items to another user's conversation (returns 404) in `tests/integration/ownership_test.go`
+- [x] T032 (antwort-mvz1.10) [P] [US2] Integration test: admin in tenant-a cannot see resources from tenant-b in `tests/integration/ownership_test.go`
 
 **Checkpoint**: Admin override functional with proper tenant scoping
 
@@ -105,13 +105,13 @@
 
 ### Implementation for User Story 3
 
-- [ ] T033 (antwort-9i8e.1) [US3] Verify all owner filtering checks handle nil identity (no-op when `IdentityFromContext` returns nil) across all modified store methods
-- [ ] T034 (antwort-9i8e.2) [US3] Verify empty owner string on existing data matches all authenticated users in query logic
+- [x] T033 (antwort-9i8e.1) [US3] Verify all owner filtering checks handle nil identity (no-op when `IdentityFromContext` returns nil) across all modified store methods
+- [x] T034 (antwort-9i8e.2) [US3] Verify empty owner string on existing data matches all authenticated users in query logic
 
 ### Tests for User Story 3
 
-- [ ] T035 (antwort-9i8e.3) [US3] Integration test: NoOp authenticator, create and list responses without ownership filtering in `tests/integration/ownership_test.go`
-- [ ] T036 (antwort-9i8e.4) [P] [US3] Integration test: resources with empty owner field are accessible to all authenticated users in `tests/integration/ownership_test.go`
+- [x] T035 (antwort-9i8e.3) [US3] Integration test: NoOp authenticator, create and list responses without ownership filtering in `tests/integration/ownership_test.go`
+- [x] T036 (antwort-9i8e.4) [P] [US3] Integration test: resources with empty owner field are accessible to all authenticated users in `tests/integration/ownership_test.go`
 
 **Checkpoint**: Backward compatibility verified
 
@@ -125,12 +125,12 @@
 
 ### Implementation for User Story 4
 
-- [ ] T037 (antwort-bdu7.1) [US4] Verify owner is always set from `Identity.Subject` and never from request body fields (`user`, `metadata`, etc.) in all create handlers
-- [ ] T038 (antwort-bdu7.2) [US4] Verify owner field is not included in any update/modify paths (immutable)
+- [x] T037 (antwort-bdu7.1) [US4] Verify owner is always set from `Identity.Subject` and never from request body fields (`user`, `metadata`, etc.) in all create handlers
+- [x] T038 (antwort-bdu7.2) [US4] Verify owner field is not included in any update/modify paths (immutable)
 
 ### Tests for User Story 4
 
-- [ ] T039 (antwort-bdu7.3) [US4] Integration test: owner is set from Identity.Subject, not from request `user` field in `tests/integration/ownership_test.go`
+- [x] T039 (antwort-bdu7.3) [US4] Integration test: owner is set from Identity.Subject, not from request `user` field in `tests/integration/ownership_test.go`
 
 **Checkpoint**: Owner auto-assignment verified
 
@@ -144,11 +144,11 @@
 
 ### Implementation for User Story 5
 
-- [ ] T040 (antwort-rz0h.1) [US5] Verify all ownership-denied responses use the same `storage.ErrNotFound` error path as genuinely missing resources (no distinct error code or message)
+- [x] T040 (antwort-rz0h.1) [US5] Verify all ownership-denied responses use the same `storage.ErrNotFound` error path as genuinely missing resources (no distinct error code or message)
 
 ### Tests for User Story 5
 
-- [ ] T041 (antwort-rz0h.2) [US5] Integration test: compare 404 response body for non-owner access vs non-existent resource in `tests/integration/ownership_test.go`
+- [x] T041 (antwort-rz0h.2) [US5] Integration test: compare 404 response body for non-owner access vs non-existent resource in `tests/integration/ownership_test.go`
 
 **Checkpoint**: Security hardening verified
 
@@ -158,10 +158,10 @@
 
 **Purpose**: Documentation and final validation
 
-- [ ] T042 (antwort-nu79.1) [P] Update config reference documentation with `authorization.admin_role` and `jwt.roles_claim` settings in `docs/modules/reference/`
-- [ ] T043 (antwort-nu79.2) [P] Update operations guide with ownership model explanation in `docs/modules/operations/`
-- [ ] T044 (antwort-nu79.3) [P] Update multi-user quickstart (quickstart 03) to demonstrate ownership isolation in `quickstarts/03-multi-user/`
-- [ ] T045 (antwort-nu79.4) Run existing conformance and SDK tests to verify no regressions
+- [x] T042 (antwort-nu79.1) [P] Update config reference documentation with `authorization.admin_role` and `jwt.roles_claim` settings in `docs/modules/reference/`
+- [x] T043 (antwort-nu79.2) [P] Update operations guide with ownership model explanation in `docs/modules/operations/`
+- [x] T044 (antwort-nu79.3) [P] Update multi-user quickstart (quickstart 03) to demonstrate ownership isolation in `quickstarts/03-multi-user/`
+- [x] T045 (antwort-nu79.4) Run existing conformance and SDK tests to verify no regressions
 
 ---
 

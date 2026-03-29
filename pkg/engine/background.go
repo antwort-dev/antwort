@@ -12,6 +12,7 @@ import (
 
 	"github.com/rhuss/antwort/pkg/api"
 	"github.com/rhuss/antwort/pkg/config"
+	"github.com/rhuss/antwort/pkg/observability"
 	"github.com/rhuss/antwort/pkg/transport"
 )
 
@@ -120,6 +121,10 @@ func (w *Worker) pollOnce(ctx context.Context) {
 		return // No work available.
 	}
 
+	// Record claim and queue metrics (spec 046).
+	observability.BackgroundClaimedTotal.WithLabelValues(w.workerID).Inc()
+	observability.BackgroundQueued.Dec()
+
 	slog.Info("claimed background request",
 		"response_id", resp.ID,
 		"worker_id", w.workerID,
@@ -202,6 +207,7 @@ func (w *Worker) heartbeat(ctx context.Context, responseID string, done <-chan s
 	ticker := time.NewTicker(w.cfg.HeartbeatInterval)
 	defer ticker.Stop()
 
+	lastHeartbeat := time.Now()
 	for {
 		select {
 		case <-done:
@@ -217,7 +223,11 @@ func (w *Worker) heartbeat(ctx context.Context, responseID string, done <-chan s
 					"response_id", responseID,
 					"error", err,
 				)
+			} else {
+				lastHeartbeat = now
 			}
+			// Record heartbeat age (spec 046).
+			observability.BackgroundWorkerHeartbeatAge.WithLabelValues(w.workerID).Set(time.Since(lastHeartbeat).Seconds())
 		}
 	}
 }
@@ -232,6 +242,9 @@ func (w *Worker) detectStale(ctx context.Context) {
 
 	if finder, ok := w.engine.store.(staleFinder); ok {
 		staleIDs := finder.FindStaleResponses(w.cfg.StalenessTimeout)
+		if len(staleIDs) > 0 {
+			observability.BackgroundStaleTotal.Add(float64(len(staleIDs)))
+		}
 		for _, id := range staleIDs {
 			slog.Warn("marking stale background request as failed",
 				"response_id", id,

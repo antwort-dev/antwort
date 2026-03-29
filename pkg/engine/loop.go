@@ -19,6 +19,7 @@ import (
 // to executors, feeding results back, and repeating until a final answer
 // is produced or a termination condition is met.
 func (e *Engine) runAgenticLoop(ctx context.Context, req *api.CreateResponseRequest, provReq *provider.ProviderRequest, w transport.ResponseWriter) error {
+	responseStart := time.Now()
 	maxTurns := e.cfg.maxTurns()
 	// Apply request-level max_tool_calls if set and lower than server max.
 	if req.MaxToolCalls != nil && *req.MaxToolCalls > 0 && *req.MaxToolCalls < maxTurns {
@@ -32,7 +33,12 @@ func (e *Engine) runAgenticLoop(ctx context.Context, req *api.CreateResponseRequ
 
 	debug.Log("engine", "agentic loop start", "max_turns", maxTurns, "parallel", parallel, "tools", len(req.Tools))
 
+	// Record conversation depth (spec 046): count items in rehydrated history.
+	observability.EngineConversationDepth.WithLabelValues(req.Model).Observe(float64(len(provReq.Messages)))
+
 	for turn := 0; turn < maxTurns; turn++ {
+		turnStart := time.Now()
+		observability.EngineIterationsTotal.WithLabelValues(req.Model).Inc()
 		debug.Log("engine", "agentic loop turn", "turn", turn+1, "max_turns", maxTurns)
 
 		// Check context before each turn.
@@ -83,6 +89,14 @@ func (e *Engine) runAgenticLoop(ctx context.Context, req *api.CreateResponseRequ
 		// No tool calls: final answer. Return completed response.
 		if len(toolCalls) == 0 {
 			debug.Log("engine", "final answer (no tool calls)", "turn", turn+1, "status", string(provResp.Status))
+			// Record iteration duration for final turn (spec 046).
+			observability.EngineIterationDuration.WithLabelValues(req.Model).Observe(time.Since(turnStart).Seconds())
+			// Record response metrics (spec 046).
+			mode := responseMode(req)
+			observability.ResponsesTotal.WithLabelValues(req.Model, string(provResp.Status), mode).Inc()
+			observability.ResponsesDuration.WithLabelValues(req.Model, mode).Observe(time.Since(responseStart).Seconds())
+			observability.ResponsesTokensTotal.WithLabelValues(req.Model, "input").Add(float64(cumulativeUsage.InputTokens))
+			observability.ResponsesTokensTotal.WithLabelValues(req.Model, "output").Add(float64(cumulativeUsage.OutputTokens))
 			return e.buildAndWriteResponse(ctx, req, allOutputItems, &cumulativeUsage, provResp.Status, nil, w, allToolResults)
 		}
 
@@ -151,6 +165,9 @@ func (e *Engine) runAgenticLoop(ctx context.Context, req *api.CreateResponseRequ
 		}
 		allOutputItems = append(allOutputItems, resultItems...)
 
+		// Record iteration duration (spec 046).
+		observability.EngineIterationDuration.WithLabelValues(req.Model).Observe(time.Since(turnStart).Seconds())
+
 		// Build messages for next turn: first the assistant's tool call message,
 		// then the tool results. The assistant message with tool_calls must
 		// precede the tool role messages per Chat Completions convention.
@@ -164,13 +181,21 @@ func (e *Engine) runAgenticLoop(ctx context.Context, req *api.CreateResponseRequ
 		}
 	}
 
-	// Max turns reached: return incomplete.
+	// Max turns reached: record max-iterations-hit (spec 046).
+	observability.EngineMaxIterationsHit.WithLabelValues(req.Model).Inc()
+	// Record response metrics (spec 046).
+	mode := responseMode(req)
+	observability.ResponsesTotal.WithLabelValues(req.Model, string(api.ResponseStatusIncomplete), mode).Inc()
+	observability.ResponsesDuration.WithLabelValues(req.Model, mode).Observe(time.Since(responseStart).Seconds())
+	observability.ResponsesTokensTotal.WithLabelValues(req.Model, "input").Add(float64(cumulativeUsage.InputTokens))
+	observability.ResponsesTokensTotal.WithLabelValues(req.Model, "output").Add(float64(cumulativeUsage.OutputTokens))
 	return e.buildAndWriteResponse(ctx, req, allOutputItems, &cumulativeUsage, api.ResponseStatusIncomplete, nil, w, allToolResults)
 }
 
 // runAgenticLoopStreaming executes the multi-turn agentic cycle for streaming
 // requests. It manages event emission across turns with a single lifecycle.
 func (e *Engine) runAgenticLoopStreaming(ctx context.Context, req *api.CreateResponseRequest, provReq *provider.ProviderRequest, w transport.ResponseWriter) error {
+	responseStart := time.Now()
 	maxTurns := e.cfg.maxTurns()
 	if req.MaxToolCalls != nil && *req.MaxToolCalls > 0 && *req.MaxToolCalls < maxTurns {
 		maxTurns = *req.MaxToolCalls
@@ -180,6 +205,9 @@ func (e *Engine) runAgenticLoopStreaming(ctx context.Context, req *api.CreateRes
 	var cumulativeUsage api.Usage
 	var allOutputItems []api.Item
 	var allToolResults []tools.ToolResult // Track for annotation generation.
+
+	// Record conversation depth (spec 046).
+	observability.EngineConversationDepth.WithLabelValues(req.Model).Observe(float64(len(provReq.Messages)))
 
 	// Build initial response skeleton.
 	resp := buildResponseFromRequest(req, api.ResponseStatusInProgress)
@@ -201,6 +229,9 @@ func (e *Engine) runAgenticLoopStreaming(ctx context.Context, req *api.CreateRes
 	}
 
 	for turn := 0; turn < maxTurns; turn++ {
+		observability.EngineIterationsTotal.WithLabelValues(req.Model).Inc()
+		turnStart := time.Now()
+
 		if ctx.Err() != nil {
 			return e.emitCancelled(ctx, resp, state, w)
 		}
@@ -259,6 +290,14 @@ func (e *Engine) runAgenticLoopStreaming(ctx context.Context, req *api.CreateRes
 
 		// No tool calls: final answer.
 		if len(toolCalls) == 0 {
+			// Record iteration duration for final turn (spec 046).
+			observability.EngineIterationDuration.WithLabelValues(req.Model).Observe(time.Since(turnStart).Seconds())
+			// Record response metrics (spec 046).
+			observability.ResponsesTotal.WithLabelValues(req.Model, string(api.ResponseStatusCompleted), "streaming").Inc()
+			observability.ResponsesDuration.WithLabelValues(req.Model, "streaming").Observe(time.Since(responseStart).Seconds())
+			observability.ResponsesTokensTotal.WithLabelValues(req.Model, "input").Add(float64(cumulativeUsage.InputTokens))
+			observability.ResponsesTokensTotal.WithLabelValues(req.Model, "output").Add(float64(cumulativeUsage.OutputTokens))
+
 			resp.Output = allOutputItems
 			resp.Usage = streamUsage(&cumulativeUsage, req)
 			resp.Status = api.ResponseStatusCompleted
@@ -334,12 +373,23 @@ func (e *Engine) runAgenticLoopStreaming(ctx context.Context, req *api.CreateRes
 			})
 		}
 
+		// Record iteration duration (spec 046).
+		observability.EngineIterationDuration.WithLabelValues(req.Model).Observe(time.Since(turnStart).Seconds())
+
 		// Reset stream state for next turn (keep sequence numbers).
 		state.textStarted = false
 		state.toolCallItems = nil
 	}
 
-	// Max turns reached.
+	// Max turns reached: record max-iterations-hit (spec 046).
+	observability.EngineMaxIterationsHit.WithLabelValues(req.Model).Inc()
+
+	// Record response metrics (spec 046).
+	observability.ResponsesTotal.WithLabelValues(req.Model, string(api.ResponseStatusIncomplete), "streaming").Inc()
+	observability.ResponsesDuration.WithLabelValues(req.Model, "streaming").Observe(time.Since(responseStart).Seconds())
+	observability.ResponsesTokensTotal.WithLabelValues(req.Model, "input").Add(float64(cumulativeUsage.InputTokens))
+	observability.ResponsesTokensTotal.WithLabelValues(req.Model, "output").Add(float64(cumulativeUsage.OutputTokens))
+
 	resp.Output = allOutputItems
 	resp.Usage = streamUsage(&cumulativeUsage, req)
 	resp.Status = api.ResponseStatusIncomplete
@@ -556,7 +606,10 @@ func (e *Engine) executeToolsConcurrently(ctx context.Context, calls []tools.Too
 				return
 			}
 
+			toolStart := time.Now()
 			result, err := exec.Execute(ctx, tc)
+			observability.EngineToolDuration.WithLabelValues(tc.Name).Observe(time.Since(toolStart).Seconds())
+
 			if err != nil {
 				slog.Warn("tool execution error",
 					"tool", tc.Name,
@@ -623,7 +676,10 @@ func (e *Engine) executeToolsSequentially(ctx context.Context, calls []tools.Too
 			continue
 		}
 
+		toolStart := time.Now()
 		result, err := exec.Execute(ctx, tc)
+		observability.EngineToolDuration.WithLabelValues(tc.Name).Observe(time.Since(toolStart).Seconds())
+
 		if err != nil {
 			slog.Warn("tool execution error",
 				"tool", tc.Name,

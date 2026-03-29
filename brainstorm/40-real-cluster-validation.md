@@ -74,7 +74,7 @@ test/cluster/
 
 ### D2: cc-rosa Instills for All Components
 
-**Decision**: Create Antwort-specific instills in the project repo at `.claude/instills/rosa/` (cc-rosa discovers these automatically as "external instills").
+**Decision**: Create Antwort-specific instills in the project repo at `.claude/cc-rosa/instills/` (cc-rosa discovers these automatically as "external instills").
 
 **Instills to create**:
 
@@ -89,7 +89,7 @@ test/cluster/
 
 Each instill follows the cc-rosa pattern: INSTILL.md (metadata), install.md (procedure), uninstall.md (cleanup), verify.md (smoke test).
 
-**External instill location**: `.claude/instills/rosa/` in the Antwort repo. The cc-rosa plugin auto-discovers these per-project instills.
+**External instill location**: `.claude/cc-rosa/instills/` in the Antwort repo. The cc-rosa plugin auto-discovers these per-project instills.
 
 ### D3: Model Selection
 

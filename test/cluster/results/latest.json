@@ -1,0 +1,215 @@
+{
+  "model": "Qwen2.5-7B-Instruct",
+  "antwort_version": "6d14a6d",
+  "cluster": "",
+  "timestamp": "2026-03-29T07:29:18Z",
+  "categories": {
+    "basic": {
+      "passed": 11,
+      "total": 11,
+      "score": 1
+    },
+    "bfcl_irrelevance": {
+      "passed": 13,
+      "total": 30,
+      "score": 0.43333333333333335
+    },
+    "bfcl_multiple": {
+      "passed": 47,
+      "total": 50,
+      "score": 0.94
+    },
+    "bfcl_parallel": {
+      "passed": 25,
+      "total": 30,
+      "score": 0.8333333333333334
+    },
+    "bfcl_parallel_multiple": {
+      "passed": 16,
+      "total": 20,
+      "score": 0.8
+    },
+    "bfcl_simple_python": {
+      "passed": 50,
+      "total": 50,
+      "score": 1
+    },
+    "conversations": {
+      "passed": 1,
+      "total": 1,
+      "score": 1
+    },
+    "provider_comparison": {
+      "passed": 2,
+      "total": 2,
+      "score": 1
+    },
+    "streaming": {
+      "passed": 1,
+      "total": 1,
+      "score": 1
+    },
+    "tools": {
+      "passed": 3,
+      "total": 3,
+      "score": 1
+    }
+  },
+  "latency": {
+    "non_streaming_p50_ms": 1841.5,
+    "non_streaming_p95_ms": 5760,
+    "non_streaming_p99_ms": 9228.099999999999,
+    "streaming_ttft_p50_ms": 176.5,
+    "streaming_ttft_p95_ms": 190.45,
+    "streaming_ttft_p99_ms": 191.69
+  },
+  "failures": [
+    {
+      "test_name": "irrelevance_0",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: calculate_triangle_area"
+    },
+    {
+      "test_name": "irrelevance_1",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: math_sum"
+    },
+    {
+      "test_name": "irrelevance_2",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: quadratic_equation_solver_solve"
+    },
+    {
+      "test_name": "irrelevance_5",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: calculate_perimeter"
+    },
+    {
+      "test_name": "irrelevance_6",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: calculate_area"
+    },
+    {
+      "test_name": "irrelevance_8",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: str_to_int"
+    },
+    {
+      "test_name": "irrelevance_9",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: numerical_integral"
+    },
+    {
+      "test_name": "irrelevance_10",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: calculus_compute_derivative"
+    },
+    {
+      "test_name": "irrelevance_11",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: get_closest_prime"
+    },
+    {
+      "test_name": "irrelevance_13",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: prime_factors"
+    },
+    {
+      "test_name": "irrelevance_18",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: calculate_vector_angle"
+    },
+    {
+      "test_name": "irrelevance_19",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: investment_calculator_calculate_return"
+    },
+    {
+      "test_name": "irrelevance_21",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: calculate_wave_amplitude"
+    },
+    {
+      "test_name": "irrelevance_22",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: magnetic_field_intensity"
+    },
+    {
+      "test_name": "irrelevance_25",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: thermodynamics_calculate_boiling_point"
+    },
+    {
+      "test_name": "irrelevance_26",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: thermodynamics_calc_gas_pressure"
+    },
+    {
+      "test_name": "irrelevance_27",
+      "category": "bfcl_irrelevance",
+      "error": "expected no function calls, got: calculate_heat"
+    },
+    {
+      "test_name": "multiple_7",
+      "category": "bfcl_multiple",
+      "error": "expected 1 function call, got 2"
+    },
+    {
+      "test_name": "multiple_10",
+      "category": "bfcl_multiple",
+      "error": "parameter \"columns\": value [email_address social_security_number] not in acceptable values [[email ssn] [ssn email] [email social_security_number] [social_security_number email] [email social security number] [social security number email]]"
+    },
+    {
+      "test_name": "multiple_32",
+      "category": "bfcl_multiple",
+      "error": "parameter \"round_off\": value 2 not in acceptable values [ 0]"
+    },
+    {
+      "test_name": "parallel_5",
+      "category": "bfcl_parallel",
+      "error": "no match found for expected call \"streaming_services_shows_list_and_ratings\""
+    },
+    {
+      "test_name": "parallel_9",
+      "category": "bfcl_parallel",
+      "error": "function count mismatch: expected 2, got 1"
+    },
+    {
+      "test_name": "parallel_19",
+      "category": "bfcl_parallel",
+      "error": "no match found for expected call \"calculate_mortgage_payment\""
+    },
+    {
+      "test_name": "parallel_26",
+      "category": "bfcl_parallel",
+      "error": "function count mismatch: expected 4, got 2"
+    },
+    {
+      "test_name": "parallel_29",
+      "category": "bfcl_parallel",
+      "error": "no match found for expected call \"waste_calculation_calculate\""
+    },
+    {
+      "test_name": "parallel_multiple_2",
+      "category": "bfcl_parallel_multiple",
+      "error": "function count mismatch: expected 2, got 3"
+    },
+    {
+      "test_name": "parallel_multiple_3",
+      "category": "bfcl_parallel_multiple",
+      "error": "no match found for expected call \"get_rectangle_property\""
+    },
+    {
+      "test_name": "parallel_multiple_15",
+      "category": "bfcl_parallel_multiple",
+      "error": "no match found for expected call \"restaurant_search\""
+    },
+    {
+      "test_name": "parallel_multiple_19",
+      "category": "bfcl_parallel_multiple",
+      "error": "no match found for expected call \"math_gaussian_integral\""
+    }
+  ],
+  "total_passed": 169,
+  "total_tests": 198
+}

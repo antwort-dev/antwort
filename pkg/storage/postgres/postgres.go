@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/rhuss/antwort/pkg/api"
+	"github.com/rhuss/antwort/pkg/observability"
 	"github.com/rhuss/antwort/pkg/storage"
 	"github.com/rhuss/antwort/pkg/transport"
 )
@@ -64,6 +65,7 @@ func New(ctx context.Context, cfg Config) (*Store, error) {
 
 // SaveResponse persists a completed response.
 func (s *Store) SaveResponse(ctx context.Context, resp *api.Response) error {
+	start := time.Now()
 	tenantID := storage.GetTenant(ctx)
 	owner := storage.GetOwner(ctx)
 
@@ -115,13 +117,25 @@ func (s *Store) SaveResponse(ctx context.Context, resp *api.Response) error {
 	)
 
 	if err != nil {
+		observability.StorageOperationsTotal.WithLabelValues("postgres", "save", "error").Inc()
+		observability.StorageOperationDuration.WithLabelValues("postgres", "save").Observe(time.Since(start).Seconds())
+		s.recordConnectionsActive()
 		if isDuplicateKey(err) {
 			return storage.ErrConflict
 		}
 		return fmt.Errorf("inserting response: %w", err)
 	}
 
+	observability.StorageOperationsTotal.WithLabelValues("postgres", "save", "success").Inc()
+	observability.StorageOperationDuration.WithLabelValues("postgres", "save").Observe(time.Since(start).Seconds())
+	s.recordConnectionsActive()
 	return nil
+}
+
+// recordConnectionsActive updates the active connections gauge from the pool stats.
+func (s *Store) recordConnectionsActive() {
+	stat := s.pool.Stat()
+	observability.StorageConnectionsActive.Set(float64(stat.AcquiredConns()))
 }
 
 // GetResponse retrieves a response by ID, excluding soft-deleted responses.
@@ -137,6 +151,7 @@ func (s *Store) GetResponseForChain(ctx context.Context, id string) (*api.Respon
 
 // getResponse is the internal retrieval implementation.
 func (s *Store) getResponse(ctx context.Context, id string, excludeDeleted bool) (*api.Response, error) {
+	start := time.Now()
 	tenantID := storage.GetTenant(ctx)
 	owner := storage.GetOwner(ctx)
 	isAdminCaller := storage.GetAdmin(ctx)
@@ -183,11 +198,21 @@ func (s *Store) getResponse(ctx context.Context, id string, excludeDeleted bool)
 	)
 
 	if errors.Is(err, pgx.ErrNoRows) {
+		observability.StorageOperationsTotal.WithLabelValues("postgres", "get", "error").Inc()
+		observability.StorageOperationDuration.WithLabelValues("postgres", "get").Observe(time.Since(start).Seconds())
+		s.recordConnectionsActive()
 		return nil, storage.ErrNotFound
 	}
 	if err != nil {
+		observability.StorageOperationsTotal.WithLabelValues("postgres", "get", "error").Inc()
+		observability.StorageOperationDuration.WithLabelValues("postgres", "get").Observe(time.Since(start).Seconds())
+		s.recordConnectionsActive()
 		return nil, fmt.Errorf("querying response: %w", err)
 	}
+
+	observability.StorageOperationsTotal.WithLabelValues("postgres", "get", "success").Inc()
+	observability.StorageOperationDuration.WithLabelValues("postgres", "get").Observe(time.Since(start).Seconds())
+	s.recordConnectionsActive()
 
 	resp.Object = "response"
 	resp.Status = api.ResponseStatus(status)
@@ -224,6 +249,7 @@ func (s *Store) getResponse(ctx context.Context, id string, excludeDeleted bool)
 
 // DeleteResponse soft-deletes a response by setting deleted_at.
 func (s *Store) DeleteResponse(ctx context.Context, id string) error {
+	start := time.Now()
 	tenantID := storage.GetTenant(ctx)
 	owner := storage.GetOwner(ctx)
 	isAdminCaller := storage.GetAdmin(ctx)
@@ -245,13 +271,22 @@ func (s *Store) DeleteResponse(ctx context.Context, id string) error {
 
 	result, err := s.pool.Exec(ctx, query, args...)
 	if err != nil {
+		observability.StorageOperationsTotal.WithLabelValues("postgres", "delete", "error").Inc()
+		observability.StorageOperationDuration.WithLabelValues("postgres", "delete").Observe(time.Since(start).Seconds())
+		s.recordConnectionsActive()
 		return fmt.Errorf("deleting response: %w", err)
 	}
 
 	if result.RowsAffected() == 0 {
+		observability.StorageOperationsTotal.WithLabelValues("postgres", "delete", "error").Inc()
+		observability.StorageOperationDuration.WithLabelValues("postgres", "delete").Observe(time.Since(start).Seconds())
+		s.recordConnectionsActive()
 		return storage.ErrNotFound
 	}
 
+	observability.StorageOperationsTotal.WithLabelValues("postgres", "delete", "success").Inc()
+	observability.StorageOperationDuration.WithLabelValues("postgres", "delete").Observe(time.Since(start).Seconds())
+	s.recordConnectionsActive()
 	return nil
 }
 

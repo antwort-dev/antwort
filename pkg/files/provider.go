@@ -17,16 +17,16 @@ import (
 var (
 	filesUploadedTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "antwort_files_uploaded_total",
-			Help: "Total files uploaded",
+			Name: "antwort_files_uploads_by_mime_total",
+			Help: "Total files uploaded by MIME type",
 		},
 		[]string{"mime_type"},
 	)
 
 	filesIngestionDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    "antwort_files_ingestion_duration_seconds",
-			Help:    "File ingestion pipeline duration",
+			Name:    "antwort_files_ingestion_by_mime_duration_seconds",
+			Help:    "File ingestion pipeline duration by MIME type",
 			Buckets: []float64{0.1, 0.5, 1, 2, 5, 10, 30, 60, 120, 300},
 		},
 		[]string{"mime_type"},

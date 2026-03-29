@@ -7,9 +7,12 @@ import (
 	"sort"
 	"strings"
 
+	"time"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rhuss/antwort/pkg/agent"
 	"github.com/rhuss/antwort/pkg/api"
+	"github.com/rhuss/antwort/pkg/observability"
 	"github.com/rhuss/antwort/pkg/audit"
 	"github.com/rhuss/antwort/pkg/storage"
 	"github.com/rhuss/antwort/pkg/tools"
@@ -343,11 +346,16 @@ func (p *FileSearchProvider) Execute(ctx context.Context, call tools.ToolCall) (
 	// Search each store's collection and collect results.
 	var allMatches []SearchMatch
 	for _, vs := range stores {
+		searchStart := time.Now()
 		matches, err := p.backend.Search(ctx, vs.CollectionName, queryVector, p.maxResults)
+		searchDur := time.Since(searchStart).Seconds()
+		observability.VectorstoreSearchDuration.Observe(searchDur)
 		if err != nil {
+			observability.VectorstoreSearchesTotal.WithLabelValues(vs.ID, "error").Inc()
 			// Log but continue with other stores.
 			continue
 		}
+		observability.VectorstoreSearchesTotal.WithLabelValues(vs.ID, "success").Inc()
 		allMatches = append(allMatches, matches...)
 	}
 

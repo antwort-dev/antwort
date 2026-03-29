@@ -10,6 +10,40 @@ $ARGUMENTS
 
 You **MUST** consider the user input before proceeding (if not empty).
 
+## Pre-Execution Checks
+
+**Check for extension hooks (before implementation)**:
+- Check if `.specify/extensions.yml` exists in the project root.
+- If it exists, read it and look for entries under the `hooks.before_implement` key
+- If the YAML cannot be parsed or is invalid, skip hook checking silently and continue normally
+- Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.
+- For each remaining hook, do **not** attempt to interpret or evaluate hook `condition` expressions:
+  - If the hook has no `condition` field, or it is null/empty, treat the hook as executable
+  - If the hook defines a non-empty `condition`, skip the hook and leave condition evaluation to the HookExecutor implementation
+- For each executable hook, output the following based on its `optional` flag:
+  - **Optional hook** (`optional: true`):
+    ```
+    ## Extension Hooks
+
+    **Optional Pre-Hook**: {extension}
+    Command: `/{command}`
+    Description: {description}
+
+    Prompt: {prompt}
+    To execute: `/{command}`
+    ```
+  - **Mandatory hook** (`optional: false`):
+    ```
+    ## Extension Hooks
+
+    **Automatic Pre-Hook**: {extension}
+    Executing: `/{command}`
+    EXECUTE_COMMAND: {command}
+    
+    Wait for the result of the hook command before proceeding to the Outline.
+    ```
+- If no hooks are registered or `.specify/extensions.yml` does not exist, skip silently
+
 ## Outline
 
 1. Run `.specify/scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks` from repo root and parse FEATURE_DIR and AVAILABLE_DOCS list. All paths must be absolute. For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
@@ -85,7 +119,7 @@ You **MUST** consider the user input before proceeding (if not empty).
    - **Rust**: `target/`, `debug/`, `release/`, `*.rs.bk`, `*.rlib`, `*.prof*`, `.idea/`, `*.log`, `.env*`
    - **Kotlin**: `build/`, `out/`, `.gradle/`, `.idea/`, `*.class`, `*.jar`, `*.iml`, `*.log`, `.env*`
    - **C++**: `build/`, `bin/`, `obj/`, `out/`, `*.o`, `*.so`, `*.a`, `*.exe`, `*.dll`, `.idea/`, `*.log`, `.env*`
-   - **C**: `build/`, `bin/`, `obj/`, `out/`, `*.o`, `*.a`, `*.so`, `*.exe`, `Makefile`, `config.log`, `.idea/`, `*.log`, `.env*`
+   - **C**: `build/`, `bin/`, `obj/`, `out/`, `*.o`, `*.a`, `*.so`, `*.exe`, `*.dll`, `autom4te.cache/`, `config.status`, `config.log`, `.idea/`, `*.log`, `.env*`
    - **Swift**: `.build/`, `DerivedData/`, `*.swiftpm/`, `Packages/`
    - **R**: `.Rproj.user/`, `.Rhistory`, `.RData`, `.Ruserdata`, `*.Rproj`, `packrat/`, `renv/`
    - **Universal**: `.DS_Store`, `Thumbs.db`, `*.tmp`, `*.swp`, `.vscode/`, `.idea/`
@@ -134,6 +168,35 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 Note: This command assumes a complete task breakdown exists in tasks.md. If tasks are incomplete or missing, suggest running `/speckit.tasks` first to regenerate the task list.
 
+10. **Check for extension hooks**: After completion validation, check if `.specify/extensions.yml` exists in the project root.
+    - If it exists, read it and look for entries under the `hooks.after_implement` key
+    - If the YAML cannot be parsed or is invalid, skip hook checking silently and continue normally
+    - Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.
+    - For each remaining hook, do **not** attempt to interpret or evaluate hook `condition` expressions:
+      - If the hook has no `condition` field, or it is null/empty, treat the hook as executable
+      - If the hook defines a non-empty `condition`, skip the hook and leave condition evaluation to the HookExecutor implementation
+    - For each executable hook, output the following based on its `optional` flag:
+      - **Optional hook** (`optional: true`):
+        ```
+        ## Extension Hooks
+
+        **Optional Hook**: {extension}
+        Command: `/{command}`
+        Description: {description}
+
+        Prompt: {prompt}
+        To execute: `/{command}`
+        ```
+      - **Mandatory hook** (`optional: false`):
+        ```
+        ## Extension Hooks
+
+        **Automatic Hook**: {extension}
+        Executing: `/{command}`
+        EXECUTE_COMMAND: {command}
+        ```
+    - If no hooks are registered or `.specify/extensions.yml` does not exist, skip silently
+
 
 <!-- SDD-TRAIT:superpowers -->
 ## SDD Quality Gates for Implementation
@@ -147,36 +210,50 @@ Note: This command assumes a complete task breakdown exists in tasks.md. If task
 2. Invoke {Skill: sdd:verification-before-completion} for final verification
 
 
-<!-- SDD-TRAIT:beads -->
-## STOP: Beads Pre-flight Check (MANDATORY)
+<!-- SDD-TRAIT:teams -->
+## Agent Teams: MANDATORY for Multi-Task Implementation
 
-Before executing ANY task, you MUST verify beads issues are synced.
-Run this check FIRST, before any implementation work:
+**ENFORCEMENT**: This section is NON-NEGOTIABLE when implementing 2+ independent tasks.
+
+### Phase Marker (FIRST action)
+
+Before any implementation logic, set the phase marker so the teams enforcement hook
+is active for this session:
 
 ```bash
-ISSUE_COUNT=$(bd list --json 2>/dev/null | jq 'if type == "object" and .error then 0 else length end')
+echo "implement" > .specify/.sdd-phase
 ```
 
-- If `bd` is not installed: **STOP.** Report error. Do not fall back to non-beads execution.
-- If issue count is 0 but tasks.md has tasks: **STOP.** Run `"<sdd-beads-sync-command>" "$SPEC_DIR/tasks.md"` first to create beads issues, then re-check.
-- If issues exist: proceed to beads-execute.
+When implementation completes (success or failure), clean it up:
 
-## Beads Task Execution (MANDATORY)
+```bash
+rm -f .specify/.sdd-phase
+```
 
-Do NOT execute tasks using the standard implementation loop in this command.
-Instead, you MUST use {Skill: sdd:beads-execute} for ALL task execution.
+### Decision Gate (BEFORE any implementation)
 
-This skill handles:
-1. Dependency-aware scheduling via `bd ready --json`
-2. Marking tasks complete via `bd close <id> -r "reason"` (NOT by editing tasks.md)
-3. Git-backed state persistence via `bd sync` after each task
-4. Discovered work tracking via `bd create`
-5. Reverse sync at completion to update tasks.md
+When the implement skill is invoked with multiple tasks:
 
-**Rules:**
-- Do NOT update tasks.md checkboxes during implementation. Task state lives in bd.
-- Do NOT use `--comment` with `bd close` (it does not exist). Use `-r "reason"` instead.
-- Use `bd comments add <id> "text"` for detailed notes.
-- Always use `jq` to parse bd JSON output. NEVER use inline Python one-liners.
-- NEVER use `2>&1` when piping to jq (stderr corrupts JSON). Use `2>/dev/null`.
-- Always guard jq filters: `if type == "object" and .error then error(.error) else ... end`
+1. **CHECK**: Is `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` set?
+   - If not: Set it in `.claude/settings.local.json`, inform user restart needed, STOP.
+   - If yes: proceed.
+
+2. **DELEGATE**: Call `{Skill: sdd:teams-orchestrate}` for task graph analysis,
+   teammate spawning in worktrees, spec compliance review, and merge coordination.
+   Do NOT proceed with direct implementation.
+
+### When teams are NOT needed
+- Single sequential task with no parallelism opportunity
+- Pure verification/validation work (clippy, test runs)
+- Fixing a single compile error or merge conflict
+
+### Anti-patterns (NEVER do these)
+- Using `Agent` tool with `run_in_background` instead of Agent Teams
+- Implementing tasks directly when 2+ independent tasks exist
+- Skipping the pre-flight check
+
+
+<!-- SDD-TRAIT:worktrees -->
+## Worktree Context
+
+You are likely running in a worktree created by the `worktrees` trait. The spec and plan files in this worktree contain all context needed for implementation. No separate handoff file is needed.
