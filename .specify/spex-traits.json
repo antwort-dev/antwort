@@ -3,7 +3,8 @@
   "traits": {
     "superpowers": true,
     "teams": true,
-    "worktrees": true
+    "worktrees": true,
+    "deep-review": true
   },
   "worktrees_config": {
     "base_path": ".."

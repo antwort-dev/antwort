@@ -22,6 +22,7 @@ func TestMetricsRegistered(t *testing.T) {
 	}
 
 	expected := map[string]bool{
+		// Spec 013 metrics.
 		"antwort_requests_total":                     false,
 		"antwort_request_duration_seconds":           false,
 		"antwort_streaming_connections_active":        false,
@@ -34,6 +35,34 @@ func TestMetricsRegistered(t *testing.T) {
 		"gen_ai_client_operation_duration_seconds":    false,
 		"gen_ai_server_time_to_first_token_seconds":   false,
 		"gen_ai_server_time_per_output_token_seconds": false,
+		// Spec 046: Responses Layer.
+		"antwort_responses_total":           false,
+		"antwort_responses_duration_seconds": false,
+		"antwort_responses_active":          false,
+		"antwort_responses_chained_total":   false,
+		"antwort_responses_tokens_total":    false,
+		// Spec 046: Engine Layer.
+		"antwort_engine_iterations_total":            false,
+		"antwort_engine_iteration_duration_seconds":  false,
+		"antwort_engine_max_iterations_hit_total":    false,
+		"antwort_engine_tool_duration_seconds":       false,
+		"antwort_engine_conversation_depth":          false,
+		// Spec 046: Storage Layer.
+		"antwort_storage_operations_total":            false,
+		"antwort_storage_operation_duration_seconds":  false,
+		"antwort_storage_responses_stored":            false,
+		"antwort_storage_connections_active":           false,
+		// Spec 046: Files/Vector Store Layer.
+		"antwort_files_uploaded_total":                false,
+		"antwort_files_ingestion_duration_seconds":    false,
+		"antwort_vectorstore_searches_total":          false,
+		"antwort_vectorstore_search_duration_seconds": false,
+		"antwort_vectorstore_items_stored":            false,
+		// Spec 046: Background Worker Layer.
+		"antwort_background_queued":                        false,
+		"antwort_background_claimed_total":                 false,
+		"antwort_background_stale_total":                   false,
+		"antwort_background_worker_heartbeat_age_seconds":  false,
 	}
 
 	for _, mf := range families {
@@ -57,6 +86,31 @@ func TestMetricsRegistered(t *testing.T) {
 	RecordGenAIMetrics("vllm", "test-model", 1*time.Second, 100, 50, nil)
 	ttft := 200 * time.Millisecond
 	RecordGenAIMetrics("vllm", "test-model", 2*time.Second, 200, 100, &ttft)
+
+	// Seed spec 046 metrics.
+	ResponsesTotal.WithLabelValues("test", "completed", "sync").Inc()
+	ResponsesDuration.WithLabelValues("test", "sync").Observe(1.0)
+	ResponsesActive.WithLabelValues("sync").Inc()
+	ResponsesChainedTotal.WithLabelValues("test").Inc()
+	ResponsesTokensTotal.WithLabelValues("test", "input").Add(10)
+	EngineIterationsTotal.WithLabelValues("test").Inc()
+	EngineIterationDuration.WithLabelValues("test").Observe(1.0)
+	EngineMaxIterationsHit.WithLabelValues("test").Inc()
+	EngineToolDuration.WithLabelValues("test_tool").Observe(0.5)
+	EngineConversationDepth.WithLabelValues("test").Observe(3)
+	StorageOperationsTotal.WithLabelValues("memory", "get", "success").Inc()
+	StorageOperationDuration.WithLabelValues("memory", "get").Observe(0.001)
+	StorageResponsesStored.WithLabelValues("memory").Set(1)
+	StorageConnectionsActive.Set(0)
+	FilesUploadedTotal.WithLabelValues("text/plain").Inc()
+	FilesIngestionDuration.Observe(2.0)
+	VectorstoreSearchesTotal.WithLabelValues("vs_1", "success").Inc()
+	VectorstoreSearchDuration.Observe(0.1)
+	VectorstoreItemsStored.WithLabelValues("vs_1").Set(100)
+	BackgroundQueued.Set(0)
+	BackgroundClaimedTotal.WithLabelValues("worker-1").Inc()
+	BackgroundStaleTotal.Inc()
+	BackgroundWorkerHeartbeatAge.WithLabelValues("worker-1").Set(5.0)
 
 	families, err = prometheus.DefaultGatherer.Gather()
 	if err != nil {

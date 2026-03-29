@@ -14,6 +14,7 @@ import (
 
 	"github.com/rhuss/antwort/pkg/api"
 	"github.com/rhuss/antwort/pkg/audit"
+	"github.com/rhuss/antwort/pkg/observability"
 	"github.com/rhuss/antwort/pkg/storage"
 	"github.com/rhuss/antwort/pkg/transport"
 )
@@ -100,10 +101,13 @@ func New(maxSize int) *Store {
 
 // SaveResponse persists a response in memory.
 func (s *Store) SaveResponse(ctx context.Context, resp *api.Response) error {
+	start := time.Now()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if _, exists := s.entries[resp.ID]; exists {
+		observability.StorageOperationsTotal.WithLabelValues("memory", "save", "error").Inc()
+		observability.StorageOperationDuration.WithLabelValues("memory", "save").Observe(time.Since(start).Seconds())
 		return storage.ErrConflict
 	}
 
@@ -123,6 +127,9 @@ func (s *Store) SaveResponse(ctx context.Context, resp *api.Response) error {
 		lruElem:  elem,
 	}
 
+	observability.StorageOperationsTotal.WithLabelValues("memory", "save", "success").Inc()
+	observability.StorageOperationDuration.WithLabelValues("memory", "save").Observe(time.Since(start).Seconds())
+	observability.StorageResponsesStored.WithLabelValues("memory").Set(float64(len(s.entries)))
 	return nil
 }
 
@@ -130,25 +137,34 @@ func (s *Store) SaveResponse(ctx context.Context, resp *api.Response) error {
 // response does not exist or has been soft-deleted. Scoped by tenant
 // when a tenant is present in the context.
 func (s *Store) GetResponse(ctx context.Context, id string) (*api.Response, error) {
+	start := time.Now()
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	e, ok := s.entries[id]
 	if !ok || e.deletedAt != nil {
+		observability.StorageOperationsTotal.WithLabelValues("memory", "get", "error").Inc()
+		observability.StorageOperationDuration.WithLabelValues("memory", "get").Observe(time.Since(start).Seconds())
 		return nil, storage.ErrNotFound
 	}
 
 	// Tenant scoping.
 	tenantID := storage.GetTenant(ctx)
 	if tenantID != "" && e.tenantID != tenantID {
+		observability.StorageOperationsTotal.WithLabelValues("memory", "get", "error").Inc()
+		observability.StorageOperationDuration.WithLabelValues("memory", "get").Observe(time.Since(start).Seconds())
 		return nil, storage.ErrNotFound
 	}
 
 	// Owner scoping.
 	if !ownerAllowed(ctx, e.owner, "response", id, "GetResponse", false, s.auditLogger) {
+		observability.StorageOperationsTotal.WithLabelValues("memory", "get", "error").Inc()
+		observability.StorageOperationDuration.WithLabelValues("memory", "get").Observe(time.Since(start).Seconds())
 		return nil, storage.ErrNotFound
 	}
 
+	observability.StorageOperationsTotal.WithLabelValues("memory", "get", "success").Inc()
+	observability.StorageOperationDuration.WithLabelValues("memory", "get").Observe(time.Since(start).Seconds())
 	return e.resp, nil
 }
 
@@ -180,27 +196,36 @@ func (s *Store) GetResponseForChain(ctx context.Context, id string) (*api.Respon
 // DeleteResponse soft-deletes a response. The response data remains
 // available for chain reconstruction via GetResponseForChain.
 func (s *Store) DeleteResponse(ctx context.Context, id string) error {
+	start := time.Now()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	e, ok := s.entries[id]
 	if !ok {
+		observability.StorageOperationsTotal.WithLabelValues("memory", "delete", "error").Inc()
+		observability.StorageOperationDuration.WithLabelValues("memory", "delete").Observe(time.Since(start).Seconds())
 		return storage.ErrNotFound
 	}
 
 	// Tenant scoping.
 	tenantID := storage.GetTenant(ctx)
 	if tenantID != "" && e.tenantID != tenantID {
+		observability.StorageOperationsTotal.WithLabelValues("memory", "delete", "error").Inc()
+		observability.StorageOperationDuration.WithLabelValues("memory", "delete").Observe(time.Since(start).Seconds())
 		return storage.ErrNotFound
 	}
 
 	// Owner scoping.
 	if !ownerAllowed(ctx, e.owner, "response", id, "DeleteResponse", false, s.auditLogger) {
+		observability.StorageOperationsTotal.WithLabelValues("memory", "delete", "error").Inc()
+		observability.StorageOperationDuration.WithLabelValues("memory", "delete").Observe(time.Since(start).Seconds())
 		return storage.ErrNotFound
 	}
 
 	now := time.Now()
 	e.deletedAt = &now
+	observability.StorageOperationsTotal.WithLabelValues("memory", "delete", "success").Inc()
+	observability.StorageOperationDuration.WithLabelValues("memory", "delete").Observe(time.Since(start).Seconds())
 	return nil
 }
 
@@ -252,6 +277,11 @@ func (s *Store) Close() error {
 // ListResponses returns a paginated list of stored responses filtered by
 // tenant and optionally by model, with cursor-based pagination.
 func (s *Store) ListResponses(ctx context.Context, opts transport.ListOptions) (*transport.ResponseList, error) {
+	start := time.Now()
+	defer func() {
+		observability.StorageOperationsTotal.WithLabelValues("memory", "list", "success").Inc()
+		observability.StorageOperationDuration.WithLabelValues("memory", "list").Observe(time.Since(start).Seconds())
+	}()
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 

@@ -49,8 +49,24 @@ func New(p provider.Provider, store transport.ResponseStore, cfg Config) (*Engin
 	}, nil
 }
 
+// responseMode returns the response delivery mode for metrics labeling.
+func responseMode(req *api.CreateResponseRequest) string {
+	if req.Background {
+		return "background"
+	}
+	if req.Stream {
+		return "streaming"
+	}
+	return "sync"
+}
+
 // CreateResponse handles a non-streaming or streaming response creation request.
 func (e *Engine) CreateResponse(ctx context.Context, req *api.CreateResponseRequest, w transport.ResponseWriter) error {
+	// Record response metrics (spec 046).
+	mode := responseMode(req)
+	observability.ResponsesActive.WithLabelValues(mode).Inc()
+	defer observability.ResponsesActive.WithLabelValues(mode).Dec()
+
 	// Resolve agent profile or prompt parameter (Spec 038).
 	profileVectorStoreIDs, err := e.resolveProfile(req)
 	if err != nil {
@@ -97,6 +113,11 @@ func (e *Engine) CreateResponse(ctx context.Context, req *api.CreateResponseRequ
 
 	// Collect built-in tool definitions for the provider to expand stubs.
 	provReq.BuiltinToolDefs = e.collectBuiltinToolDefs()
+
+	// Record chained response metric (spec 046).
+	if req.PreviousResponseID != "" {
+		observability.ResponsesChainedTotal.WithLabelValues(req.Model).Inc()
+	}
 
 	// If previous_response_id is set, reconstruct conversation history.
 	if req.PreviousResponseID != "" {
@@ -186,6 +207,10 @@ func (e *Engine) handleBackground(ctx context.Context, req *api.CreateResponseRe
 
 	e.auditLogger.Log(ctx, "background.queued", "response_id", resp.ID)
 
+	// Record response metrics (spec 046).
+	observability.ResponsesTotal.WithLabelValues(req.Model, string(api.ResponseStatusQueued), "background").Inc()
+	observability.BackgroundQueued.Inc()
+
 	// Return the queued response to the client immediately.
 	return w.WriteResponse(ctx, resp)
 }
@@ -198,6 +223,7 @@ type BackgroundRequestSaver interface {
 
 // handleNonStreaming processes a non-streaming request.
 func (e *Engine) handleNonStreaming(ctx context.Context, req *api.CreateResponseRequest, provReq *provider.ProviderRequest, w transport.ResponseWriter) error {
+	responseStart := time.Now()
 	startTime := time.Now()
 	provResp, err := e.provider.Complete(ctx, provReq)
 	duration := time.Since(startTime)
@@ -246,6 +272,14 @@ func (e *Engine) handleNonStreaming(ctx context.Context, req *api.CreateResponse
 		return err
 	}
 
+	// Record response metrics (spec 046).
+	observability.ResponsesTotal.WithLabelValues(req.Model, string(resp.Status), "sync").Inc()
+	observability.ResponsesDuration.WithLabelValues(req.Model, "sync").Observe(time.Since(responseStart).Seconds())
+	if resp.Usage != nil {
+		observability.ResponsesTokensTotal.WithLabelValues(req.Model, "input").Add(float64(resp.Usage.InputTokens))
+		observability.ResponsesTokensTotal.WithLabelValues(req.Model, "output").Add(float64(resp.Usage.OutputTokens))
+	}
+
 	// Save the response to the store (after client write).
 	e.saveIfStateful(ctx, req, resp)
 
@@ -258,6 +292,7 @@ func (e *Engine) handleNonStreaming(ctx context.Context, req *api.CreateResponse
 // content_part.done, output_item.done, and response.completed/failed/cancelled.
 func (e *Engine) handleStreaming(ctx context.Context, req *api.CreateResponseRequest, provReq *provider.ProviderRequest, w transport.ResponseWriter) error {
 	// Start the provider stream.
+	responseStart := time.Now()
 	streamStart := time.Now()
 	eventCh, err := e.provider.Stream(ctx, provReq)
 	if err != nil {
@@ -366,6 +401,14 @@ func (e *Engine) handleStreaming(ctx context.Context, req *api.CreateResponseReq
 				observability.RecordGenAIMetrics(provName, req.Model, duration, 0, 0, firstTokenTime)
 			}
 
+			// Record response metrics (spec 046).
+			observability.ResponsesTotal.WithLabelValues(req.Model, string(finalStatus), "streaming").Inc()
+			observability.ResponsesDuration.WithLabelValues(req.Model, "streaming").Observe(time.Since(responseStart).Seconds())
+			if ev.Usage != nil {
+				observability.ResponsesTokensTotal.WithLabelValues(req.Model, "input").Add(float64(ev.Usage.InputTokens))
+				observability.ResponsesTokensTotal.WithLabelValues(req.Model, "output").Add(float64(ev.Usage.OutputTokens))
+			}
+
 			// Strip usage from the response event if the client didn't opt in.
 			if !shouldIncludeStreamUsage(req) {
 				resp.Usage = nil
@@ -404,8 +447,12 @@ func (e *Engine) handleStreaming(ctx context.Context, req *api.CreateResponseReq
 		resp.Usage = nil
 	}
 
+	// Record response metrics for unexpected closure (spec 046).
+	observability.ResponsesTotal.WithLabelValues(req.Model, string(api.ResponseStatusIncomplete), "streaming").Inc()
+	observability.ResponsesDuration.WithLabelValues(req.Model, "streaming").Observe(time.Since(responseStart).Seconds())
+
 	// Unexpected channel closure without done event.
-	return e.emitStreamComplete(ctx, resp, &outputItem, accumulatedText, api.ResponseStatusCompleted, itemAdded, toolCallItems, state, w)
+	return e.emitStreamComplete(ctx, resp, &outputItem, accumulatedText, api.ResponseStatusIncomplete, itemAdded, toolCallItems, state, w)
 }
 
 // emitItemLifecycleStart emits the output_item.added and content_part.added events.

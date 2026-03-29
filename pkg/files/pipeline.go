@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/rhuss/antwort/pkg/api"
+	"github.com/rhuss/antwort/pkg/observability"
 )
 
 // IngestionPipeline orchestrates the extract, chunk, embed, index workflow.
@@ -79,12 +80,16 @@ func (p *IngestionPipeline) Ingest(file *File, vectorStoreID string) {
 			p.logger.Error("ingestion failed", "file_id", file.ID, "error", err)
 			_ = p.updateStatus(ctx, file.ID, vectorStoreID, FileStatusFailed, 0, err.Error())
 			filesIngestionStatus.WithLabelValues("failed").Inc()
-			filesIngestionDuration.WithLabelValues(file.MIMEType).Observe(time.Since(start).Seconds())
+			dur := time.Since(start).Seconds()
+			filesIngestionDuration.WithLabelValues(file.MIMEType).Observe(dur)
+			observability.FilesIngestionDuration.Observe(dur)
 			return
 		}
 
 		filesIngestionStatus.WithLabelValues("completed").Inc()
-		filesIngestionDuration.WithLabelValues(file.MIMEType).Observe(time.Since(start).Seconds())
+		dur := time.Since(start).Seconds()
+		filesIngestionDuration.WithLabelValues(file.MIMEType).Observe(dur)
+		observability.FilesIngestionDuration.Observe(dur)
 		p.logger.Info("ingestion completed", "file_id", file.ID, "vector_store_id", vectorStoreID)
 	}()
 }
@@ -160,6 +165,9 @@ func (p *IngestionPipeline) ingest(ctx context.Context, file *File, vectorStoreI
 	if err := p.indexer.UpsertPoints(ctx, collectionName, points); err != nil {
 		return fmt.Errorf("indexing vectors: %w", err)
 	}
+
+	// Record vector store items metric (spec 046).
+	observability.VectorstoreItemsStored.WithLabelValues(vectorStoreID).Add(float64(len(points)))
 
 	// Stage 7: Mark completed.
 	return p.updateStatus(ctx, file.ID, vectorStoreID, FileStatusCompleted, len(chunks), "")
