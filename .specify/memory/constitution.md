@@ -1,23 +1,13 @@
 <!--
 Sync Impact Report
-  Version change: 0.0.0 (template) → 1.0.0
+  Version change: 1.0.0 → 1.1.0 (MINOR: new principle added)
+  Modified principles:
+    All principles renumbered (II-IX) to make room for new Principle I
   Added principles:
-    I. Go Standard Library Core
-    II. Interface-First Architecture
-    III. Kubernetes-Native Deployment
-    IV. Specification-Driven Development
-    V. Comprehensive Testing (NON-NEGOTIABLE)
-    VI. Documentation Completeness (NON-NEGOTIABLE)
-    VII. Observability by Default
-    VIII. Security at Every Layer
-  Added sections:
-    Core Principles (8 principles)
-    Architecture Constraints
-    Development Workflow
-    Governance
+    I. Enterprise Production First (NEW)
   Templates requiring updates:
     ✅ constitution.md (this file)
-    ⚠ plan-template.md - Constitution Check section references generic placeholders
+    ⚠ plan-template.md - no changes needed (generic Constitution Check)
     ⚠ spec-template.md - no changes needed (generic)
     ⚠ tasks-template.md - no changes needed (generic)
   Follow-up TODOs: none
@@ -27,7 +17,35 @@ Sync Impact Report
 
 ## Core Principles
 
-### I. Go Standard Library Core
+### I. Enterprise Production First
+
+Enterprise non-functional requirements are first-class design concerns,
+not afterthoughts bolted on after the happy path works. Every feature
+spec MUST address applicable production concerns from the start:
+
+- **Multi-user isolation**: Per-user resource ownership and access control
+- **Multi-tenancy**: Per-group isolation within a shared instance
+- **Scalability**: Horizontal scaling via Kubernetes HPA, stateless
+  gateway mode, connection pooling
+- **High availability**: Graceful shutdown, in-flight request draining,
+  health checks, no single points of failure in the request path
+- **Resilience**: Error propagation without cascading failures, bounded
+  retries, timeout enforcement, stale detection for background workers
+- **Security**: Authentication, authorization, audit logging, input
+  validation at boundaries (see Principle IX for details)
+- **Observability**: Metrics, structured logging, debug categories
+  (see Principle VIII for details)
+
+A spec that delivers functionality without addressing these concerns is
+incomplete. The Constitution Check in every plan MUST verify that
+applicable enterprise concerns are designed in, not deferred.
+
+Rationale: Retrofitting multi-tenancy, security, or scalability into
+existing code is orders of magnitude harder than designing for it.
+Antwort serves production agentic workloads where these properties are
+table stakes, not nice-to-haves.
+
+### II. Go Standard Library Core
 
 Core packages (`pkg/`) MUST depend only on the Go standard library.
 External dependencies are permitted only in adapter packages that bridge
@@ -42,7 +60,7 @@ Boundary rule: If a new package under `pkg/` needs an external import,
 it MUST be an adapter package (named after the technology it adapts) or
 the dependency MUST be justified in the spec's Constitution Check.
 
-### II. Interface-First Architecture
+### III. Interface-First Architecture
 
 Every major subsystem MUST be defined as a Go interface with at least
 one implementation. New features extend existing interfaces or introduce
@@ -59,7 +77,7 @@ Key interfaces:
 Rationale: Interface boundaries enable independent testing, pluggable
 implementations, and clear package responsibilities.
 
-### III. Kubernetes-Native Deployment
+### IV. Kubernetes-Native Deployment
 
 Antwort targets Kubernetes exclusively. All deployment patterns MUST
 work with Kustomize overlays, support HPA scaling, and integrate with
@@ -74,7 +92,7 @@ Deployment modes:
 Rationale: Kubernetes provides the scaling, scheduling, and service
 discovery that Antwort deliberately does not implement.
 
-### IV. Specification-Driven Development
+### V. Specification-Driven Development
 
 Every feature MUST start as a formal specification before code is
 written. The SDD workflow is: brainstorm, specify, plan, tasks, review,
@@ -86,7 +104,7 @@ Generated artifacts: `research.md`, `data-model.md`, `REVIEWERS.md`.
 Rationale: Specifications capture decisions, enable review before
 implementation, and provide traceability from requirements to code.
 
-### V. Comprehensive Testing (NON-NEGOTIABLE)
+### VI. Comprehensive Testing (NON-NEGOTIABLE)
 
 Every feature MUST include tests at all levels:
 
@@ -103,7 +121,7 @@ Rationale: The agentic loop, tool execution, and streaming make manual
 testing insufficient. Automated tests at every level catch regressions
 that unit tests alone miss.
 
-### VI. Documentation Completeness (NON-NEGOTIABLE)
+### VII. Documentation Completeness (NON-NEGOTIABLE)
 
 Every feature PR MUST include documentation updates:
 
@@ -124,7 +142,7 @@ A feature is not complete until its documentation is merged.
 Rationale: Undocumented features do not exist for users. Documentation
 drift erodes trust and increases support burden.
 
-### VII. Observability by Default
+### VIII. Observability by Default
 
 Every subsystem MUST expose Prometheus metrics. Metrics are always
 registered at startup (no feature flags). The `pkg/observability/`
@@ -142,7 +160,7 @@ Requirements:
 Rationale: Production visibility is not optional. Operators need metrics
 and logs to diagnose issues without access to source code.
 
-### VIII. Security at Every Layer
+### IX. Security at Every Layer
 
 Authentication and authorization MUST be enforced at system boundaries.
 The three-level isolation model applies to all resources:
@@ -202,4 +220,4 @@ Feature branches: `NNN-feature-name` (matching spec directory)
 - The implemented specs list in README.md is the canonical record of
   what Antwort supports.
 
-**Version**: 1.0.0 | **Ratified**: 2026-03-29 | **Last Amended**: 2026-03-29
+**Version**: 1.1.0 | **Ratified**: 2026-03-29 | **Last Amended**: 2026-03-29
