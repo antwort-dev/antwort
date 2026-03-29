@@ -2,12 +2,14 @@
   "version": 1,
   "traits": {
     "superpowers": true,
+    "deep-review": true,
     "teams": true,
-    "worktrees": true,
-    "deep-review": true
+    "worktrees": false
   },
-  "worktrees_config": {
-    "base_path": ".."
+  "external_tools": {
+    "enabled": true,
+    "coderabbit": true,
+    "copilot": true
   },
-  "applied_at": "2026-03-28T12:55:09Z"
+  "applied_at": "2026-03-29T14:14:51Z"
 }

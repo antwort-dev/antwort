@@ -11,6 +11,8 @@
       "Bash(bd *)",
       "Bash(*/scripts/sdd-init.sh*)",
       "Bash(*/scripts/sdd-traits.sh*)",
+      "Bash(*/scripts/spex-init.sh*)",
+      "Bash(*/scripts/spex-traits.sh*)",
       "Bash(specify *)",
       "Bash",
       "Read",
