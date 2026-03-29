@@ -5,3 +5,4 @@
 * xref:configuration.adoc[Configuration Guide]
 * xref:config-reference.adoc[Configuration Reference]
 * xref:environment-variables.adoc[Environment Variables]
+* xref:metrics.adoc[Prometheus Metrics]
