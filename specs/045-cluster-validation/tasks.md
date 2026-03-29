@@ -34,7 +34,7 @@
 
 - [x] T005 Create `test/cluster/bfcl_loader.go`: implement `LoadBFCLCases(dir string, category string) ([]BFCLCase, error)` that reads JSONL files from `test/cluster/testdata/bfcl/`, parses question/function/ground_truth fields. Implement `convertGorillaTool(fn json.RawMessage) api.Tool` that maps Gorilla types to OpenAPI (`dict->object`, `float->number`, `tuple->array`, `any->string`) and replaces dots with underscores in function names.
 - [x] T006 [P] Create `test/cluster/bfcl_scorer.go`: implement AST evaluation with `ScoreBFCL(expected []FunctionCall, got []ParsedCall) bool`. Include `simpleChecker` (1 call, name match, required params, value in acceptable list), `parallelChecker` (order-independent matching), `multipleChecker` (1 call from multiple options), `irrelevanceChecker` (no calls expected). Implement `standardizeString(s string) string` for case-insensitive comparison with punctuation stripping.
-- [ ] T007 Create `test/cluster/testdata/bfcl/` with the fixed 180-case subset: download BFCL v4 data from `github.com/ShishirPatil/gorilla` repository, extract first 50 `simple_python`, 50 `multiple`, 30 `parallel`, 20 `parallel_multiple`, 30 `irrelevance` cases. Convert from Gorilla format to OpenAPI format. Store as JSONL files with matching ground truth in `answers/` subdirectory.
+- [x] T007 Create `test/cluster/testdata/bfcl/` with the fixed 180-case subset: download BFCL v4 data from `github.com/ShishirPatil/gorilla` repository, extract first 50 `simple_python`, 50 `multiple`, 30 `parallel`, 20 `parallel_multiple`, 30 `irrelevance` cases. Convert from Gorilla format to OpenAPI format. Store as JSONL files with matching ground truth in `answers/` subdirectory.
 
 **Checkpoint**: BFCL loader parses test data, scorer evaluates function calls correctly.
 
@@ -161,8 +161,8 @@
 **Purpose**: Documentation, CI integration hints, and final cleanup
 
 - [x] T027 [P] Create `docs/modules/operations/pages/validation.adoc` documenting the validation harness: purpose, how to run, environment variables, BFCL methodology, interpreting results. Update `docs/modules/operations/nav.adoc` to include the new page.
-- [ ] T028 [P] Update `README.md` spec table to include spec 045. Add a "Validation" section under Platform Vision describing the real-cluster validation capability.
-- [ ] T029 Verify full validation pipeline by running `test/cluster/run.sh` against a live cluster (manual verification, not automated). Confirm: tests run, results JSON is written, markdown report is generated, `latest.md` symlink works.
+- [x] T028 [P] Update `README.md` spec table to include spec 045. Add a "Validation" section under Platform Vision describing the real-cluster validation capability.
+- [x] T029 Verify full validation pipeline by running `test/cluster/run.sh` against a live cluster (manual verification, not automated). Confirm: tests run, results JSON is written, markdown report is generated, `latest.md` symlink works.
 
 ---
 
@@ -233,15 +233,3 @@
 - BFCL test data is committed as a fixed subset for reproducibility
 - 35 total tasks across 10 phases
 
-## Beads Task Management
-
-This project uses beads (`bd`) for persistent task tracking across sessions:
-- Run `/sdd:beads-task-sync` to create bd issues from this file
-- `bd ready --json` returns unblocked tasks (dependencies resolved)
-- `bd close <id>` marks a task complete (use `-r "reason"` for close reason, NOT `--comment`)
-- `bd comments add <id> "text"` adds a detailed comment to an issue
-- `bd sync` persists state to git
-- `bd create "DISCOVERED: [short title]" --labels discovered` tracks new work
-  - Keep titles crisp (under 80 chars); add details via `bd comments add <id> "details"`
-- Run `/sdd:beads-task-sync --reverse` to update checkboxes from bd state
-- **Always use `jq` to parse bd JSON output, NEVER inline Python one-liners**
