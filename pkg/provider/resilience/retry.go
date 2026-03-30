@@ -3,7 +3,7 @@ package resilience
 import (
 	"context"
 	"math"
-	"math/rand"
+	"math/rand/v2"
 	"time"
 )
 
@@ -23,7 +23,7 @@ func computeBackoff(attempt int, base, max time.Duration) time.Duration {
 
 	// Add jitter in [0, base).
 	if base > 0 {
-		jitter := time.Duration(rand.Int63n(int64(base)))
+		jitter := time.Duration(rand.N(int64(base)))
 		wait += jitter
 	}
 

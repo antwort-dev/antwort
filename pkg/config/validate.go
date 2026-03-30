@@ -70,6 +70,9 @@ func (c *Config) Validate() error {
 		if c.Resilience.RetryAfterMax <= 0 {
 			errs = append(errs, fmt.Errorf("resilience.retry_after_max must be > 0"))
 		}
+		if c.Resilience.BackoffMax > 0 && c.Resilience.BackoffBase > 0 && c.Resilience.BackoffMax < c.Resilience.BackoffBase {
+			errs = append(errs, fmt.Errorf("resilience.backoff_max must be >= resilience.backoff_base (got backoff_max=%v, backoff_base=%v)", c.Resilience.BackoffMax, c.Resilience.BackoffBase))
+		}
 	}
 
 	// engine.provider must be a known value if set.

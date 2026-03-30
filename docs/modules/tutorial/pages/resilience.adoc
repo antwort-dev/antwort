@@ -102,6 +102,10 @@ When resilience is enabled, Antwort exposes Prometheus metrics on the `/metrics`
 | `antwort_resilience_retry_exhausted_total`
 | counter
 | Requests where all retry attempts failed. Label: `provider`.
+
+| `antwort_resilience_consecutive_failures`
+| gauge
+| Current consecutive failure count since last success. Label: `provider`.
 |===
 
 For detailed retry logging, enable the `providers` debug category:

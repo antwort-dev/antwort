@@ -97,7 +97,7 @@ docs/
 
 ### ResilientProvider (Decorator)
 
-```
+```text
 ResilientProvider implements provider.Provider
   ├── inner provider.Provider    (the wrapped provider)
   ├── cb    *CircuitBreaker      (per-instance state machine)
@@ -113,7 +113,7 @@ ResilientProvider implements provider.Provider
 
 ### Complete() Flow
 
-```
+```text
 Complete(ctx, req):
   for attempt = 1..maxAttempts:
     if !cb.Allow():
@@ -141,7 +141,7 @@ Complete(ctx, req):
 
 ### Stream() Flow
 
-```
+```text
 Stream(ctx, req):
   for attempt = 1..maxAttempts:
     if !cb.Allow():
@@ -157,7 +157,7 @@ Stream(ctx, req):
 ### Configuration Wiring
 
 In `cmd/server/main.go`:
-```
+```go
 prov, err := createProvider(cfg)
 if cfg.Resilience.Enabled {
     prov = resilience.Wrap(prov, cfg.Resilience)

@@ -122,7 +122,7 @@ SMG does per-tenant rate limiting because it manages multi-tenant access to shar
 - Configurable retry with exponential backoff for non-streaming requests
 - Metrics: circuit breaker state, failure count, retry count
 - Debug logging integration (spec 026 categories: `providers`)
-- Configuration via `providers.<name>.resilience` config block
+- Configuration via global `resilience:` config block (per-provider config deferred to multi-provider support)
 
 ### Phase 2: Health Probing (future, if needed)
 - Background health check goroutine when circuit breaker is open

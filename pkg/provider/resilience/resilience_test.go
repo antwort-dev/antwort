@@ -214,8 +214,10 @@ func TestComplete_CircuitBreakerRecovery(t *testing.T) {
 	// Trip the circuit.
 	_, _ = rp.Complete(context.Background(), &provider.ProviderRequest{})
 
-	// Wait for reset timeout.
-	time.Sleep(60 * time.Millisecond)
+	// Wait for reset timeout to elapse. The circuit transitions to half-open
+	// when Allow() is called, so we just wait long enough for the timeout
+	// without consuming the probe slot.
+	time.Sleep(80 * time.Millisecond)
 
 	// Probe request should succeed and close circuit.
 	resp, err := rp.Complete(context.Background(), &provider.ProviderRequest{})
@@ -403,14 +405,12 @@ func TestDelegation(t *testing.T) {
 		t.Errorf("Name() = %q, want %q", rp.Name(), "test-provider")
 	}
 
-	caps := rp.Capabilities()
-	_ = caps // just verify no panic
+	_ = rp.Capabilities() // verify no panic
 
-	models, err := rp.ListModels(context.Background())
+	_, err := rp.ListModels(context.Background())
 	if err != nil {
 		t.Fatalf("ListModels() error = %v", err)
 	}
-	_ = models
 
 	err = rp.Close()
 	if err != nil {

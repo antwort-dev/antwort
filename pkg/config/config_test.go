@@ -656,6 +656,34 @@ func TestResilienceValidation(t *testing.T) {
 			},
 			wantErr: "resilience.backoff_base must be > 0",
 		},
+		{
+			name: "invalid backoff_max",
+			modify: func(c *Config) {
+				c.Engine.BackendURL = "http://localhost:8000"
+				c.Resilience.Enabled = true
+				c.Resilience.BackoffMax = 0
+			},
+			wantErr: "resilience.backoff_max must be > 0",
+		},
+		{
+			name: "invalid retry_after_max",
+			modify: func(c *Config) {
+				c.Engine.BackendURL = "http://localhost:8000"
+				c.Resilience.Enabled = true
+				c.Resilience.RetryAfterMax = 0
+			},
+			wantErr: "resilience.retry_after_max must be > 0",
+		},
+		{
+			name: "backoff_max less than backoff_base",
+			modify: func(c *Config) {
+				c.Engine.BackendURL = "http://localhost:8000"
+				c.Resilience.Enabled = true
+				c.Resilience.BackoffBase = 500 * time.Millisecond
+				c.Resilience.BackoffMax = 100 * time.Millisecond
+			},
+			wantErr: "resilience.backoff_max must be >= resilience.backoff_base",
+		},
 	}
 
 	for _, tt := range tests {

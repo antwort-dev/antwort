@@ -16,7 +16,7 @@ Tracks backend health state per provider instance. Uses atomic operations for lo
 
 **State Transitions**:
 
-```
+```text
 closed --[consecutiveFailures >= threshold]--> open
 open   --[resetTimeout elapsed]--------------> half-open
 half-open --[probe succeeds]-----------------> closed
@@ -92,7 +92,7 @@ Not a persisted entity. A function that maps errors to retry decisions.
 
 ## Relationships
 
-```
+```text
 ResilienceConfig --[constructs]--> CircuitBreaker
 ResilienceConfig --[constructs]--> RetryPolicy
 ResilientProvider --[wraps]--> provider.Provider

@@ -10,6 +10,13 @@ import (
 	"github.com/rhuss/antwort/pkg/api"
 )
 
+// timeoutError implements net.Error with Timeout() == true.
+type timeoutError struct{}
+
+func (e *timeoutError) Error() string   { return "i/o timeout" }
+func (e *timeoutError) Timeout() bool   { return true }
+func (e *timeoutError) Temporary() bool { return true }
+
 func TestClassify(t *testing.T) {
 	tests := []struct {
 		name string
@@ -84,6 +91,11 @@ func TestClassify(t *testing.T) {
 		{
 			name: "connection reset",
 			err:  &net.OpError{Op: "read", Err: syscall.ECONNRESET},
+			want: Retryable,
+		},
+		{
+			name: "network timeout",
+			err:  &net.OpError{Op: "dial", Err: &timeoutError{}},
 			want: Retryable,
 		},
 		{

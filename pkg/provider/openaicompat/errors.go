@@ -78,8 +78,12 @@ func parseRetryAfter(value string) time.Duration {
 	if value == "" {
 		return 0
 	}
-	// Try seconds format first.
-	if seconds, err := strconv.Atoi(value); err == nil && seconds > 0 {
+	// Try seconds format first. Clamp to prevent time.Duration overflow.
+	if seconds, err := strconv.ParseInt(value, 10, 64); err == nil && seconds > 0 {
+		const maxSeconds = int64(1<<63-1) / int64(time.Second)
+		if seconds > maxSeconds {
+			seconds = maxSeconds
+		}
 		return time.Duration(seconds) * time.Second
 	}
 	// Try HTTP-date format.

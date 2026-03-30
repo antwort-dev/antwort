@@ -6,6 +6,20 @@ import (
 	"time"
 )
 
+// waitUntilAllowed polls the circuit breaker until Allow() returns true
+// or the deadline elapses. Fails the test if the deadline is reached.
+func waitUntilAllowed(t *testing.T, cb *CircuitBreaker, timeout time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if cb.Allow() {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatal("circuit did not allow probe before deadline")
+}
+
 func TestCircuitBreaker_ClosedToOpen(t *testing.T) {
 	cb := NewCircuitBreaker(3, 100*time.Millisecond)
 
@@ -41,13 +55,8 @@ func TestCircuitBreaker_OpenToHalfOpen(t *testing.T) {
 		t.Fatalf("state = %s, want open", StateName(cb.State()))
 	}
 
-	// Wait for reset timeout.
-	time.Sleep(60 * time.Millisecond)
-
-	// Should transition to half-open and allow one request.
-	if !cb.Allow() {
-		t.Fatal("Allow() = false after reset timeout, want true (half-open probe)")
-	}
+	// Wait for reset timeout via polling.
+	waitUntilAllowed(t, cb, 500*time.Millisecond)
 	if cb.State() != StateHalfOpen {
 		t.Fatalf("state = %s, want half-open", StateName(cb.State()))
 	}
@@ -57,8 +66,7 @@ func TestCircuitBreaker_HalfOpenToClosedOnSuccess(t *testing.T) {
 	cb := NewCircuitBreaker(1, 50*time.Millisecond)
 
 	cb.RecordFailure() // trip to open
-	time.Sleep(60 * time.Millisecond)
-	cb.Allow() // transition to half-open
+	waitUntilAllowed(t, cb, 500*time.Millisecond) // transition to half-open
 
 	cb.RecordSuccess()
 
@@ -74,8 +82,7 @@ func TestCircuitBreaker_HalfOpenToOpenOnFailure(t *testing.T) {
 	cb := NewCircuitBreaker(1, 50*time.Millisecond)
 
 	cb.RecordFailure() // trip to open
-	time.Sleep(60 * time.Millisecond)
-	cb.Allow() // transition to half-open
+	waitUntilAllowed(t, cb, 500*time.Millisecond) // transition to half-open
 
 	cb.RecordFailure() // probe failed
 
@@ -105,12 +112,9 @@ func TestCircuitBreaker_HalfOpenRejectsSecondRequest(t *testing.T) {
 	cb := NewCircuitBreaker(1, 50*time.Millisecond)
 
 	cb.RecordFailure() // trip to open
-	time.Sleep(60 * time.Millisecond)
 
-	// First request transitions to half-open.
-	if !cb.Allow() {
-		t.Fatal("first Allow() after timeout = false, want true")
-	}
+	// Wait for reset timeout, first request transitions to half-open.
+	waitUntilAllowed(t, cb, 500*time.Millisecond)
 
 	// Second request should be rejected (only one probe allowed).
 	if cb.Allow() {

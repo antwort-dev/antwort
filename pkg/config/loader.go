@@ -161,8 +161,10 @@ func applyEnvOverrides(cfg *Config) {
 	}
 
 	// Resilience overrides.
-	if v := os.Getenv("ANTWORT_RESILIENCE_ENABLED"); v == "true" {
-		cfg.Resilience.Enabled = true
+	if v, ok := os.LookupEnv("ANTWORT_RESILIENCE_ENABLED"); ok {
+		if enabled, err := strconv.ParseBool(v); err == nil {
+			cfg.Resilience.Enabled = enabled
+		}
 	}
 	if v := os.Getenv("ANTWORT_RESILIENCE_FAILURE_THRESHOLD"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {

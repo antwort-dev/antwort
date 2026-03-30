@@ -100,8 +100,8 @@ func (r *ResilientProvider) Complete(ctx context.Context, req *provider.Provider
 		}
 
 		classification := Classify(err)
-		if err := r.handleError(ctx, attempt, classification, err); err != nil {
-			return nil, err
+		if handleErr := r.handleError(ctx, attempt, classification, err); handleErr != nil {
+			return nil, handleErr
 		}
 	}
 
@@ -139,8 +139,8 @@ func (r *ResilientProvider) Stream(ctx context.Context, req *provider.ProviderRe
 		}
 
 		classification := Classify(err)
-		if err := r.handleError(ctx, attempt, classification, err); err != nil {
-			return nil, err
+		if handleErr := r.handleError(ctx, attempt, classification, err); handleErr != nil {
+			return nil, handleErr
 		}
 	}
 
@@ -155,7 +155,11 @@ func (r *ResilientProvider) handleError(ctx context.Context, attempt int, classi
 	switch classification {
 	case RateLimited:
 		observability.ResilienceRetryAttemptsTotal.WithLabelValues(r.inner.Name(), "rate_limited").Inc()
-		// 429 does NOT affect circuit breaker (FR-011).
+		// 429 does NOT affect circuit breaker (FR-011), but a 429 proves
+		// the backend is reachable. If half-open, close the circuit.
+		prevState := r.cb.State()
+		r.cb.RecordSuccess()
+		r.recordCircuitTransitionFrom(prevState)
 		// On last attempt, return original 429 error without sleeping.
 		if attempt >= r.policy.MaxAttempts {
 			observability.ResilienceRetryExhaustedTotal.WithLabelValues(r.inner.Name()).Inc()
@@ -203,7 +207,12 @@ func (r *ResilientProvider) handleError(ctx context.Context, attempt int, classi
 		return nil // retry
 
 	default:
-		// NonRetryable: return immediately, no circuit breaker impact.
+		// NonRetryable: return immediately. However, if the circuit breaker is
+		// half-open, the backend IS reachable (it returned an application error),
+		// so transition back to closed to avoid stranding in half-open.
+		prevState := r.cb.State()
+		r.cb.RecordSuccess()
+		r.recordCircuitTransitionFrom(prevState)
 		return originalErr
 	}
 }
