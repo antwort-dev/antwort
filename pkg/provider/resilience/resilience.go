@@ -104,10 +104,10 @@ func (r *ResilientProvider) Complete(ctx context.Context, req *provider.Provider
 			return nil, handleErr
 		}
 	}
-
-	// All retry attempts exhausted (e.g., rate-limited on every attempt).
-	observability.ResilienceRetryExhaustedTotal.WithLabelValues(r.inner.Name()).Inc()
-	return nil, api.NewServerError(fmt.Sprintf("all %d retry attempts exhausted for provider %q", r.policy.MaxAttempts, r.inner.Name()))
+	// handleError always returns non-nil on the last attempt, so this is
+	// unreachable when MaxAttempts >= 1 (which is validated). Panic as a
+	// safety net to surface any logic error.
+	panic(fmt.Sprintf("resilience: retry loop exited unexpectedly for provider %q", r.inner.Name()))
 }
 
 // Stream performs a streaming inference call with retry on connection failures.
@@ -143,9 +143,10 @@ func (r *ResilientProvider) Stream(ctx context.Context, req *provider.ProviderRe
 			return nil, handleErr
 		}
 	}
-
-	observability.ResilienceRetryExhaustedTotal.WithLabelValues(r.inner.Name()).Inc()
-	return nil, api.NewServerError(fmt.Sprintf("all %d retry attempts exhausted for provider %q (streaming)", r.policy.MaxAttempts, r.inner.Name()))
+	// handleError always returns non-nil on the last attempt, so this is
+	// unreachable when MaxAttempts >= 1 (which is validated). Panic as a
+	// safety net to surface any logic error.
+	panic(fmt.Sprintf("resilience: retry loop exited unexpectedly for provider %q (streaming)", r.inner.Name()))
 }
 
 // handleError processes an error from a provider call. It classifies the error,
@@ -154,7 +155,6 @@ func (r *ResilientProvider) Stream(ctx context.Context, req *provider.ProviderRe
 func (r *ResilientProvider) handleError(ctx context.Context, attempt int, classification Classification, originalErr error) error {
 	switch classification {
 	case RateLimited:
-		observability.ResilienceRetryAttemptsTotal.WithLabelValues(r.inner.Name(), "rate_limited").Inc()
 		// 429 does NOT affect circuit breaker (FR-011), but a 429 proves
 		// the backend is reachable. If half-open, close the circuit.
 		if r.cb.State() == StateHalfOpen {
@@ -167,6 +167,7 @@ func (r *ResilientProvider) handleError(ctx context.Context, attempt int, classi
 			observability.ResilienceRetryExhaustedTotal.WithLabelValues(r.inner.Name()).Inc()
 			return originalErr
 		}
+		observability.ResilienceRetryAttemptsTotal.WithLabelValues(r.inner.Name(), "rate_limited").Inc()
 		wait := r.retryAfterWait(originalErr, attempt)
 		debug.Log("providers", "rate limited, waiting",
 			"provider", r.inner.Name(),
@@ -183,7 +184,6 @@ func (r *ResilientProvider) handleError(ctx context.Context, attempt int, classi
 		return nil // retry
 
 	case Retryable:
-		observability.ResilienceRetryAttemptsTotal.WithLabelValues(r.inner.Name(), "failure").Inc()
 		prevState := r.cb.State()
 		r.cb.RecordFailure()
 		r.recordCircuitTransitionFrom(prevState)
@@ -196,6 +196,7 @@ func (r *ResilientProvider) handleError(ctx context.Context, attempt int, classi
 			)
 			return originalErr
 		}
+		observability.ResilienceRetryAttemptsTotal.WithLabelValues(r.inner.Name(), "failure").Inc()
 		wait := computeBackoff(attempt, r.policy.BackoffBase, r.policy.BackoffMax)
 		debug.Log("providers", "retryable error, backing off",
 			"provider", r.inner.Name(),
