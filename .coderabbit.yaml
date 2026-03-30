@@ -1,0 +1,47 @@
+# CodeRabbit configuration
+# https://docs.coderabbit.ai/reference/configuration
+language: "en-US"
+
+reviews:
+  # ASSERTIVE catches more issues than CHILL (the default)
+  profile: "assertive"
+
+  # Automatically review every PR
+  auto_review:
+    enabled: true
+
+  # Generate a high-level summary on each PR
+  high_level_summary: true
+
+  # Exclude spec documents and brainstorm notes from code review.
+  # These are design artifacts, not implementation code.
+  path_filters:
+    - "!specs/**"
+    - "!brainstorm/**"
+
+  # Project-specific review instructions per path
+  path_instructions:
+    - path: "pkg/**/*.go"
+      instructions: >
+        This is a Go project that uses only the Go standard library
+        (no external dependencies in core packages). Flag any import
+        of third-party libraries in pkg/ packages. Adapters in
+        pkg/storage/postgres/ may use pgx/v5. Test files may use
+        github.com/openai/openai-go.
+    - path: "docs/**/*.adoc"
+      instructions: >
+        AsciiDoc documentation. Check for consistency with the code
+        (metric names, config keys, environment variables). Each
+        sentence should be on its own line (semantic line breaks).
+
+  tools:
+    markdownlint:
+      enabled: true
+    shellcheck:
+      enabled: true
+
+chat:
+  auto_reply: true
+
+knowledge_base:
+  opt_out: true
