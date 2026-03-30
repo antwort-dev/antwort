@@ -21,7 +21,7 @@ Any existing OpenAI SDK (Python, Node, Go, Rust) works without modification. Poi
 
 Antwort started as a proof-of-concept for [Specification-Driven Development (SDD)](https://github.com/rhuss/cc-sdd-plugin), exploring how an AI-assisted, spec-first methodology works for building a non-trivial system from scratch. The project has since grown beyond that original scope into a full agentic AI platform targeting production Kubernetes environments.
 
-All 46 specifications have been implemented through the SDD process. Each spec produces a complete artifact set (spec, plan, tasks, research, review) before any code is written.
+All 47 specifications have been implemented through the SDD process. Each spec produces a complete artifact set (spec, plan, tasks, research, review) before any code is written.
 
 | Spec | Description |
 |------|-------------|
@@ -72,6 +72,7 @@ All 46 specifications have been implemented through the SDD process. Each spec p
 | 044 Async Responses | Background mode with distributed gateway/worker architecture |
 | 045 Cluster Validation | Real-cluster validation harness with BFCL benchmarks |
 | 046 Metrics Taxonomy | Prometheus metrics with OpenTelemetry GenAI semantic conventions |
+| 047 Backend Resilience | Circuit breaker, retry with backoff, 429 handling |
 
 ### Roadmap
 
@@ -88,6 +89,7 @@ Antwort focuses on being the best inference gateway for autonomous agents runnin
 | Async | Background responses with distributed gateway/worker architecture | Implemented |
 | Validation | Real-cluster testing with BFCL benchmarks against ROSA HCP | Implemented |
 | Metrics | Prometheus metrics with OpenTelemetry GenAI semantic conventions | Implemented |
+| Resilience | Circuit breaker, retry with backoff, rate limit (429) handling | Implemented |
 | Memory | Conversation branching and summarization for long-running agents | Planned |
 | Registry | Dynamic tool discovery and per-tenant tool permissions | Planned |
 
