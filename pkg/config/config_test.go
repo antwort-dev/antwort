@@ -571,6 +571,144 @@ engine:
 	}
 }
 
+func TestResilienceDefaults(t *testing.T) {
+	cfg := Defaults()
+
+	if cfg.Resilience.Enabled {
+		t.Error("default resilience.enabled = true, want false")
+	}
+	if cfg.Resilience.FailureThreshold != 5 {
+		t.Errorf("default resilience.failure_threshold = %d, want 5", cfg.Resilience.FailureThreshold)
+	}
+	if cfg.Resilience.ResetTimeout != 30*time.Second {
+		t.Errorf("default resilience.reset_timeout = %v, want 30s", cfg.Resilience.ResetTimeout)
+	}
+	if cfg.Resilience.MaxAttempts != 3 {
+		t.Errorf("default resilience.max_attempts = %d, want 3", cfg.Resilience.MaxAttempts)
+	}
+	if cfg.Resilience.BackoffBase != 100*time.Millisecond {
+		t.Errorf("default resilience.backoff_base = %v, want 100ms", cfg.Resilience.BackoffBase)
+	}
+	if cfg.Resilience.BackoffMax != 2*time.Second {
+		t.Errorf("default resilience.backoff_max = %v, want 2s", cfg.Resilience.BackoffMax)
+	}
+	if cfg.Resilience.RetryAfterMax != 30*time.Second {
+		t.Errorf("default resilience.retry_after_max = %v, want 30s", cfg.Resilience.RetryAfterMax)
+	}
+}
+
+func TestResilienceValidation(t *testing.T) {
+	tests := []struct {
+		name    string
+		modify  func(*Config)
+		wantErr string
+	}{
+		{
+			name: "valid resilience config",
+			modify: func(c *Config) {
+				c.Engine.BackendURL = "http://localhost:8000"
+				c.Resilience.Enabled = true
+			},
+			wantErr: "",
+		},
+		{
+			name: "disabled resilience skips validation",
+			modify: func(c *Config) {
+				c.Engine.BackendURL = "http://localhost:8000"
+				c.Resilience.Enabled = false
+				c.Resilience.FailureThreshold = 0 // invalid but should not be checked
+			},
+			wantErr: "",
+		},
+		{
+			name: "invalid failure_threshold",
+			modify: func(c *Config) {
+				c.Engine.BackendURL = "http://localhost:8000"
+				c.Resilience.Enabled = true
+				c.Resilience.FailureThreshold = 0
+			},
+			wantErr: "resilience.failure_threshold must be > 0",
+		},
+		{
+			name: "invalid max_attempts",
+			modify: func(c *Config) {
+				c.Engine.BackendURL = "http://localhost:8000"
+				c.Resilience.Enabled = true
+				c.Resilience.MaxAttempts = 0
+			},
+			wantErr: "resilience.max_attempts must be >= 1",
+		},
+		{
+			name: "invalid reset_timeout",
+			modify: func(c *Config) {
+				c.Engine.BackendURL = "http://localhost:8000"
+				c.Resilience.Enabled = true
+				c.Resilience.ResetTimeout = 0
+			},
+			wantErr: "resilience.reset_timeout must be > 0",
+		},
+		{
+			name: "invalid backoff_base",
+			modify: func(c *Config) {
+				c.Engine.BackendURL = "http://localhost:8000"
+				c.Resilience.Enabled = true
+				c.Resilience.BackoffBase = 0
+			},
+			wantErr: "resilience.backoff_base must be > 0",
+		},
+		{
+			name: "invalid backoff_max",
+			modify: func(c *Config) {
+				c.Engine.BackendURL = "http://localhost:8000"
+				c.Resilience.Enabled = true
+				c.Resilience.BackoffMax = 0
+			},
+			wantErr: "resilience.backoff_max must be > 0",
+		},
+		{
+			name: "invalid retry_after_max",
+			modify: func(c *Config) {
+				c.Engine.BackendURL = "http://localhost:8000"
+				c.Resilience.Enabled = true
+				c.Resilience.RetryAfterMax = 0
+			},
+			wantErr: "resilience.retry_after_max must be > 0",
+		},
+		{
+			name: "backoff_max less than backoff_base",
+			modify: func(c *Config) {
+				c.Engine.BackendURL = "http://localhost:8000"
+				c.Resilience.Enabled = true
+				c.Resilience.BackoffBase = 500 * time.Millisecond
+				c.Resilience.BackoffMax = 100 * time.Millisecond
+			},
+			wantErr: "resilience.backoff_max must be >= resilience.backoff_base",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := Defaults()
+			tt.modify(&cfg)
+			err := cfg.Validate()
+
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Errorf("Validate() unexpected error: %v", err)
+				}
+				return
+			}
+
+			if err == nil {
+				t.Fatalf("Validate() expected error containing %q, got nil", tt.wantErr)
+			}
+			if !contains(err.Error(), tt.wantErr) {
+				t.Errorf("Validate() error = %q, want it to contain %q", err.Error(), tt.wantErr)
+			}
+		})
+	}
+}
+
 // writeTemp creates a temporary file with the given content and returns its path.
 // The file is automatically cleaned up when the test finishes.
 func writeTemp(t *testing.T, pattern, content string) string {

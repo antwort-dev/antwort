@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/rhuss/antwort/pkg/api"
 )
@@ -15,50 +18,82 @@ import (
 func MapHTTPError(resp *http.Response) *api.APIError {
 	// Try to read the body for an error message.
 	message := ExtractErrorMessage(resp.Body)
+	status := resp.StatusCode
 
+	var apiErr *api.APIError
 	switch {
-	case resp.StatusCode == http.StatusBadRequest:
+	case status == http.StatusBadRequest:
 		if message == "" {
 			message = "invalid request to backend"
 		}
-		return api.NewInvalidRequestError("", message)
+		apiErr = api.NewInvalidRequestError("", message)
 
-	case resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden:
+	case status == http.StatusUnauthorized || status == http.StatusForbidden:
 		if message == "" {
 			message = "backend authentication failed"
 		}
-		return api.NewServerError(message)
+		apiErr = api.NewServerError(message)
 
-	case resp.StatusCode == http.StatusNotFound:
+	case status == http.StatusNotFound:
 		if message == "" {
 			message = "backend resource not found"
 		}
-		return api.NewNotFoundError(message)
+		apiErr = api.NewNotFoundError(message)
 
-	case resp.StatusCode == http.StatusTooManyRequests:
+	case status == http.StatusTooManyRequests:
 		if message == "" {
 			message = "backend rate limit exceeded"
 		}
-		return api.NewTooManyRequestsError(message)
+		apiErr = api.NewTooManyRequestsError(message)
+		apiErr.RetryAfter = parseRetryAfter(strings.TrimSpace(resp.Header.Get("Retry-After")))
 
-	case resp.StatusCode >= http.StatusInternalServerError:
+	case status >= http.StatusInternalServerError:
 		if message == "" {
-			message = fmt.Sprintf("backend server error (HTTP %d)", resp.StatusCode)
+			message = fmt.Sprintf("backend server error (HTTP %d)", status)
 		}
-		return api.NewServerError(message)
+		apiErr = api.NewServerError(message)
 
 	default:
 		if message == "" {
-			message = fmt.Sprintf("unexpected backend error (HTTP %d)", resp.StatusCode)
+			message = fmt.Sprintf("unexpected backend error (HTTP %d)", status)
 		}
-		return api.NewServerError(message)
+		apiErr = api.NewServerError(message)
 	}
+
+	apiErr.HTTPStatus = status
+	return apiErr
 }
 
 // MapNetworkError converts a network-level error (connection refused, timeout,
 // DNS resolution failure) into an APIError with a descriptive message.
 func MapNetworkError(err error) *api.APIError {
 	return api.NewServerError(fmt.Sprintf("backend connection error: %s", err.Error()))
+}
+
+// parseRetryAfter parses the Retry-After header value.
+// Supports both seconds (integer) and HTTP-date formats.
+// Returns 0 if the header is empty or cannot be parsed.
+func parseRetryAfter(value string) time.Duration {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return 0
+	}
+	// Try seconds format first. Clamp to prevent time.Duration overflow.
+	if seconds, err := strconv.ParseInt(value, 10, 64); err == nil && seconds > 0 {
+		const maxSeconds = int64(1<<63-1) / int64(time.Second)
+		if seconds > maxSeconds {
+			seconds = maxSeconds
+		}
+		return time.Duration(seconds) * time.Second
+	}
+	// Try HTTP-date format.
+	if t, err := http.ParseTime(value); err == nil {
+		d := time.Until(t)
+		if d > 0 {
+			return d
+		}
+	}
+	return 0
 }
 
 // ExtractErrorMessage tries to parse the response body as a ChatErrorResponse

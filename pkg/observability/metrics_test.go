@@ -63,6 +63,12 @@ func TestMetricsRegistered(t *testing.T) {
 		"antwort_background_claimed_total":                 false,
 		"antwort_background_stale_total":                   false,
 		"antwort_background_worker_heartbeat_age_seconds":  false,
+		// Spec 047: Resilience Layer.
+		"antwort_resilience_circuit_breaker_state":            false,
+		"antwort_resilience_circuit_breaker_transitions_total": false,
+		"antwort_resilience_consecutive_failures":              false,
+		"antwort_resilience_retry_attempts_total":              false,
+		"antwort_resilience_retry_exhausted_total":             false,
 	}
 
 	for _, mf := range families {
@@ -111,6 +117,13 @@ func TestMetricsRegistered(t *testing.T) {
 	BackgroundClaimedTotal.WithLabelValues("worker-1").Inc()
 	BackgroundStaleTotal.Inc()
 	BackgroundWorkerHeartbeatAge.WithLabelValues("worker-1").Set(5.0)
+
+	// Seed spec 047 resilience metrics.
+	ResilienceCircuitBreakerState.WithLabelValues("test-prov").Set(0)
+	ResilienceCircuitBreakerTransitionsTotal.WithLabelValues("test-prov", "closed", "open").Inc()
+	ResilienceConsecutiveFailures.WithLabelValues("test-prov").Set(0)
+	ResilienceRetryAttemptsTotal.WithLabelValues("test-prov", "success").Inc()
+	ResilienceRetryExhaustedTotal.WithLabelValues("test-prov").Inc()
 
 	families, err = prometheus.DefaultGatherer.Gather()
 	if err != nil {

@@ -50,6 +50,31 @@ func (c *Config) Validate() error {
 		}
 	}
 
+	// Validate resilience config when enabled.
+	if c.Resilience.Enabled {
+		if c.Resilience.FailureThreshold <= 0 {
+			errs = append(errs, fmt.Errorf("resilience.failure_threshold must be > 0, got %d", c.Resilience.FailureThreshold))
+		}
+		if c.Resilience.MaxAttempts < 1 {
+			errs = append(errs, fmt.Errorf("resilience.max_attempts must be >= 1, got %d", c.Resilience.MaxAttempts))
+		}
+		if c.Resilience.ResetTimeout <= 0 {
+			errs = append(errs, fmt.Errorf("resilience.reset_timeout must be > 0"))
+		}
+		if c.Resilience.BackoffBase <= 0 {
+			errs = append(errs, fmt.Errorf("resilience.backoff_base must be > 0"))
+		}
+		if c.Resilience.BackoffMax <= 0 {
+			errs = append(errs, fmt.Errorf("resilience.backoff_max must be > 0"))
+		}
+		if c.Resilience.RetryAfterMax <= 0 {
+			errs = append(errs, fmt.Errorf("resilience.retry_after_max must be > 0"))
+		}
+		if c.Resilience.BackoffMax > 0 && c.Resilience.BackoffBase > 0 && c.Resilience.BackoffMax < c.Resilience.BackoffBase {
+			errs = append(errs, fmt.Errorf("resilience.backoff_max must be >= resilience.backoff_base (got backoff_max=%v, backoff_base=%v)", c.Resilience.BackoffMax, c.Resilience.BackoffBase))
+		}
+	}
+
 	// engine.provider must be a known value if set.
 	switch c.Engine.Provider {
 	case "vllm", "litellm", "vllm-responses", "":

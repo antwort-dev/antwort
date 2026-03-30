@@ -122,7 +122,7 @@ SMG does per-tenant rate limiting because it manages multi-tenant access to shar
 - Configurable retry with exponential backoff for non-streaming requests
 - Metrics: circuit breaker state, failure count, retry count
 - Debug logging integration (spec 026 categories: `providers`)
-- Configuration via `providers.<name>.resilience` config block
+- Configuration via global `resilience:` config block (per-provider config deferred to multi-provider support)
 
 ### Phase 2: Health Probing (future, if needed)
 - Background health check goroutine when circuit breaker is open
@@ -148,8 +148,29 @@ SMG does per-tenant rate limiting because it manages multi-tenant access to shar
 2. **Use a Go resilience library (e.g., sony/gobreaker)**: Violates stdlib-only constitution. The pattern is simple enough to implement in ~100 lines.
 3. **Do nothing, rely on client retry**: Pushes complexity to every client. Not acceptable for a production gateway.
 
-## Open Questions
+## Open Questions (RESOLVED, 2026-03-29)
 
-1. Should circuit breaker state be shared across Antwort replicas (e.g., via shared storage), or is per-instance sufficient?
-2. How should circuit breaker interact with background mode (spec 044)? Workers should probably respect circuit breaker state.
-3. Should the agentic loop retry individual tool calls if the backend fails mid-loop, or fail the entire response?
+1. **Per-instance vs shared circuit breaker**: Per-instance. Replicas converge quickly since they all hit the same backend. Shared state would couple resilience to storage, adding complexity for minimal gain.
+2. **Background mode interaction**: Workers have their own circuit breaker instance. Staleness detection (spec 044) is orthogonal; circuit breaker protects the provider call, staleness protects the response lifecycle.
+3. **Mid-loop failures**: Retry the specific provider call, not the whole response. The model has already done work on earlier turns. If all retries exhausted and circuit trips, engine sees a single error and fails the response.
+
+## Additional Decisions (2026-03-29)
+
+4. **Streaming retry scope**: Retry on connection failure (pre-first-event) only. Mid-stream drops fail the response. Clients can retry with `previous_response_id` to preserve conversation context. Transparent mid-stream recovery is too complex for the edge case.
+5. **429 Retry-After**: In scope. Parse `Retry-After` header, wait, retry. 429 retries do NOT count toward circuit breaker failure threshold (rate limiting means "healthy but busy," not "broken").
+6. **Configuration location**: Global `resilience:` block, not per-provider. Antwort currently has a single provider. Per-provider config deferred to when multi-provider support lands.
+7. **Default behavior**: Opt-in. Zero-config Antwort behaves as today (transparent proxy). Adding `resilience:` config enables the safety net.
+8. **Architecture**: Circuit breaker wraps the provider, not the engine. Retries happen at provider level, circuit breaker state updates per-attempt, agentic loop is unaware.
+
+## Spec Scope (047-backend-resilience)
+
+| Feature | In scope | Notes |
+|---|---|---|
+| Circuit breaker (per-provider, per-instance) | Yes | closed/open/half-open, configurable thresholds |
+| Retry with exponential backoff + jitter | Yes | Non-streaming + streaming pre-connection only |
+| 429 Retry-After respect | Yes | Separate from circuit breaker failure counting |
+| Retryable error classification | Yes | 502/503/504/connection errors = retryable; 4xx = not |
+| Mid-stream reconnect | No | Too complex, clients retry with previous_response_id |
+| Health probing | No | Phase 2 if operators request it |
+| Multi-backend failover | No | Phase 3, separate concern |
+| Shared circuit breaker state | No | Per-instance is sufficient |

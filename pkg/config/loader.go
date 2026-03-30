@@ -159,6 +159,23 @@ func applyEnvOverrides(cfg *Config) {
 	if v := os.Getenv("ANTWORT_MODE"); v != "" {
 		cfg.Engine.Mode = v
 	}
+
+	// Resilience overrides.
+	if v, ok := os.LookupEnv("ANTWORT_RESILIENCE_ENABLED"); ok {
+		if enabled, err := strconv.ParseBool(v); err == nil {
+			cfg.Resilience.Enabled = enabled
+		}
+	}
+	if v := os.Getenv("ANTWORT_RESILIENCE_FAILURE_THRESHOLD"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			cfg.Resilience.FailureThreshold = n
+		}
+	}
+	if v := os.Getenv("ANTWORT_RESILIENCE_MAX_ATTEMPTS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			cfg.Resilience.MaxAttempts = n
+		}
+	}
 }
 
 // parseAPIKeysJSON parses a JSON array of API key configurations.

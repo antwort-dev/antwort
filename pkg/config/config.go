@@ -27,6 +27,18 @@ type Config struct {
 	Audit         audit.Config                 `yaml:"audit"`
 	Observability ObservabilityConfig         `yaml:"observability"`
 	Logging       LoggingConfig               `yaml:"logging"`
+	Resilience    ResilienceConfig            `yaml:"resilience"`
+}
+
+// ResilienceConfig holds circuit breaker and retry settings for backend communication.
+type ResilienceConfig struct {
+	Enabled          bool          `yaml:"enabled"`           // Master switch, default: false
+	FailureThreshold int           `yaml:"failure_threshold"` // Consecutive failures to trip circuit, default: 5
+	ResetTimeout     time.Duration `yaml:"reset_timeout"`     // Open state duration before half-open probe, default: 30s
+	MaxAttempts      int           `yaml:"max_attempts"`      // Total attempts (1 = no retry), default: 3
+	BackoffBase      time.Duration `yaml:"backoff_base"`      // Initial backoff duration, default: 100ms
+	BackoffMax       time.Duration `yaml:"backoff_max"`       // Maximum backoff cap, default: 2s
+	RetryAfterMax    time.Duration `yaml:"retry_after_max"`   // Maximum 429 Retry-After wait, default: 30s
 }
 
 // AgentProfileConfig holds the configuration for a single agent profile.
@@ -212,6 +224,15 @@ func Defaults() Config {
 				Enabled: true,
 				Path:    "/metrics",
 			},
+		},
+		Resilience: ResilienceConfig{
+			Enabled:          false,
+			FailureThreshold: 5,
+			ResetTimeout:     30 * time.Second,
+			MaxAttempts:      3,
+			BackoffBase:      100 * time.Millisecond,
+			BackoffMax:       2 * time.Second,
+			RetryAfterMax:    30 * time.Second,
 		},
 	}
 }
