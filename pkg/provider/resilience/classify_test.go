@@ -22,9 +22,29 @@ func TestClassify(t *testing.T) {
 			want: NonRetryable,
 		},
 		{
-			name: "server error",
+			name: "server error without HTTP status (network error)",
 			err:  api.NewServerError("backend down"),
 			want: Retryable,
+		},
+		{
+			name: "server error 502",
+			err:  &api.APIError{Type: api.ErrorTypeServerError, Message: "bad gateway", HTTPStatus: 502},
+			want: Retryable,
+		},
+		{
+			name: "server error 503",
+			err:  &api.APIError{Type: api.ErrorTypeServerError, Message: "unavailable", HTTPStatus: 503},
+			want: Retryable,
+		},
+		{
+			name: "server error 504",
+			err:  &api.APIError{Type: api.ErrorTypeServerError, Message: "gateway timeout", HTTPStatus: 504},
+			want: Retryable,
+		},
+		{
+			name: "server error 500 not retryable",
+			err:  &api.APIError{Type: api.ErrorTypeServerError, Message: "internal error", HTTPStatus: 500},
+			want: NonRetryable,
 		},
 		{
 			name: "too many requests",

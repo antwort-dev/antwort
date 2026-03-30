@@ -22,6 +22,7 @@ type APIError struct {
 	Code       string        `json:"code,omitempty"`
 	Param      string        `json:"param,omitempty"`
 	Message    string        `json:"message"`
+	HTTPStatus int           `json:"-"` // Original HTTP status code from backend (0 if not from HTTP).
 	RetryAfter time.Duration `json:"-"` // Populated from Retry-After header on 429 responses.
 }
 

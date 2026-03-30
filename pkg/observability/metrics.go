@@ -340,6 +340,15 @@ var (
 		[]string{"provider", "from", "to"},
 	)
 
+	// ResilienceConsecutiveFailures tracks the current consecutive failure count per provider.
+	ResilienceConsecutiveFailures = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "antwort_resilience_consecutive_failures",
+			Help: "Current consecutive failure count",
+		},
+		[]string{"provider"},
+	)
+
 	// ResilienceRetryAttemptsTotal counts retry attempts by provider and outcome.
 	ResilienceRetryAttemptsTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -457,6 +466,7 @@ func init() {
 		// Spec 047: Resilience Layer.
 		ResilienceCircuitBreakerState,
 		ResilienceCircuitBreakerTransitionsTotal,
+		ResilienceConsecutiveFailures,
 		ResilienceRetryAttemptsTotal,
 		ResilienceRetryExhaustedTotal,
 	)

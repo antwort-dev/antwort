@@ -78,6 +78,7 @@ func (r *ResilientProvider) Complete(ctx context.Context, req *provider.Provider
 	r.recordCircuitState()
 
 	for attempt := 1; attempt <= r.policy.MaxAttempts; attempt++ {
+		prevState := r.cb.State()
 		if !r.cb.Allow() {
 			debug.Log("providers", "circuit breaker open, fast-fail",
 				"provider", r.inner.Name(),
@@ -85,11 +86,13 @@ func (r *ResilientProvider) Complete(ctx context.Context, req *provider.Provider
 			)
 			return nil, r.circuitOpenError()
 		}
+		r.recordCircuitTransitionFrom(prevState) // captures open->half-open
 
 		resp, err := r.inner.Complete(ctx, req)
 		if err == nil {
+			prevState := r.cb.State()
 			r.cb.RecordSuccess()
-			r.recordCircuitState()
+			r.recordCircuitTransitionFrom(prevState)
 			if attempt > 1 {
 				observability.ResilienceRetryAttemptsTotal.WithLabelValues(r.inner.Name(), "success").Inc()
 			}
@@ -114,6 +117,7 @@ func (r *ResilientProvider) Stream(ctx context.Context, req *provider.ProviderRe
 	r.recordCircuitState()
 
 	for attempt := 1; attempt <= r.policy.MaxAttempts; attempt++ {
+		prevState := r.cb.State()
 		if !r.cb.Allow() {
 			debug.Log("providers", "circuit breaker open, fast-fail (streaming)",
 				"provider", r.inner.Name(),
@@ -121,11 +125,13 @@ func (r *ResilientProvider) Stream(ctx context.Context, req *provider.ProviderRe
 			)
 			return nil, r.circuitOpenError()
 		}
+		r.recordCircuitTransitionFrom(prevState) // captures open->half-open
 
 		ch, err := r.inner.Stream(ctx, req)
 		if err == nil {
+			prevState := r.cb.State()
 			r.cb.RecordSuccess()
-			r.recordCircuitState()
+			r.recordCircuitTransitionFrom(prevState)
 			if attempt > 1 {
 				observability.ResilienceRetryAttemptsTotal.WithLabelValues(r.inner.Name(), "success").Inc()
 			}
@@ -150,6 +156,11 @@ func (r *ResilientProvider) handleError(ctx context.Context, attempt int, classi
 	case RateLimited:
 		observability.ResilienceRetryAttemptsTotal.WithLabelValues(r.inner.Name(), "rate_limited").Inc()
 		// 429 does NOT affect circuit breaker (FR-011).
+		// On last attempt, return original 429 error without sleeping.
+		if attempt >= r.policy.MaxAttempts {
+			observability.ResilienceRetryExhaustedTotal.WithLabelValues(r.inner.Name()).Inc()
+			return originalErr
+		}
 		wait := r.retryAfterWait(originalErr, attempt)
 		debug.Log("providers", "rate limited, waiting",
 			"provider", r.inner.Name(),
@@ -161,7 +172,7 @@ func (r *ResilientProvider) handleError(ctx context.Context, attempt int, classi
 			return originalErr
 		}
 		if err := sleepWithContext(ctx, wait); err != nil {
-			return originalErr
+			return ctx.Err()
 		}
 		return nil // retry
 
@@ -187,7 +198,7 @@ func (r *ResilientProvider) handleError(ctx context.Context, attempt int, classi
 			"error", originalErr.Error(),
 		)
 		if err := sleepWithContext(ctx, wait); err != nil {
-			return originalErr
+			return ctx.Err()
 		}
 		return nil // retry
 
@@ -230,6 +241,7 @@ func (r *ResilientProvider) recordCircuitState() {
 func (r *ResilientProvider) recordCircuitTransitionFrom(prevState int32) {
 	newState := r.cb.State()
 	observability.ResilienceCircuitBreakerState.WithLabelValues(r.inner.Name()).Set(float64(newState))
+	observability.ResilienceConsecutiveFailures.WithLabelValues(r.inner.Name()).Set(float64(r.cb.ConsecutiveFailures()))
 	if prevState != newState {
 		observability.ResilienceCircuitBreakerTransitionsTotal.WithLabelValues(
 			r.inner.Name(), StateName(prevState), StateName(newState),

@@ -55,7 +55,15 @@ func Classify(err error) Classification {
 		case api.ErrorTypeTooManyRequests:
 			return RateLimited
 		case api.ErrorTypeServerError:
-			return Retryable
+			// Only retry specific transient HTTP statuses (502/503/504).
+			// Other 5xx errors (500, 501) are not retried.
+			// If HTTPStatus is 0 (e.g., network error mapped to ServerError), retry.
+			switch apiErr.HTTPStatus {
+			case 0, 502, 503, 504:
+				return Retryable
+			default:
+				return NonRetryable
+			}
 		case api.ErrorTypeInvalidRequest, api.ErrorTypeNotFound, api.ErrorTypeModelError:
 			return NonRetryable
 		}

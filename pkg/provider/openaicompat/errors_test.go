@@ -1,6 +1,7 @@
 package openaicompat
 
 import (
+	"net/http"
 	"testing"
 	"time"
 )
@@ -41,6 +42,11 @@ func TestParseRetryAfter(t *testing.T) {
 			value: "120",
 			want:  120 * time.Second,
 		},
+		{
+			name:  "whitespace around seconds",
+			value: " 2 ",
+			want:  2 * time.Second,
+		},
 	}
 
 	for _, tt := range tests {
@@ -53,8 +59,25 @@ func TestParseRetryAfter(t *testing.T) {
 	}
 }
 
-func TestMapHTTPError_429WithRetryAfter(t *testing.T) {
-	// Test that MapHTTPError populates RetryAfter from the response header.
-	// This requires an http.Response, which is tested at a higher level.
-	// The parseRetryAfter unit tests above cover the parsing logic.
+func TestParseRetryAfter_HTTPDate(t *testing.T) {
+	// HTTP-date in RFC1123 format (future date should return positive duration).
+	// http.ParseTime expects "GMT" suffix, not "UTC".
+	futureDate := time.Now().Add(5 * time.Second).UTC().Format(http.TimeFormat)
+	got := parseRetryAfter(futureDate)
+	if got <= 0 || got > 6*time.Second {
+		t.Errorf("parseRetryAfter(%q) = %v, want ~5s", futureDate, got)
+	}
+
+	// Past date should return 0.
+	pastDate := time.Now().Add(-5 * time.Second).UTC().Format(http.TimeFormat)
+	got = parseRetryAfter(pastDate)
+	if got != 0 {
+		t.Errorf("parseRetryAfter(past date %q) = %v, want 0", pastDate, got)
+	}
+
+	// Invalid date format.
+	got = parseRetryAfter("Not-A-Date-At-All")
+	if got != 0 {
+		t.Errorf("parseRetryAfter(invalid date) = %v, want 0", got)
+	}
 }

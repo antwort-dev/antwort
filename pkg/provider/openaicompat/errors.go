@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/rhuss/antwort/pkg/api"
@@ -17,46 +18,50 @@ import (
 func MapHTTPError(resp *http.Response) *api.APIError {
 	// Try to read the body for an error message.
 	message := ExtractErrorMessage(resp.Body)
+	status := resp.StatusCode
 
+	var apiErr *api.APIError
 	switch {
-	case resp.StatusCode == http.StatusBadRequest:
+	case status == http.StatusBadRequest:
 		if message == "" {
 			message = "invalid request to backend"
 		}
-		return api.NewInvalidRequestError("", message)
+		apiErr = api.NewInvalidRequestError("", message)
 
-	case resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden:
+	case status == http.StatusUnauthorized || status == http.StatusForbidden:
 		if message == "" {
 			message = "backend authentication failed"
 		}
-		return api.NewServerError(message)
+		apiErr = api.NewServerError(message)
 
-	case resp.StatusCode == http.StatusNotFound:
+	case status == http.StatusNotFound:
 		if message == "" {
 			message = "backend resource not found"
 		}
-		return api.NewNotFoundError(message)
+		apiErr = api.NewNotFoundError(message)
 
-	case resp.StatusCode == http.StatusTooManyRequests:
+	case status == http.StatusTooManyRequests:
 		if message == "" {
 			message = "backend rate limit exceeded"
 		}
-		apiErr := api.NewTooManyRequestsError(message)
-		apiErr.RetryAfter = parseRetryAfter(resp.Header.Get("Retry-After"))
-		return apiErr
+		apiErr = api.NewTooManyRequestsError(message)
+		apiErr.RetryAfter = parseRetryAfter(strings.TrimSpace(resp.Header.Get("Retry-After")))
 
-	case resp.StatusCode >= http.StatusInternalServerError:
+	case status >= http.StatusInternalServerError:
 		if message == "" {
-			message = fmt.Sprintf("backend server error (HTTP %d)", resp.StatusCode)
+			message = fmt.Sprintf("backend server error (HTTP %d)", status)
 		}
-		return api.NewServerError(message)
+		apiErr = api.NewServerError(message)
 
 	default:
 		if message == "" {
-			message = fmt.Sprintf("unexpected backend error (HTTP %d)", resp.StatusCode)
+			message = fmt.Sprintf("unexpected backend error (HTTP %d)", status)
 		}
-		return api.NewServerError(message)
+		apiErr = api.NewServerError(message)
 	}
+
+	apiErr.HTTPStatus = status
+	return apiErr
 }
 
 // MapNetworkError converts a network-level error (connection refused, timeout,
@@ -69,6 +74,7 @@ func MapNetworkError(err error) *api.APIError {
 // Supports both seconds (integer) and HTTP-date formats.
 // Returns 0 if the header is empty or cannot be parsed.
 func parseRetryAfter(value string) time.Duration {
+	value = strings.TrimSpace(value)
 	if value == "" {
 		return 0
 	}
