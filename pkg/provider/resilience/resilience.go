@@ -157,9 +157,11 @@ func (r *ResilientProvider) handleError(ctx context.Context, attempt int, classi
 		observability.ResilienceRetryAttemptsTotal.WithLabelValues(r.inner.Name(), "rate_limited").Inc()
 		// 429 does NOT affect circuit breaker (FR-011), but a 429 proves
 		// the backend is reachable. If half-open, close the circuit.
-		prevState := r.cb.State()
-		r.cb.RecordSuccess()
-		r.recordCircuitTransitionFrom(prevState)
+		if r.cb.State() == StateHalfOpen {
+			prevState := r.cb.State()
+			r.cb.RecordSuccess()
+			r.recordCircuitTransitionFrom(prevState)
+		}
 		// On last attempt, return original 429 error without sleeping.
 		if attempt >= r.policy.MaxAttempts {
 			observability.ResilienceRetryExhaustedTotal.WithLabelValues(r.inner.Name()).Inc()
@@ -207,12 +209,14 @@ func (r *ResilientProvider) handleError(ctx context.Context, attempt int, classi
 		return nil // retry
 
 	default:
-		// NonRetryable: return immediately. However, if the circuit breaker is
-		// half-open, the backend IS reachable (it returned an application error),
-		// so transition back to closed to avoid stranding in half-open.
-		prevState := r.cb.State()
-		r.cb.RecordSuccess()
-		r.recordCircuitTransitionFrom(prevState)
+		// NonRetryable: no circuit breaker impact in normal operation.
+		// However, if half-open, the backend IS reachable (it returned an
+		// application error), so close the circuit to avoid stranding.
+		if r.cb.State() == StateHalfOpen {
+			prevState := r.cb.State()
+			r.cb.RecordSuccess()
+			r.recordCircuitTransitionFrom(prevState)
+		}
 		return originalErr
 	}
 }

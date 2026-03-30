@@ -2,7 +2,6 @@ package resilience
 
 import (
 	"context"
-	"math"
 	"math/rand/v2"
 	"time"
 )
@@ -18,8 +17,17 @@ type RetryPolicy struct {
 // computeBackoff calculates the wait duration for a given attempt (1-indexed).
 // Uses exponential backoff with jitter: min(base * 2^(attempt-1) + jitter, max).
 func computeBackoff(attempt int, base, max time.Duration) time.Duration {
-	exp := math.Pow(2, float64(attempt-1))
-	wait := time.Duration(float64(base) * exp)
+	// Use bit shift for overflow-safe exponential growth.
+	// Clamp shift to 62 to avoid undefined behavior, then cap at max.
+	shift := attempt - 1
+	if shift > 62 {
+		return max
+	}
+	wait := base * time.Duration(int64(1)<<uint(shift))
+	// Detect overflow: if wait is negative or smaller than base, clamp to max.
+	if wait < 0 || (shift > 0 && wait < base) {
+		return max
+	}
 
 	// Add jitter in [0, base).
 	if base > 0 {
